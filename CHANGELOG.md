@@ -1,0 +1,158 @@
+# Changelog
+
+All notable changes to this project will be documented in this file.
+
+## [0.3.25](https://github.com/contextbridge/aether/compare/aether-acp-utils-v0.3.24...aether-acp-utils-v0.3.25) - 2026-06-19
+
+### Other
+
+- updated the following local packages: aether-mcp-utils
+
+## [0.3.24](https://github.com/contextbridge/aether/compare/aether-acp-utils-v0.3.23...aether-acp-utils-v0.3.24) - 2026-06-18
+
+### Other
+
+- updated the following local packages: aether-mcp-utils
+
+## [0.3.23](https://github.com/contextbridge/aether/compare/aether-acp-utils-v0.3.22...aether-acp-utils-v0.3.23) - 2026-06-18
+
+### Added
+
+- *(aether-evals)* Drive dockerized agents under eval via ACP ([#161](https://github.com/contextbridge/aether/pull/161))
+
+### Other
+
+- Move a bunch of errors to using thiserror ([#160](https://github.com/contextbridge/aether/pull/160))
+
+## [0.3.22](https://github.com/contextbridge/aether/compare/aether-acp-utils-v0.3.21...aether-acp-utils-v0.3.22) - 2026-06-13
+
+### Other
+
+- updated the following local packages: aether-mcp-utils
+
+## [0.3.21](https://github.com/contextbridge/aether/compare/aether-acp-utils-v0.3.20...aether-acp-utils-v0.3.21) - 2026-06-13
+
+### Added
+
+- *(aether-cli)* Add /move command to switch workspaces and bring your session + changes with you. ([#150](https://github.com/contextbridge/aether/pull/150))
+- *(aether-cli)* Better session resume menu ([#145](https://github.com/contextbridge/aether/pull/145))
+
+## [0.3.20](https://github.com/contextbridge/aether/compare/aether-acp-utils-v0.3.19...aether-acp-utils-v0.3.20) - 2026-06-10
+
+### Other
+
+- update Cargo.toml dependencies
+
+## [0.3.19](https://github.com/contextbridge/aether/compare/aether-acp-utils-v0.3.18...aether-acp-utils-v0.3.19) - 2026-06-04
+
+### Other
+
+- updated the following local packages: aether-mcp-utils
+
+## [0.3.18](https://github.com/contextbridge/aether/compare/aether-acp-utils-v0.3.17...aether-acp-utils-v0.3.18) - 2026-05-31
+
+### Added
+
+- Add user level settings resolution  ([#99](https://github.com/contextbridge/aether/pull/99))
+
+## [0.3.17](https://github.com/contextbridge/aether/compare/aether-acp-utils-v0.3.16...aether-acp-utils-v0.3.17) - 2026-05-21
+
+### Added
+
+- *(aether-cli)* Prompt history search ([#96](https://github.com/contextbridge/aether/pull/96))
+
+### Fixed
+
+- *(acp)* Spawn parent acp process via tokio to avoid spinning cpu ([#90](https://github.com/contextbridge/aether/pull/90))
+
+## [0.3.16](https://github.com/contextbridge/aether/compare/aether-acp-utils-v0.3.15...aether-acp-utils-v0.3.16) - 2026-05-18
+
+### Other
+
+- Upgrade dependencies to latest ([#83](https://github.com/contextbridge/aether/pull/83))
+
+## [0.3.15](https://github.com/contextbridge/aether/compare/aether-acp-utils-v0.3.14...aether-acp-utils-v0.3.15) - 2026-05-18
+
+### Fixed
+
+- *(wisp)* Allow copying URLs when performing MCP auth  ([#82](https://github.com/contextbridge/aether/pull/82))
+
+## [0.3.14](https://github.com/contextbridge/aether/compare/aether-acp-utils-v0.3.13...aether-acp-utils-v0.3.14) - 2026-05-16
+
+### Other
+
+- updated the following local packages: aether-mcp-utils
+
+## [0.3.13](https://github.com/contextbridge/aether/compare/aether-acp-utils-v0.3.12...aether-acp-utils-v0.3.13) - 2026-05-15
+
+### Other
+
+- updated the following local packages: aether-mcp-utils
+
+## [0.3.12](https://github.com/contextbridge/aether/compare/aether-acp-utils-v0.3.11...aether-acp-utils-v0.3.12) - 2026-05-15
+
+### Fixed
+
+- *(wisp)* Improve perf of /resume session by buffering updates instead of individually rendering each update ([#61](https://github.com/contextbridge/aether/pull/61))
+
+## [0.3.11](https://github.com/contextbridge/aether/compare/aether-acp-utils-v0.3.10...aether-acp-utils-v0.3.11) - 2026-05-14
+
+### Other
+
+- updated the following local packages: aether-mcp-utils
+
+## [0.3.10](https://github.com/contextbridge/aether/compare/aether-acp-utils-v0.3.9...aether-acp-utils-v0.3.10) - 2026-05-14
+
+### Other
+
+- updated the following local packages: aether-mcp-utils
+
+## [0.3.9](https://github.com/contextbridge/aether/compare/aether-acp-utils-v0.3.8...aether-acp-utils-v0.3.9) - 2026-05-13
+
+### Other
+
+- updated the following local packages: aether-mcp-utils
+
+## [0.3.8](https://github.com/contextbridge/aether/compare/aether-acp-utils-v0.3.7...aether-acp-utils-v0.3.8) - 2026-05-13
+
+### Other
+
+- updated the following local packages: aether-mcp-utils
+
+## [0.3.7](https://github.com/contextbridge/aether/compare/aether-acp-utils-v0.3.6...aether-acp-utils-v0.3.7) - 2026-05-12
+
+### Other
+
+- update Cargo.toml dependencies
+
+## [0.3.6](https://github.com/contextbridge/aether/compare/aether-acp-utils-v0.3.5...aether-acp-utils-v0.3.6) - 2026-05-08
+
+### Added
+
+- *(aether-cli)* Render proxied MCP servers in a separate list from non-proxied MCPs in settings menu
+
+## [0.3.5](https://github.com/contextbridge/aether/compare/aether-acp-utils-v0.3.4...aether-acp-utils-v0.3.5) - 2026-05-05
+
+### Other
+
+- port to contextbridge org
+
+## [0.3.4](https://github.com/contextbridge/aether/compare/aether-acp-utils-v0.3.3...aether-acp-utils-v0.3.4) - 2026-05-05
+
+### Fixed
+
+- *(mcp-utils)* Allow re-authing proxied mcps
+
+## [0.3.3](https://github.com/contextbridge/aether/compare/aether-acp-utils-v0.3.2...aether-acp-utils-v0.3.3) - 2026-05-03
+
+### Other
+
+- updated the following local packages: aether-mcp-utils
+
+## [0.3.2](https://github.com/contextbridge/aether/compare/aether-acp-utils-v0.3.1...aether-acp-utils-v0.3.2) - 2026-04-29
+
+### Other
+
+- updated the following local packages: aether-utils, aether-mcp-utils
+
+## [aether-acp-utils-v0.3.1] - 2026-04-27
