@@ -28,11 +28,8 @@ pub struct ArtifactReviewScreen {
 
 impl ArtifactReviewScreen {
     pub fn new(id: ElicitationId, meta: ArtifactReviewElicitationMeta) -> Self {
-        let document = MarkdownDocument::parse_with_metadata(
-            meta.path.as_ref().map(|path| path.display().to_string()),
-            Some(meta.title.clone()),
-            meta.markdown,
-        );
+        let document = MarkdownDocument::parse(meta.markdown)
+            .with_metadata(meta.path.as_ref().map(|path| path.display().to_string()), Some(meta.title.clone()));
         let mut state = MarkdownReviewState::new(Arc::new(document));
         state.set_theme_choices(builtin_review_theme_choices());
         state.set_capabilities(ReviewCapabilities { submit: true, ..ReviewCapabilities::NONE });
