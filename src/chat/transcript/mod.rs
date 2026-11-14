@@ -426,9 +426,12 @@ impl Transcript {
 
     fn empty_state(self) -> impl View {
         let thread = self.thread;
-        let state = memo(move || (thread.status(), thread.error()));
+        let state = memo(move || (thread.status(), thread.error(), thread.is_fresh()));
         dynamic(move || {
-            let (status, error) = state.get();
+            let (status, error, fresh) = state.get();
+            if fresh {
+                return div().into_any();
+            }
             if let Some(problem) = status.problem() {
                 let theme = Theme::current();
                 let detail = error.unwrap_or_else(|| "Reconnect to pick up where it left off".to_owned());
@@ -443,6 +446,7 @@ impl Transcript {
                 .into_any();
             }
             let (title, detail) = match status {
+                ThreadStatus::Idle => return div().into_any(),
                 ThreadStatus::Connecting => ("Connecting…", "Starting the agent for this thread"),
                 ThreadStatus::Dormant => ("Stopped", "This thread's agent is not running"),
                 _ => ("New thread", "Send a prompt to start"),

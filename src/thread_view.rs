@@ -7,11 +7,14 @@ use crate::registry::Registry;
 use crate::sidebar::toggle_button;
 use crate::threads::{Thread, ThreadStatus};
 use crate::ui::tokens::{GROUP_HEIGHT, HEADER_HEIGHT, ICON_SIZE_SMALL, PANEL_INSET, ROW_HEIGHT};
-use crate::ui::{Icon, IconName, Material, MaterialExt, StyledExt, Theme, UiStyles, scroll_edge};
+use crate::ui::{
+    Icon, IconName, Material, MaterialExt, StyledExt, Theme, UiStyles, WispState, kindling, scroll_edge, wisp,
+};
 use agent_client_protocol::v2::schema as acp;
 use clankerdiff_core::RepoPath;
 use rouge::core::{
-    AnyView, Color, Cursor, Div, FileDropEvent, FileDropPhase, Rect, Styled, View, div, dynamic, show, text, view,
+    AnyView, Color, Cursor, Div, FileDropEvent, FileDropPhase, Rect, Styled, TextAlign, View, auto, div, dynamic, px,
+    show, text, view,
 };
 use rouge::reactive::{Callback, Memo, Signal, effect, memo, signal, untrack};
 use std::rc::Rc;
@@ -24,6 +27,8 @@ pub(crate) struct ThreadView {
     changes_seen: Signal<Option<usize>>,
     dropping: Signal<bool>,
     dock: Signal<Rect>,
+    stage: Signal<Rect>,
+    composer_bounds: Signal<Rect>,
     transcript: Transcript,
     status: StatusLine,
     options: SessionOptions,
@@ -62,6 +67,8 @@ impl ThreadView {
             changes_seen,
             dropping: signal(false),
             dock,
+            stage: signal(Rect::ZERO),
+            composer_bounds: signal(Rect::ZERO),
             transcript,
             status: StatusLine::new(thread),
             options: SessionOptions::new(thread),
@@ -198,33 +205,64 @@ impl ThreadView {
                 }
             }
         };
+        let thread = self.thread;
+        let kindle = memo(move || chat.get() && thread.is_fresh());
         view! {
-            <div relative size_full on_file_drop=drop
+            <div relative size_full on_file_drop=drop track_bounds={self.stage}
                  bg={move || if dropping.get() { theme.accent().get().with_alpha(DROP_TINT) } else { Color::TRANSPARENT }}>
                 {content}
                 {self.review_pill()}
+                <show when={move || kindle.get()}>{self.kindling()}</show>
                 <show when={move || chat.get()}>{self.dock()}</show>
             </div>
         }
     }
 
+    /// Docked under the transcript, or on a fresh thread centred beneath a heading asking what to build.
     fn dock(self) -> impl View {
         let thread = self.thread;
         let unreachable = memo(move || unreachable(thread));
+        let fresh = memo(move || thread.is_fresh());
+        let connecting = memo(move || fresh.get() && thread.status() == ThreadStatus::Connecting);
+        let spacer = move || view! { <show when={move || fresh.get()}><div flex_1/></show> };
         view! {
-            <div absolute left=0.0 right=0.0 bottom=0.0 px=16.0 pb=12.0 pass_through track_bounds={self.dock}>
-                {scroll_edge(false, DOCK_EDGE_SOLID, DOCK_EDGE_REACH)}
+            <div absolute left=0.0 right=0.0 bottom=0.0 top={move || if fresh.get() { px(0.0) } else { auto() }}
+                 px=16.0 pb=12.0 flex col pass_through track_bounds={self.dock}>
+                <show when={move || !fresh.get()}>{scroll_edge(false, DOCK_EDGE_SOLID, DOCK_EDGE_REACH)}</show>
+                {spacer()}
                 <div content_width flex col>
+                    <show when={move || fresh.get()}>
+                        <div test_id="new-thread-heading" flex justify_center mb=HEADING_GAP>
+                            <text display align=TextAlign::Center>{NEW_THREAD_HEADING}</text>
+                        </div>
+                    </show>
                     <dynamic>{unreachable.get().and_then(|status| reconnect_banner(thread, status)).map(|banner| banner.mt(8.0))}</dynamic>
                     {self.elicitation.view()}
-                    {self.composer.view()}
-                    <div test_id="composer-bar" h=ROW_HEIGHT mt=4.0 px=8.0 flex items_center gap=16.0>
+                    <div track_bounds={self.composer_bounds}>{self.composer.view()}</div>
+                    <div test_id="composer-bar" h=ROW_HEIGHT px=8.0 flex items_center gap=16.0
+                         mt={move || px(if fresh.get() { RUNE_CLEARANCE } else { 4.0 })}>
                         {self.options.view()}
                         {self.status.view()}
+                        <show when={move || connecting.get()}>{connecting_message()}</show>
                     </div>
                 </div>
+                {spacer()}
             </div>
         }
+    }
+
+    /// Runes that kindle around the composer and set it alight while the thread waits for its first prompt.
+    fn kindling(self) -> impl View {
+        let (stage, composer) = (self.stage, self.composer_bounds);
+        kindling(move || {
+            let (stage, composer) = (stage.get(), composer.get());
+            Rect::new(
+                composer.origin.x - stage.origin.x,
+                composer.origin.y - stage.origin.y + COMPOSER_MARGIN,
+                composer.size.width,
+                (composer.size.height - COMPOSER_MARGIN).max(0.0),
+            )
+        })
     }
 
     fn review_pill(self) -> impl View {
@@ -344,6 +382,17 @@ fn changed_files(thread: Thread) -> Option<usize> {
     thread.changed_files().filter(|&files| files > 0)
 }
 
+/// Shown in the composer bar while a new thread's agent starts, so the layout is already the one it will keep.
+fn connecting_message() -> impl View {
+    let muted = Theme::current().text_muted();
+    view! {
+        <div test_id="new-thread-connecting" flex_none flex items_center gap=8.0>
+            {wisp(ICON_SIZE_SMALL, muted, || WispState::Connecting)}
+            <text body muted>"Connecting…"</text>
+        </div>
+    }
+}
+
 fn unreachable(thread: Thread) -> Option<ThreadStatus> {
     let status = thread.status();
     let has_items = thread.with_core(|core| !core.conversation().items().is_empty()).unwrap_or(false);
@@ -356,3 +405,9 @@ const DOCK_EDGE_SOLID: f32 = 40.0;
 const DOCK_EDGE_REACH: f32 = 40.0;
 const CORNER_DOT_SIZE_OFF_GRID: f32 = 6.0;
 const PILL_HOVER_OPACITY: f32 = 0.85;
+const NEW_THREAD_HEADING: &str = "What do you want to build?";
+/// Room above and below a fresh thread's composer for the runes that kindle around it.
+const HEADING_GAP: f32 = 54.0;
+const RUNE_CLEARANCE: f32 = 48.0;
+/// The composer sits this far below the top of its own bounds; the runes ring its glass, not the margin.
+const COMPOSER_MARGIN: f32 = 8.0;

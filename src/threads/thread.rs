@@ -147,6 +147,16 @@ impl Thread {
         self.state.with(ThreadState::status)
     }
 
+    /// Not yet sent a prompt: connected, or still starting a brand-new session. A resumed session is never
+    /// fresh while it connects, because its history is about to replay.
+    pub fn is_fresh(&self) -> bool {
+        self.state.with(|state| {
+            let empty = state.core.as_ref().is_none_or(|core| core.conversation().items().is_empty());
+            let starting = state.link == Link::Connecting && state.session_id.is_none();
+            empty && (starting || state.status() == ThreadStatus::Idle)
+        })
+    }
+
     pub fn error(&self) -> Option<String> {
         self.state.with(|state| match &state.link {
             Link::Failed(error) => Some(error.clone()),
