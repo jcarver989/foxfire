@@ -89,7 +89,7 @@ pub(crate) fn thinking_block(
     let theme = Theme::current();
     let body = expanded.then(|| {
         view! {
-            <div test_id={format!("thinking-text-{index}")} pl=12.0 border_l=px(2.0) border_color=theme.border_subtle>
+            <div test_id={format!("thinking-text-{index}")} pl=12.0 border_l=px(2.0) border_color=theme.border_subtle()>
                 <text body muted>{thought}</text>
             </div>
         }
@@ -106,20 +106,20 @@ pub(crate) fn thinking_block(
 }
 
 pub(crate) fn notice(text: &str) -> AnyView {
-    line(IconName::Info, Theme::current().text_muted.get_untracked(), text).into_any()
+    line(IconName::Info, Theme::current().text_muted().get_untracked(), text).into_any()
 }
 
 pub(crate) fn error(index: usize, text: &str) -> AnyView {
-    line(IconName::TriangleAlert, Theme::current().destructive.get_untracked(), text)
+    line(IconName::TriangleAlert, Theme::current().destructive().get_untracked(), text)
         .test_id(format!("transcript-error-{index}"))
         .into_any()
 }
 
 pub(crate) fn reconnect_banner(thread: Thread, status: ThreadStatus) -> Option<Div> {
     let problem = status.problem()?;
-    let warning = Theme::current().warning.get_untracked();
+    let warning = Theme::current().warning().get_untracked();
     Some(view! {
-        <div px=12.0 py=8.0 flex items_center gap=8.0 material=Material::Surface bg=Theme::current().elevated>
+        <div px=12.0 py=8.0 flex items_center gap=8.0 material=Material::Surface bg=Theme::current().elevated()>
             {line(IconName::TriangleAlert, warning, problem).flex_1().min_w(0.0)}
             {reconnect_button(thread)}
         </div>

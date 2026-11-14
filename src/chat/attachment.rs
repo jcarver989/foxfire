@@ -33,7 +33,7 @@ pub(crate) fn chip(id: String, preview: impl View, name: &str) -> Div {
     let theme = Theme::current();
     view! {
         <div test_id=id flex items_center gap=4.0 min_w=0.0 px=8.0 py=4.0 rounded=RADIUS_INNER
-             bg=theme.surface_selected>
+             bg=theme.surface_selected()>
             {preview}
             <div min_w=0.0 overflow_hidden><text small secondary no_wrap>{name.to_owned()}</text></div>
         </div>
@@ -41,13 +41,13 @@ pub(crate) fn chip(id: String, preview: impl View, name: &str) -> Div {
 }
 
 pub(crate) fn chip_icon(icon: IconName) -> Icon {
-    Icon::new(icon, Theme::current().text_muted).size(ICON_SIZE_SMALL)
+    Icon::new(icon, Theme::current().text_muted()).size(ICON_SIZE_SMALL)
 }
 
 pub(crate) fn thumbnail(id: String, source: ImageSource, size: f32) -> Div {
     view! {
         <div test_id=id flex_none size=size rounded=RADIUS_INNER overflow_hidden border=px(1.0)
-             border_color=Theme::current().border>
+             border_color=Theme::current().border()>
             {image(source).fit(Fit::Cover).size_full()}
         </div>
     }

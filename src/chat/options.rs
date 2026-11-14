@@ -6,7 +6,7 @@ use crate::ui::{
 };
 use agent_client_protocol::v2::schema as acp;
 use client_core::session_config_view::LocalConfigOption;
-use rouge::core::{AnyView, Color, Cursor, Length, Styled, View, div, dynamic, text, view};
+use rouge::core::{AnyView, Color, Cursor, Styled, View, div, dynamic, px, text, view};
 use rouge::reactive::{memo, signal};
 use rouge::widgets::{Placement, popover};
 
@@ -40,16 +40,16 @@ impl SessionOptions {
         let hovered = signal(false);
         let icon = category_icon(option).map(|icon| {
             let icon_id = format!("{id}-icon-{icon:?}").to_lowercase();
-            view! { <div test_id=icon_id flex>{Icon::new(icon, theme.text_muted).size(ICON_SIZE_SMALL)}</div> }
+            view! { <div test_id=icon_id flex>{Icon::new(icon, theme.text_muted()).size(ICON_SIZE_SMALL)}</div> }
         });
         let trigger = view! {
             <div test_id={id.clone()} h=ROW_HEIGHT flex items_center gap=4.0 px=8.0 rounded=RADIUS_INNER
                  cursor=Cursor::Pointer
                  bg={move || {
                      if open.get() {
-                         theme.surface_selected.get()
+                         theme.surface_selected().get()
                      } else if hovered.get() {
-                         theme.surface_hover.get()
+                         theme.surface_hover().get()
                      } else {
                          Color::TRANSPARENT
                      }
@@ -63,7 +63,7 @@ impl SessionOptions {
                  }}>
                 {icon}
                 <div test_id={format!("{id}-value")}>
-                    <text color={move || if open.get() || hovered.get() { theme.text.get() } else { theme.text_secondary.get() }}>
+                    <text color={move || if open.get() || hovered.get() { theme.text().get() } else { theme.text_secondary().get() }}>
                         {label}
                     </text>
                 </div>
@@ -103,8 +103,8 @@ impl SessionOptions {
                 (select.values.len() > SEARCH_THRESHOLD).then(|| format!("Search {}…", option.name.to_lowercase()));
             view! {
                 <search_picker id=picker handle material={Material::Bare} searchable?=searchable
-                               title={option.name.clone()} width={Length::design(PICKER_WIDTH)}
-                               max_list_height={Length::design(COMPOSER_POPUP_HEIGHT)}/>
+                               title={option.name.clone()} width={px(PICKER_WIDTH)}
+                               max_list_height={px(COMPOSER_POPUP_HEIGHT)}/>
             }
             .into_any()
         };

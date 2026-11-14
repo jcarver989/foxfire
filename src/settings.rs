@@ -1,8 +1,8 @@
 use crate::registry::Registry;
 use crate::theme;
 use crate::ui::{
-    ButtonVariant, ControlSize, Material, MaterialExt, ModalSize, ThemePickerEvent, UiStyles, backdrop, button,
-    modal_width, theme_picker, theme_picker_view,
+    ButtonVariant, ControlSize, Material, MaterialExt, ThemePickerEvent, UiStyles, backdrop, button, theme_picker,
+    theme_picker_view, tokens::MODAL_WIDTH_COMPACT,
 };
 use clankerdiff_ui_core::{Appearance, AppearanceMode, ReviewTheme, ThemeChoice};
 use rouge::core::{AnyView, Div, Styled, View, div, dynamic, pct, text, view};
@@ -17,7 +17,7 @@ pub(crate) fn settings(registry: Registry, on_close: impl Fn() + 'static) -> imp
     };
     view! {
         <backdrop id="settings-backdrop" on_dismiss=close>
-            <div test_id="settings" w={modal_width(ModalSize::Compact)} max_w=pct(100.0) p=16.0 flex col gap=8.0
+            <div test_id="settings" w=MODAL_WIDTH_COMPACT max_w=pct(100.0) p=16.0 flex col gap=8.0
                  overflow_hidden material=Material::Glass>
                 <text heading primary>"Settings"</text>
                 <text small muted>"Esc to close"</text>

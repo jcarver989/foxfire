@@ -18,16 +18,14 @@ use crate::ui::{
 };
 use agent_client_protocol::v2::schema::SessionId;
 use listing::{Listing, RemoteSection, Row, Section, project_name};
-use rouge::core::{
-    AnyView, Div, Styled, View, div, dynamic, each, root_font_size, scroll, show, text, view, window_size,
-};
+use rouge::core::{AnyView, Div, Styled, View, div, dynamic, each, scroll, show, text, view, window_size};
 use rouge::reactive::{Callback, Memo, ReadSignal, Scope, Signal, Stored, effect, memo, signal, stored, untrack};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 use std::sync::Arc;
 
-pub const MIN_MAIN_WIDTH: f32 = 320.0 / 16.0;
+pub const MIN_MAIN_WIDTH: f32 = 320.0;
 
 #[derive(Clone, Copy)]
 pub struct Sidebar {
@@ -130,9 +128,9 @@ impl Sidebar {
         effect(move || {
             width.set_if_changed(stored_width.get().unwrap_or(DEFAULT_SIDEBAR_WIDTH));
         });
-        let (window, unit) = (window_size(), root_font_size());
+        let window = window_size();
         let on_resize = move |requested: f32| {
-            let available = window.get_untracked().width / unit.get_untracked().max(1.0);
+            let available = window.get_untracked().width;
             let widest = (available - MIN_MAIN_WIDTH).clamp(MIN_SIDEBAR_WIDTH, MAX_SIDEBAR_WIDTH);
             let chosen = requested.min(widest);
             width.set_if_changed(chosen);
@@ -141,7 +139,7 @@ impl Sidebar {
         let on_reset = move || self.registry.update(|state| state.sidebar_width = None);
         view! {
             <resizable_panel test_id="sidebar" edge=Side::Left size=width min_size=MIN_SIDEBAR_WIDTH
-                             max_size=MAX_SIDEBAR_WIDTH on_resize=on_resize on_reset=on_reset h_full flex col bg=theme.chrome>
+                             max_size=MAX_SIDEBAR_WIDTH on_resize=on_resize on_reset=on_reset h_full flex col bg=theme.chrome()>
                 <div top_bar pr=8.0 gap=4.0>
                     <div flex_1/>
                     <icon_button id="search-threads" icon=IconName::Search label="Search threads"
@@ -371,7 +369,7 @@ impl Sidebar {
                 let root = root.clone();
                 view! {
                     <tree_row id={format!("{id}-show-more")} label={format!("Show {hidden} more")} depth=1
-                              leading={icon_slot().into_any()} label_color=Theme::current().text_muted
+                              leading={icon_slot().into_any()} label_color=Theme::current().text_muted()
                               on_click={move || self.show_more(root.clone())}/>
                 }
             })
@@ -486,7 +484,7 @@ impl Sidebar {
 
     fn group_header(self, header: Header) -> Div {
         let Header { id, label, icon: (icon_id, icon), group, collapsed, actions, new_thread } = header;
-        let muted = Theme::current().text_muted;
+        let muted = Theme::current().text_muted();
         let hovered = signal(false);
         let (actions_label, items) = actions;
         let actions_id = format!("{id}-actions");
@@ -570,9 +568,9 @@ struct Header {
     new_thread: AnyView,
 }
 
-const DEFAULT_SIDEBAR_WIDTH: f32 = 272.0 / 16.0;
-const MIN_SIDEBAR_WIDTH: f32 = 200.0 / 16.0;
-const MAX_SIDEBAR_WIDTH: f32 = 480.0 / 16.0;
+const DEFAULT_SIDEBAR_WIDTH: f32 = 272.0;
+const MIN_SIDEBAR_WIDTH: f32 = 200.0;
+const MAX_SIDEBAR_WIDTH: f32 = 480.0;
 
 const MORE_SAVED_ROWS: usize = 20;
 

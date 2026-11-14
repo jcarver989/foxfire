@@ -7,7 +7,7 @@ use rouge::core::Point;
 #[test]
 fn widening_the_sidebar_leaves_room_for_the_thread() {
     let mut harness = DesktopHarnessBuilder::default().window_size(640.0, 480.0).build();
-    let min_main = MIN_MAIN_WIDTH * harness.rem_size();
+    let min_main = MIN_MAIN_WIDTH;
 
     harness.drag("panel-resize-handle", Point::new(600.0, 240.0)).unwrap();
 

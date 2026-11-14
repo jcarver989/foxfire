@@ -24,7 +24,7 @@ use groups::{Group, GroupKind, groups};
 use message::{error, full_diff, image_preview, message_actions, notice, prompt, reconnect_button, thinking_block};
 use rouge::core::{
     Align, AnyView, Cursor, FocusHandle, Rect, RowKey, Styled, TextAlign, View, VirtualListHandle, WindowHandle, div,
-    dynamic, focus_handle, px, root_font_size, show, text, view, virtual_list, virtual_list_handle, window_handle,
+    dynamic, focus_handle, px, show, text, view, virtual_list, virtual_list_handle, window_handle,
 };
 use rouge::reactive::{Callback, Memo, Scope, Signal, Stored, effect, memo, signal, stored, untrack};
 use std::borrow::Cow;
@@ -170,7 +170,7 @@ impl Transcript {
             let id = summary.with(|summary| summary.items.get(index).map_or(RowId::Spacer, |(id, _)| RowId::Item(*id)));
             RowKey::new(id, structure.get())
         })
-        .measure_rows(|| u64::from(root_font_size().get().to_bits()))
+        .measure_rows(|| 0)
         .handle(list)
         .follow_end(self.following)
         .size_full();
@@ -186,7 +186,7 @@ impl Transcript {
                      following.set(true);
                      list.scroll_to_row(summary.with_untracked(|summary| summary.items.len()), Align::Bottom);
                  }}>
-                {Icon::new(IconName::ArrowDown, theme.text_secondary)}
+                {Icon::new(IconName::ArrowDown, theme.text_secondary())}
             </div>
             }
             .tooltip("Jump to latest")
@@ -432,7 +432,7 @@ impl Transcript {
             if let Some(problem) = status.problem() {
                 let theme = Theme::current();
                 let detail = error.unwrap_or_else(|| "Reconnect to pick up where it left off".to_owned());
-                let color = if status == ThreadStatus::Errored { theme.destructive } else { theme.warning };
+                let color = if status == ThreadStatus::Errored { theme.destructive() } else { theme.warning() };
                 return view! {
                     <div size_full p=24.0 flex col items_center justify_center gap=12.0>
                         <text heading color=color align=TextAlign::Center>{problem}</text>

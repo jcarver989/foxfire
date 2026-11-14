@@ -4,7 +4,7 @@ use client_core::session_core::QueuedPrompt;
 use rouge::core::{AnyView, Div, Styled, View, div, text, view};
 
 pub(crate) fn queued_prompts(prompts: &[QueuedPrompt]) -> Div {
-    let muted = Theme::current().text_muted;
+    let muted = Theme::current().text_muted();
     let shown = if prompts.len() > MAX_QUEUED_ROWS + 1 { MAX_QUEUED_ROWS } else { prompts.len() };
     let rows: Vec<AnyView> = prompts[..shown]
         .iter()

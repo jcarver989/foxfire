@@ -1,5 +1,5 @@
 use rouge::core::{
-    Color, Div, Ease, Effect, Inputs, IntoProp, PaintRegion, Prop, Styled, Tween, div, switch, window_focused,
+    Color, Div, Ease, Inputs, IntoProp, PaintRegion, Prop, ShaderEffect, Styled, Tween, div, switch, window_focused,
 };
 use rouge::reactive::{Signal, expect_context, memo, provide_context, signal, stored, use_context};
 
@@ -97,13 +97,13 @@ struct Still {
     expanded: bool,
 }
 
-impl Effect for Flow {
+impl ShaderEffect for Flow {
     const WGSL: &'static str = include_str!("wisp.wgsl");
     const INPUTS: Inputs = Inputs::CONTENT;
     const CLOCK: Option<usize> = Some(0);
 
-    fn uniforms(&self) -> Vec<f32> {
-        uniforms(self.state, self.expanded)
+    fn uniforms(&self, values: &mut [f32; 16]) {
+        uniforms(values, self.state, self.expanded);
     }
 
     fn margin(&self) -> f32 {
@@ -111,12 +111,12 @@ impl Effect for Flow {
     }
 }
 
-impl Effect for Still {
+impl ShaderEffect for Still {
     const WGSL: &'static str = include_str!("wisp.wgsl");
     const INPUTS: Inputs = Inputs::CONTENT;
 
-    fn uniforms(&self) -> Vec<f32> {
-        uniforms(self.state, self.expanded)
+    fn uniforms(&self, values: &mut [f32; 16]) {
+        uniforms(values, self.state, self.expanded);
     }
 
     fn margin(&self) -> f32 {
@@ -124,9 +124,9 @@ impl Effect for Still {
     }
 }
 
-fn uniforms(state: WispState, expanded: bool) -> Vec<f32> {
+fn uniforms(values: &mut [f32; 16], state: WispState, expanded: bool) {
     let on = |target| if state == target { 1.0 } else { 0.0 };
-    vec![
+    values[..8].copy_from_slice(&[
         0.0,
         on(WispState::Thinking),
         on(WispState::Working),
@@ -135,7 +135,7 @@ fn uniforms(state: WispState, expanded: bool) -> Vec<f32> {
         on(WispState::Compacting),
         on(WispState::Waiting),
         if expanded { 1.0 } else { 0.0 },
-    ]
+    ]);
 }
 
 const EXPANDED_SIZE: f32 = 32.0;

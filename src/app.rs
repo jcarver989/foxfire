@@ -23,8 +23,8 @@ use clankerdiff_core::RepoPath;
 use clankerdiff_remote::Remotes;
 use clankerdiff_rouge::ReviewHandle;
 use rouge::core::{
-    AnyView, Chord, Div, Length, Styled, View, WindowHandle, div, dynamic, view, window_focused, window_handle,
-    window_size,
+    AnyView, Chord, Div, Styled, View, WindowHandle, div, dynamic, px, view, window_focused, window_handle,
+    window_size, zoom,
 };
 use rouge::reactive::{Scope, Signal, Stored, effect, memo, signal, spawn, stored, untrack};
 use std::cell::Cell;
@@ -170,7 +170,7 @@ impl DesktopApp {
         let collapsed = memo(move || self.registry.with(|state| state.sidebar_collapsed));
         let selected = memo(move || self.threads.selected());
         let root = view! {
-            <div test_id="desktop" relative size_full flex bg=theme.canvas text_color=theme.text font=UI_FONT body>
+            <div test_id="desktop" relative size_full flex bg=theme.canvas() text_color=theme.text() font=UI_FONT body>
                 <dynamic>{(!collapsed.get()).then(|| self.sidebar.view())}</dynamic>
                 <div test_id="main" flex_1 min_w=0.0 h_full>
                     <dynamic>{match selected.get() {
@@ -225,12 +225,13 @@ impl DesktopApp {
             });
         });
         self.history.refresh();
-        let size = window_size();
+        let (size, zoom) = (window_size(), zoom());
         effect(move || {
-            let size = size.get();
+            let (size, zoom) = (size.get(), zoom.get());
             untrack(|| {
-                self.registry
-                    .update(|state| state.window_size = Some(WindowSize { width: size.width, height: size.height }));
+                self.registry.update(|state| {
+                    state.window_size = Some(WindowSize { width: size.width * zoom, height: size.height * zoom });
+                });
             });
         });
         let live = memo(move || threads.threads());
@@ -430,8 +431,8 @@ impl DesktopApp {
                 view! {
                     <backdrop id="switcher-backdrop" align_top on_dismiss={move || self.close_modal()}>
                         <search_picker id="switcher" handle material={Material::Glass} searchable="Search threads…"
-                                       empty="No matching threads" footer=FOOTER width={Length::design(MODAL_WIDTH)}
-                                       height={Length::design(PICKER_LIST_HEIGHT)}/>
+                                       empty="No matching threads" footer=FOOTER width={px(MODAL_WIDTH)}
+                                       height={px(PICKER_LIST_HEIGHT)}/>
                     </backdrop>
                 }
                 .into_any()

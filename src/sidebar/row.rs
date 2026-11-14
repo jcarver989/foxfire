@@ -56,7 +56,7 @@ pub(super) fn row(sidebar: &Sidebar, row: &Row) -> AnyView {
         });
     let title = if editing { rename_editor(&sidebar) } else { title(&selector, row) };
     let unread = row.unread.then(|| {
-        let dot = view! { <div size=UNREAD_DOT_SIZE rounded={UNREAD_DOT_SIZE / 2.0} bg=theme.accent/> };
+        let dot = view! { <div size=UNREAD_DOT_SIZE rounded={UNREAD_DOT_SIZE / 2.0} bg=theme.accent()/> };
         hint(format!("{selector}-unread"), "Unread response", dot)
     });
     let title = view! { <div min_w=0.0 flex items_center gap=4.0>{title}{unread}</div> };
@@ -70,7 +70,7 @@ pub(super) fn row(sidebar: &Sidebar, row: &Row) -> AnyView {
             (title.flex_1(), trailing(&selector, age.clone(), hover_actions, row.selected, hovered).child(reconnect))
         }
         RowKind::Cloud { subtitle, expiring, .. } => {
-            let color = if *expiring { theme.warning } else { theme.text_muted };
+            let color = if *expiring { theme.warning() } else { theme.text_muted() };
             let body = view! {
                 <div flex_1 min_w=0.0 py=4.0 flex col>
                     {title}
@@ -187,7 +187,7 @@ fn open_row(row: &Row, sidebar: &Sidebar) {
 fn title(selector: &str, row: &Row) -> AnyView {
     let muted = matches!(row.icon, RowIcon::Status(ThreadStatus::Dormant) | RowIcon::Instance(_));
     let theme = Theme::current();
-    let color = if muted { theme.text_muted } else { theme.text };
+    let color = if muted { theme.text_muted() } else { theme.text() };
     view! {
         <div test_id={format!("{selector}-title")} min_w=0.0 overflow_hidden>
             <text body no_wrap color=color>{row.title.clone()}</text>
@@ -219,7 +219,7 @@ fn trailing(selector: &str, age: Option<String>, actions: Vec<AnyView>, selected
             </div>
         }
     });
-    let background = if selected { theme.surface_selected } else { theme.surface_hover };
+    let background = if selected { theme.surface_selected() } else { theme.surface_hover() };
     view! {
         <div flex_none relative flex items_center justify_end>
             {age}
@@ -234,32 +234,32 @@ fn trailing(selector: &str, age: Option<String>, actions: Vec<AnyView>, selected
 fn status_icon(row: &str, status: ThreadStatus) -> AnyView {
     let theme = Theme::current();
     let (name, label, shape, icon, color) = match status {
-        ThreadStatus::Connecting => ("connecting", "Starting agent", "wisp", None, theme.text_muted),
-        ThreadStatus::Running => ("running", "Agent working", "wisp", None, theme.info),
+        ThreadStatus::Connecting => ("connecting", "Starting agent", "wisp", None, theme.text_muted()),
+        ThreadStatus::Running => ("running", "Agent working", "wisp", None, theme.info()),
         ThreadStatus::Background => {
-            ("background", "Background task still running", "dot", Some(IconName::CircleDot), theme.text_muted)
+            ("background", "Background task still running", "dot", Some(IconName::CircleDot), theme.text_muted())
         }
         ThreadStatus::NeedsInput => {
-            ("needs-input", "Waiting for your answer", "speech-bubble", Some(IconName::MessageCircle), theme.warning)
+            ("needs-input", "Waiting for your answer", "speech-bubble", Some(IconName::MessageCircle), theme.warning())
         }
         ThreadStatus::Errored => (
             "errored",
             "Unable to connect — reconnect to try again",
             "warning-triangle",
             Some(IconName::TriangleAlert),
-            theme.destructive,
+            theme.destructive(),
         ),
         ThreadStatus::Disconnected => (
             "disconnected",
             "Disconnected — reconnect to continue",
             "warning-triangle",
             Some(IconName::TriangleAlert),
-            theme.destructive,
+            theme.destructive(),
         ),
         ThreadStatus::Idle | ThreadStatus::Dormant => {
             return tagged(
                 format!("{row}-conversation-icon"),
-                Icon::new(IconName::MessageSquareText, theme.text_muted),
+                Icon::new(IconName::MessageSquareText, theme.text_muted()),
             );
         }
     };
@@ -273,7 +273,7 @@ fn status_icon(row: &str, status: ThreadStatus) -> AnyView {
 }
 
 fn instance_icon(row: &str, state: Option<InstanceState>) -> AnyView {
-    let muted = Theme::current().text_muted;
+    let muted = Theme::current().text_muted();
     let (name, label, icon) = match state {
         Some(InstanceState::Suspended) => ("suspended", "Suspended", Some(IconName::Pause)),
         Some(InstanceState::Running) | None => ("unattached", "Running, with no thread on it", Some(IconName::Unplug)),

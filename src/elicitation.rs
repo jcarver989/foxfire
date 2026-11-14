@@ -86,7 +86,7 @@ impl ElicitationCard {
             }
         };
         view! {
-            <div test_id="elicitation" mt=8.0 p=16.0 flex col gap=16.0 material=Material::Glass border=px(1.0) border_color=theme.accent>
+            <div test_id="elicitation" mt=8.0 p=16.0 flex col gap=16.0 material=Material::Glass border=px(1.0) border_color=theme.accent()>
                 <text title primary>{elicitation.question()}</text>
                 {body}
                 <div flex justify_end gap=8.0>
@@ -125,7 +125,7 @@ impl ElicitationCard {
         let error = refused.filter(|refused| refused.index == index).map(|refused| {
             view! {
                 <div test_id={format!("elicitation-error-{name}")}>
-                    <text small color=theme.destructive>{refused.to_string()}</text>
+                    <text small color=theme.destructive()>{refused.to_string()}</text>
                 </div>
             }
         });

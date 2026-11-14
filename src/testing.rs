@@ -6,6 +6,7 @@ use crate::registry::{self, Registry, STATE_FILE};
 use crate::remotes::{Acp, Fleet, InstanceState, RemoteSpec};
 use crate::target::{ConnectError, Transport, TransportFuture, client_info};
 use crate::threads::{Thread, ThreadManager, ThreadStatus};
+use crate::ui::tokens::BASE_SIZE;
 use crate::{ActiveReviewTheme, DesktopApp, DesktopConfig, cli::DEFAULT_AGENT_COMMAND, window_size};
 use acp_utils::testing::{Channel, FakeAgent, FakeAgentRequests, QueuedTurns};
 use aether_sessions::SessionStore;
@@ -17,7 +18,7 @@ use clankerdiff_ui_core::ReviewTheme;
 use client_core::connection::Connection;
 use client_core::testing::{FakeGit, git_diff_agent};
 use rouge::core::testing::{TestError, TestUi};
-use rouge::core::{Clipboard, ClipboardMedia, Point, Rect, Size, root_font_size, window_focused};
+use rouge::core::{Clipboard, ClipboardMedia, PasteRequest, Point, Rect, Size, window_focused, zoom};
 use rouge::reactive::{Entered, ReadSignal, Runtime as Reactive, Signal, set_tokio};
 use rouge_widgets::testing::component_test;
 use std::cell::RefCell;
@@ -62,7 +63,7 @@ pub struct DesktopHarness {
     ui: TestUi,
     app: DesktopApp,
     focused: ReadSignal<bool>,
-    root_font_size: Signal<f32>,
+    zoom: Signal<f32>,
     theme: ActiveReviewTheme,
     platform: FakePlatform,
     connector: FakeConnector,
@@ -218,18 +219,17 @@ impl DesktopHarnessBuilder {
             platform: Rc::new(platform.clone()),
         };
         let handle = runtime.handle().clone();
-        let (mut ui, (app, focused, root_font_size, theme)) =
-            component_test().size(width, height).build_with(move || {
-                set_tokio(handle);
-                let app = DesktopApp::new(config);
-                (app.view(), (app, window_focused(), root_font_size(), ActiveReviewTheme::current()))
-            });
+        let (mut ui, (app, focused, zoom, theme)) = component_test().size(width, height).build_with(move || {
+            set_tokio(handle);
+            let app = DesktopApp::new(config);
+            (app.view(), (app, window_focused(), zoom(), ActiveReviewTheme::current()))
+        });
         ui.set_clipboard(platform.clone());
         let mut harness = DesktopHarness {
             ui,
             app,
             focused,
-            root_font_size,
+            zoom,
             theme,
             platform,
             connector: self.connector,
@@ -374,16 +374,20 @@ impl FakePlatform {
 }
 
 impl Clipboard for FakePlatform {
-    fn read(&mut self) -> Option<String> {
-        self.copied_text()
+    fn read(&mut self, request: PasteRequest) {
+        let (text, media) = {
+            let state = self.state.borrow();
+            (state.clipboard_text.clone(), state.clipboard_media.clone())
+        };
+        match (media.filter(|_| request.wants_media()), text) {
+            (Some(media), _) => request.media(media),
+            (None, Some(text)) => request.text(text),
+            (None, None) => {}
+        }
     }
 
     fn write(&mut self, text: &str) {
         self.copy_text(text);
-    }
-
-    fn read_media(&mut self) -> Option<ClipboardMedia> {
-        self.state.borrow().clipboard_media.clone()
     }
 }
 
@@ -580,9 +584,10 @@ impl DesktopHarness {
         self.advance();
     }
 
-    pub fn rem_size(&mut self) -> f32 {
+    /// The interface size the window is zoomed to, in the px the UI is designed at.
+    pub fn interface_size(&mut self) -> f32 {
         self.advance();
-        self.root_font_size.get_untracked()
+        self.zoom.get_untracked() * BASE_SIZE
     }
 
     pub fn advance(&mut self) {

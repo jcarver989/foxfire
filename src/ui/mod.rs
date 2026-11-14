@@ -3,7 +3,9 @@ mod glass;
 pub mod tokens;
 mod wisp;
 
-pub(crate) use components::{StyledExt, dispatch, hint, icon_slot, picker_closed, text_field, with_middots};
+pub(crate) use components::{
+    StyledExt, dispatch, hint, icon_slot, picker_closed, scroll_edge, text_field, with_middots,
+};
 pub(crate) use glass::LiquidGlassExt;
 pub use wisp::{WispMotion, WispState, wisp};
 

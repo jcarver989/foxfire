@@ -4,6 +4,7 @@ use aether_desktop::registry::{STATE_FILE, load};
 use aether_desktop::testing::{DesktopHarness, DesktopHarnessBuilder};
 use aether_desktop::threads::ThreadStatus;
 use aether_desktop::ui::DEFAULT_INTERFACE_SIZE;
+use aether_desktop::ui::tokens::BASE_SIZE;
 use agent_client_protocol::v2::schema::SessionId;
 use rouge::core::Point;
 use std::path::{Path, PathBuf};
@@ -40,11 +41,16 @@ fn the_next_launch_restores_what_the_user_changed() {
     assert!(relaunched.bounds("history-row-hidden").is_none(), "a collapsed project stays collapsed");
     assert!(relaunched.bounds("history-row-gone").is_none(), "archived rows stay archived");
     assert!(relaunched.shows("history-row-renamed-title", "Renamed"));
-    assert_eq!(relaunched.rem_size(), DEFAULT_INTERFACE_SIZE + 2.0);
+    assert_eq!(relaunched.interface_size(), DEFAULT_INTERFACE_SIZE + 2.0);
     let sidebar = relaunched.bounds("sidebar").expect("the sidebar is painted");
     let main = relaunched.bounds("main").expect("the main region is painted");
     assert!((sidebar.size.width - 400.0).abs() < 0.5, "the sidebar keeps its width: {sidebar:?}");
-    assert_eq!((sidebar.size.width + main.size.width, main.size.height), (900.0, 700.0));
+    let zoom = relaunched.interface_size() / BASE_SIZE;
+    let (width, height) = (sidebar.size.width + main.size.width, main.size.height);
+    assert!(
+        (width * zoom - 900.0).abs() < 0.5 && (height * zoom - 700.0).abs() < 0.5,
+        "the window keeps its size: {width}x{height} at {zoom}x"
+    );
 }
 
 #[test]

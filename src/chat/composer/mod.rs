@@ -24,8 +24,8 @@ use completion::{CompletionItem, CompletionMenu, active_token};
 use pasted::PastedImages;
 use queued::queued_prompts;
 use rouge::core::{
-    AnyView, ClipboardMedia, Cursor, FocusHandle, Key, KeyEvent, Length, Modifiers, Styled, View, div, dynamic,
-    editable, focus_handle, view,
+    AnyView, ClipboardMedia, Cursor, FocusHandle, Key, KeyEvent, Modifiers, Styled, View, div, dynamic, editable,
+    focus_handle, px, view,
 };
 use rouge::reactive::{Callback, Scope, Signal, Stored, batch, effect, memo, signal, stored, untrack};
 use std::ops::Range;
@@ -140,7 +140,7 @@ impl Composer {
         let theme = Theme::current();
         let editor = view! {
             <div w_full flex col gap=4.0 liquid_glass
-                 border_color={move || if self.focus.is_focused() { theme.border.get() } else { theme.border_subtle.get() }}>
+                 border_color={move || if self.focus.is_focused() { theme.border().get() } else { theme.border_subtle().get() }}>
                 <dynamic>{self.attachments()}</dynamic>
                 {self.input()}
                 {self.actions()}
@@ -170,8 +170,8 @@ impl Composer {
             .font(UI_FONT)
             .text_size(READING.size)
             .line_height(READING.line_height)
-            .color(theme.text)
-            .placeholder(PLACEHOLDER, theme.text_muted)
+            .color(theme.text())
+            .placeholder(PLACEHOLDER, theme.text_muted())
             .w_full()
             .on_key_down(move |event| {
                 if self.intercept(event) {
@@ -243,7 +243,7 @@ impl Composer {
             view! {
                 <search_picker id="prompt-search" handle material={Material::Glass}
                                searchable="Search past prompts…" empty="No matching prompts"
-                               max_list_height={Length::design(COMPOSER_POPUP_HEIGHT)} status/>
+                               max_list_height={px(COMPOSER_POPUP_HEIGHT)} status/>
             }
             .into_any(),
         )
@@ -544,7 +544,7 @@ fn running(status: ThreadStatus) -> bool {
 fn round_button(id: &'static str, icon: IconName, label: &'static str, filled: bool, on_click: Callback) -> AnyView {
     let theme = Theme::current();
     let (background, foreground) =
-        if filled { (theme.text, theme.canvas) } else { (theme.surface_hover, theme.text_muted) };
+        if filled { (theme.text(), theme.canvas()) } else { (theme.surface_hover(), theme.text_muted()) };
     let hovered = signal(false);
     view! {
         <div test_id=id flex_none size=ROW_HEIGHT flex items_center justify_center rounded={ROW_HEIGHT / 2.0}

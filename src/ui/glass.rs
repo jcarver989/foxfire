@@ -14,7 +14,7 @@ impl LiquidGlassExt for Div {
         let theme = Theme::current();
         let pointer = signal(None::<Point>);
         self.border(px(1.0))
-            .border_color(theme.border_subtle)
+            .border_color(theme.border_subtle())
             .rounded(RADIUS_FLOATING)
             .on_pointer_move(move |event| {
                 pointer.set_if_changed(Some(event.local()));
@@ -25,7 +25,7 @@ impl LiquidGlassExt for Div {
                 }
             })
             .backdrop(move || {
-                let glass = LIQUID_GLASS.tint(theme.elevated.get().with_alpha(TINT));
+                let glass = LIQUID_GLASS.tint(theme.elevated().get().with_alpha(TINT));
                 match pointer.get() {
                     Some(at) => glass.light(at, GLINT_STRENGTH, GLINT_REACH),
                     None => glass,

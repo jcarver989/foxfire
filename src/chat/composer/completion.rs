@@ -5,7 +5,7 @@ use client_core::composer::attachment::PromptAttachment;
 use client_core::composer::completion_token::{CompletionToken, Trigger};
 use client_core::composer::file_listing::RepoFiles;
 use client_core::session_core::CommandEntry;
-use rouge::core::{Div, Length, Styled, div, view};
+use rouge::core::{Div, Styled, div, px, view};
 use rouge::reactive::Callback;
 use std::ops::Range;
 
@@ -85,7 +85,7 @@ impl CompletionMenu {
         view! {
             <div test_id="completion-menu" material=Material::Glass p=4.0>
                 <picker_list id="completion" items highlighted empty
-                             max_height={Length::design(COMPOSER_POPUP_HEIGHT)} on_choose/>
+                             max_height={px(COMPOSER_POPUP_HEIGHT)} on_choose/>
             </div>
         }
     }

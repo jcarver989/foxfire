@@ -152,7 +152,7 @@ impl ThreadView {
         let chat = segment(&self, "tab-chat", IconName::MessageSquareText, "Chat", ThreadTab::Chat).child(dynamic(
             move || {
                 working.get().map(|id| {
-                    let color = if id == "chat-waiting" { theme.warning } else { theme.info };
+                    let color = if id == "chat-waiting" { theme.warning() } else { theme.info() };
                     corner_dot(id, color.get())
                 })
             },
@@ -163,7 +163,7 @@ impl ThreadView {
                     view! { <div test_id="changes-count"><text muted>{files.to_string()}</text></div> }
                 })
             }))
-            .child(dynamic(move || unseen.get().then(|| corner_dot("changes-unseen", theme.accent.get()))));
+            .child(dynamic(move || unseen.get().then(|| corner_dot("changes-unseen", theme.accent().get()))));
         view! {
             <div test_id="view-switch" flex_none h=GROUP_HEIGHT p=4.0 flex items_center gap=4.0
                  rounded={GROUP_HEIGHT / 2.0} material=Material::GlassControl small>
@@ -200,7 +200,7 @@ impl ThreadView {
         };
         view! {
             <div relative size_full on_file_drop=drop
-                 bg={move || if dropping.get() { theme.accent.get().with_alpha(DROP_TINT) } else { Color::TRANSPARENT }}>
+                 bg={move || if dropping.get() { theme.accent().get().with_alpha(DROP_TINT) } else { Color::TRANSPARENT }}>
                 {content}
                 {self.review_pill()}
                 <show when={move || chat.get()}>{self.dock()}</show>
@@ -285,12 +285,12 @@ fn segment(view: &ThreadView, id: &'static str, icon: IconName, label: &'static 
     let selected = memo(move || tab.get() == value);
     let hovered = signal(false);
     let foreground = move || {
-        if selected.get() || hovered.get() { theme.text.get() } else { theme.text_secondary.get() }
+        if selected.get() || hovered.get() { theme.text().get() } else { theme.text_secondary().get() }
     };
     view! {
         <div test_id=id relative h_full px=12.0 flex items_center gap=4.0 rounded={ROW_HEIGHT / 2.0}
              cursor=Cursor::Pointer text_color=foreground
-             bg={move || if selected.get() { theme.text.get().with_alpha(SELECTED_TINT) } else { Color::TRANSPARENT }}
+             bg={move || if selected.get() { theme.text().get().with_alpha(SELECTED_TINT) } else { Color::TRANSPARENT }}
              on_hover={move |inside| {
                  hovered.set_if_changed(inside);
              }}
@@ -298,7 +298,7 @@ fn segment(view: &ThreadView, id: &'static str, icon: IconName, label: &'static 
                  event.stop_propagation();
                  view.show(value);
              }}>
-            <div test_id={format!("{id}-icon")} flex>{Icon::new(icon, theme.text_muted).size(ICON_SIZE_SMALL)}</div>
+            <div test_id={format!("{id}-icon")} flex>{Icon::new(icon, theme.text_muted()).size(ICON_SIZE_SMALL)}</div>
             <text>{label}</text>
         </div>
     }
@@ -322,9 +322,9 @@ fn pill_button(id: &'static str, label: &'static str, primary: bool, on_click: C
     view! {
         <div test_id=id h_full px=12.0 flex items_center rounded={ROW_HEIGHT / 2.0} cursor=Cursor::Pointer
              bg={move || match (primary, hovered.get()) {
-                 (true, false) => theme.accent.get(),
-                 (true, true) => theme.accent.get().with_alpha(PILL_HOVER_OPACITY),
-                 (false, true) => theme.text.get().with_alpha(SELECTED_TINT),
+                 (true, false) => theme.accent().get(),
+                 (true, true) => theme.accent().get().with_alpha(PILL_HOVER_OPACITY),
+                 (false, true) => theme.text().get().with_alpha(SELECTED_TINT),
                  (false, false) => Color::TRANSPARENT,
              }}
              on_hover={move |inside| {
@@ -334,7 +334,7 @@ fn pill_button(id: &'static str, label: &'static str, primary: bool, on_click: C
                  event.stop_propagation();
                  on_click.call();
              }}>
-            <text no_wrap color={move || if primary { theme.accent_foreground.get() } else { theme.text.get() }}>{label}</text>
+            <text no_wrap color={move || if primary { theme.accent_foreground().get() } else { theme.text().get() }}>{label}</text>
         </div>
     }
     .into_any()

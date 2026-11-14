@@ -82,7 +82,7 @@ impl ArtifactReview {
     fn reviewer(self, id: ElicitationId, meta: ArtifactReviewElicitationMeta) -> Reviewer {
         let ArtifactReviewElicitationMeta { path, title, markdown, .. } = meta;
         let document =
-            MarkdownDocument::parse_with_metadata(path.map(|path| path.display().to_string()), Some(title), markdown);
+            MarkdownDocument::parse(markdown).with_metadata(path.map(|path| path.display().to_string()), Some(title));
         let theme = ActiveReviewTheme::current().review();
         let scope = self.scope.child();
         let handle = scope.run(|| {

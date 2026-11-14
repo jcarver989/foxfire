@@ -16,7 +16,8 @@ use clankerdiff_rouge::style::stat_badges;
 use clankerdiff_ui_core::ReviewTheme;
 use rouge::core::{AnyView, Cursor, Div, FocusHandle, SpanStyle, Styled, View, div, px, rich_text, text, view};
 use rouge::reactive::{Callback, ReadSignal};
-use rouge::syntax::{LanguageHint, SyntaxCell};
+use rouge::syntax::{LanguageHint, SourceSyntax, analyze};
+use std::cell::OnceCell;
 use std::collections::HashMap;
 use std::ops::Range;
 use std::rc::Rc;
@@ -33,7 +34,7 @@ pub(crate) struct ToolPreviews(HashMap<ConversationItemId, Rc<ToolPreview>>);
 
 pub(crate) struct ToolPreview {
     revision: Revision,
-    command: SyntaxCell,
+    command: OnceCell<SourceSyntax>,
     patches: Vec<Option<PatchPreview>>,
 }
 
@@ -69,7 +70,7 @@ impl ToolPreview {
                     .map(|patch| PatchPreview::parse(&patch.text))
             })
             .collect();
-        Self { revision, command: SyntaxCell::default(), patches }
+        Self { revision, command: OnceCell::new(), patches }
     }
 
     fn patch(&self, position: usize) -> Option<&PatchPreview> {
@@ -110,15 +111,15 @@ pub(crate) fn fold_header(
     };
     let label = std::iter::once(done).chain(work.details()).collect::<Vec<_>>().join(" · ");
     let chevron = if expanded { IconName::ChevronDown } else { IconName::ChevronRight };
-    let hairline = || view! { <div flex_1 h=px(1.0) bg=theme.border_subtle/> };
-    let color = if failed { theme.destructive } else { theme.text_muted };
+    let hairline = || view! { <div flex_1 h=px(1.0) bg=theme.border_subtle()/> };
+    let color = if failed { theme.destructive() } else { theme.text_muted() };
     view! {
         <div test_id={format!("turn-summary-{row}")} h=ROW_HEIGHT flex items_center gap=12.0 body text_color=color
              on_press={move || on_toggle.call()}>
             {hairline()}
             <div flex_none flex items_center gap=4.0>
                 <text>{label}</text>
-                {Icon::new(chevron, theme.text_muted).size(ICON_SIZE_SMALL)}
+                {Icon::new(chevron, theme.text_muted()).size(ICON_SIZE_SMALL)}
             </div>
             {hairline()}
         </div>
@@ -168,7 +169,7 @@ impl ToolCard<'_> {
             let agents = (!tool.sub_agents.is_empty()).then(|| self.sub_agent_tree(&tool.sub_agents));
             view! {
                 <div flex col gap=12.0 ml=8.0 mt=4.0 mb=8.0 pl=16.0 pr=8.0 py=4.0 border_l=px(1.0)
-                     border_color=theme.border_subtle>
+                     border_color=theme.border_subtle()>
                     {details}
                     {changes}
                     {agents}
@@ -204,7 +205,7 @@ impl ToolCard<'_> {
     }
 
     fn command_highlights(&self, command: &str) -> Vec<(Range<usize>, SpanStyle)> {
-        let syntax = self.preview.command.get(LanguageHint::Id("bash"), || command);
+        let syntax = self.preview.command.get_or_init(|| analyze(LanguageHint::Id("bash"), command));
         highlights(command, &syntax.highlights, &self.review.syntax)
     }
 
@@ -266,7 +267,7 @@ impl ToolCard<'_> {
                 }
                 (None, _) => {
                     let labels = diff.changes.iter().map(|change| {
-                        view! { <text small color=theme.text_secondary>{diff_change_label(change)}</text> }
+                        view! { <text small color=theme.text_secondary()>{diff_change_label(change)}</text> }
                     });
                     view! { <div flex col>{..labels}</div> }.into_any()
                 }
@@ -311,7 +312,7 @@ impl ToolCard<'_> {
         for agent in sub_agents {
             let agent_id = agent.session_id().0.to_string();
             let icon = agent.status().map_or_else(
-                || Icon::new(IconName::Circle, theme.text_muted).size(ICON_SIZE_SMALL).into_any(),
+                || Icon::new(IconName::Circle, theme.text_muted()).size(ICON_SIZE_SMALL).into_any(),
                 |status| status_icon(status, &agent_id),
             );
             let name = agent.title().unwrap_or("sub-agent").to_owned();
@@ -345,8 +346,8 @@ const SECTION_MAX_BYTES: usize = 16 * 1024;
 
 fn tool_line(icon: AnyView, title: Div, summary: Option<AnyView>, failed: bool) -> [AnyView; 3] {
     let theme = Theme::current();
-    let title = title.typography(BODY_STRONG).text_color(theme.text_secondary);
-    let color = if failed { theme.destructive } else { theme.text_muted };
+    let title = title.typography(BODY_STRONG).text_color(theme.text_secondary());
+    let color = if failed { theme.destructive() } else { theme.text_muted() };
     let summary = view! { <div flex_1 min_w=0.0 overflow_hidden body text_color=color>{summary}</div> };
     [icon, title.into_any(), summary.into_any()]
 }
@@ -378,7 +379,7 @@ fn section(label: &'static str, content: AnyView) -> Div {
     view! {
         <div flex col gap=4.0>
             <text label muted>{label}</text>
-            <div text_color=theme.text_secondary font=CODE_FONT small>{content}</div>
+            <div text_color=theme.text_secondary() font=CODE_FONT small>{content}</div>
         </div>
     }
 }
@@ -406,15 +407,15 @@ fn status_icon(status: ToolStatus, id: &str) -> AnyView {
         ToolStatus::Running => {
             return view! {
                 <div test_id={format!("tool-status-{id}")} flex_none flex items_center gap=4.0>
-                    {wisp(ICON_SIZE_SMALL, theme.info, || WispState::Working).test_id(format!("tool-wisp-{id}"))}
+                    {wisp(ICON_SIZE_SMALL, theme.info(), || WispState::Working).test_id(format!("tool-wisp-{id}"))}
                     <text small muted>"Running"</text>
                 </div>
             }
             .into_any();
         }
-        ToolStatus::Success => (IconName::Check, theme.text_muted),
-        ToolStatus::Failed => (IconName::CircleX, theme.destructive),
-        ToolStatus::Cancelled => (IconName::CircleSlash, theme.text_muted),
+        ToolStatus::Success => (IconName::Check, theme.text_muted()),
+        ToolStatus::Failed => (IconName::CircleX, theme.destructive()),
+        ToolStatus::Cancelled => (IconName::CircleSlash, theme.text_muted()),
     };
     Icon::new(icon, color).size(ICON_SIZE_SMALL).into_any()
 }

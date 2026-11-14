@@ -1,25 +1,26 @@
 use crate::platform::Platform;
 use crate::ui::ActiveReviewTheme;
-use rouge::core::{Styled, View, WindowHandle, div, dynamic, each, view};
-use rouge::markdown::{MarkdownBlock, MarkdownStream};
-use rouge::reactive::{Memo, Stored, memo, stored};
-use rouge::widgets::{MarkdownAction, MarkdownPaint, markdown};
+use rouge::core::{View, WindowHandle};
+use rouge::markdown::MarkdownStream;
+use rouge::reactive::{Memo, Stored, effect, signal, stored};
+use rouge::widgets::{MarkdownAction, MarkdownPaint, MarkdownRows, markdown};
 use std::rc::Rc;
 
 pub(crate) fn reply(text: Memo<String>, window: WindowHandle, platform: Stored<Rc<dyn Platform>>) -> impl View {
     let stream = stored((String::new(), MarkdownStream::new()));
-    let blocks = memo(move || {
+    let rows = signal(MarkdownRows::default());
+    effect(move || {
         text.with(|text| {
             stream.update(|(seen, stream)| {
                 match text.strip_prefix(seen.as_str()) {
-                    Some("") => {}
+                    Some("") => return,
                     Some(appended) => drop(stream.push(appended)),
                     None => drop(stream.replace(text.as_str())),
                 }
                 text.clone_into(seen);
-                stream.document().blocks().to_vec()
-            })
-        })
+                rows.update(|rows| rows.sync(stream));
+            });
+        });
     });
     let theme = ActiveReviewTheme::current().review_signal();
     let paint = MarkdownPaint::new(
@@ -30,12 +31,5 @@ pub(crate) fn reply(text: Memo<String>, window: WindowHandle, platform: Stored<R
             MarkdownAction::OpenLink(url) => platform.with(|platform| platform.open(&url)),
         },
     );
-    view! {
-        <div flex col gap=12.0 min_w=0.0>
-            <each items={move || blocks.get().into_iter().enumerate().collect::<Vec<(usize, MarkdownBlock)>>()}
-                  key={|(index, _): &(usize, MarkdownBlock)| *index} let:block>
-                <dynamic>{block.with(|(_, block)| markdown(std::slice::from_ref(block), paint))}</dynamic>
-            </each>
-        </div>
-    }
+    markdown(rows.read_only(), paint)
 }
