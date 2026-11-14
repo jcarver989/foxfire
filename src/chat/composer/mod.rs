@@ -137,10 +137,8 @@ impl Composer {
             memo(move || thread.with_core(|core| core.queued_prompts().to_vec()).filter(|prompts| !prompts.is_empty()));
         let completion = memo(move || self.completion());
         let search = memo(move || self.popup.with(|popup| matches!(popup, Popup::Search(_))));
-        let theme = Theme::current();
         let editor = view! {
-            <div w_full flex col gap=4.0 liquid_glass
-                 border_color={move || if self.focus.is_focused() { theme.border().get() } else { theme.border_subtle().get() }}>
+            <div w_full flex col gap=4.0 focusable_glass={move || self.focus.is_focused()}>
                 <dynamic>{self.attachments()}</dynamic>
                 {self.input()}
                 {self.actions()}

@@ -1,50 +1,36 @@
 use super::Theme;
 use super::tokens::RADIUS_FLOATING;
-use rouge::core::{Div, Glass, Point, Styled, px};
-use rouge::reactive::signal;
+use rouge::core::{Div, Glass, Styled};
 
 pub(crate) trait LiquidGlassExt {
-    /// Frosted glass that bends and splits light at its rim and catches a glint under the pointer.
+    /// Flat frosted glass lit from overhead: the top edge catches the light, the sides fade and the
+    /// bottom stays dark.
     #[must_use]
     fn liquid_glass(self) -> Self;
+
+    /// [`liquid_glass`](LiquidGlassExt::liquid_glass) whose top edge brightens while `focused`.
+    #[must_use]
+    fn focusable_glass(self, focused: impl Fn() -> bool + 'static) -> Self;
 }
 
 impl LiquidGlassExt for Div {
     fn liquid_glass(self) -> Self {
+        self.focusable_glass(|| false)
+    }
+
+    fn focusable_glass(self, focused: impl Fn() -> bool + 'static) -> Self {
         let theme = Theme::current();
-        let pointer = signal(None::<Point>);
-        self.border(px(1.0))
-            .border_color(theme.border_subtle())
-            .rounded(RADIUS_FLOATING)
-            .on_pointer_move(move |event| {
-                pointer.set_if_changed(Some(event.local()));
-            })
-            .on_hover(move |inside| {
-                if !inside {
-                    pointer.set(None);
-                }
-            })
-            .backdrop(move || {
-                let glass = LIQUID_GLASS.tint(theme.elevated().get().with_alpha(TINT));
-                match pointer.get() {
-                    Some(at) => glass.light(at, GLINT_STRENGTH, GLINT_REACH),
-                    None => glass,
-                }
-            })
+        self.rounded(RADIUS_FLOATING).backdrop(move || {
+            let highlight = if focused() { FOCUSED_HIGHLIGHT } else { HIGHLIGHT };
+            OVERHEAD_GLASS.tint(theme.elevated().get().with_alpha(TINT)).highlight(highlight)
+        })
     }
 }
 
-const LIQUID_GLASS: Glass = Glass::new()
-    .blur(12.0)
-    .edge_width(RADIUS_FLOATING)
-    .refraction(0.6)
-    .dispersion(0.15)
-    .highlight(0.45)
-    .shadow(0.3)
-    .saturation(1.3);
+const OVERHEAD_GLASS: Glass = Glass::frosted(10.0).edge_width(1.5).shadow(0.2).rim_light(0.0, 0.0);
 
-const TINT: f32 = 0.68;
+const TINT: f32 = 0.5;
 
-const GLINT_STRENGTH: f32 = 0.5;
+const HIGHLIGHT: f32 = 0.17;
 
-const GLINT_REACH: f32 = 96.0;
+const FOCUSED_HIGHLIGHT: f32 = 0.28;
