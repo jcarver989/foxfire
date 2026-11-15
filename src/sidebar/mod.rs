@@ -12,13 +12,14 @@ use crate::registry::{Collapsed, Registry};
 use crate::remotes::{Action, Fleet, RemoteSpec};
 use crate::tasks::spawn_in;
 use crate::threads::{Thread, ThreadManager};
+use crate::ui::tokens::{GUTTER, HEADER_HEIGHT};
 use crate::ui::{
-    Icon, IconName, MenuItem, Side, StyledExt, Theme, UiStyles, context_menu, dispatch, icon_button, icon_slot,
-    list_row, panel_toggle, resizable_panel, section_header, tree_row,
+    Icon, IconName, ListRow, MenuItem, Side, StyledExt, UiStyles, context_menu, dispatch, icon_button, icon_slot,
+    list_row, resizable_panel, section_header, tree_row,
 };
 use agent_client_protocol::v2::schema::SessionId;
 use listing::{Listing, RemoteSection, Row, Section, project_name};
-use rouge::core::{AnyView, Div, Styled, View, div, dynamic, each, scroll, show, text, view, window_size};
+use rouge::core::{AnyView, Div, Role, Styled, View, div, dynamic, each, scroll, show, text, view, window_size};
 use rouge::reactive::{Callback, Memo, ReadSignal, Scope, Signal, Stored, effect, memo, signal, stored, untrack};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -60,8 +61,8 @@ struct Rename {
 pub(crate) fn toggle_button(open: bool) -> AnyView {
     view! {
         <div flex_none flex items_center>
-            <panel_toggle side=Side::Left id="toggle-sidebar" open name="sidebar"
-                          on_click={|| dispatch(crate::ToggleSidebar)}/>
+            <icon_button test_id="toggle-sidebar" icon=IconName::PanelLeft label="Toggle sidebar" selected=open
+                         on_click={|| dispatch(crate::ToggleSidebar)}/>
         </div>
     }
     .into_any()
@@ -122,7 +123,6 @@ impl Sidebar {
     }
 
     pub(crate) fn view(self) -> impl View {
-        let theme = Theme::current();
         let stored_width = memo(move || self.registry.with(|state| state.sidebar_width));
         let width = signal(stored_width.get_untracked().unwrap_or(DEFAULT_SIDEBAR_WIDTH));
         effect(move || {
@@ -139,12 +139,12 @@ impl Sidebar {
         let on_reset = move || self.registry.update(|state| state.sidebar_width = None);
         view! {
             <resizable_panel test_id="sidebar" edge=Side::Left size=width min_size=MIN_SIDEBAR_WIDTH
-                             max_size=MAX_SIDEBAR_WIDTH on_resize=on_resize on_reset=on_reset h_full flex col bg=theme.chrome()>
-                <div top_bar pr=8.0 gap=4.0>
+                             max_size=MAX_SIDEBAR_WIDTH on_resize=on_resize on_reset=on_reset h_full flex col bg=Role::Chrome>
+                <div top_bar h=HEADER_HEIGHT pr=GUTTER gap=4.0>
                     <div flex_1/>
-                    <icon_button id="search-threads" icon=IconName::Search label="Search threads"
+                    <icon_button test_id="search-threads" icon=IconName::Search label="Search threads"
                                  on_click={|| dispatch(OpenThreadSwitcher)}/>
-                    <icon_button id="open-settings" icon=IconName::Settings label="Settings"
+                    <icon_button test_id="open-settings" icon=IconName::Settings label="Settings"
                                  on_click={|| dispatch(OpenSettings)}/>
                     {toggle_button(true)}
                 </div>
@@ -262,11 +262,11 @@ impl Sidebar {
             let items = self.add_project_items();
             let add = view! {
                 <context_menu items dropdown>
-                    <icon_button id="add-project" icon=IconName::FolderPlus label="Add project"/>
+                    <icon_button test_id="add-project" icon=IconName::FolderPlus label="Add project"/>
                 </context_menu>
             };
             view! {
-                <section_header id="section-local" title="Local" expanded={!collapsed.get()}
+                <section_header test_id="section-local" title="Local" expanded={!collapsed.get()}
                                 icon=IconName::Laptop
                                 action={add.into_any()} actions_always_visible
                                 on_toggle={move || self.toggle(Collapsed::Section(LOCAL.to_owned()))}/>
@@ -318,7 +318,7 @@ impl Sidebar {
             <show when={move || shown.get()}>
                 <div flex col gap=4.0 pt=8.0>
                     <dynamic>{view! {
-                        <section_header id="section-cloud" title="Cloud" expanded={!collapsed.get()}
+                        <section_header test_id="section-cloud" title="Cloud" expanded={!collapsed.get()}
                                         icon=IconName::Cloud
                                         on_toggle={move || self.toggle(Collapsed::Section(CLOUD.to_owned()))}/>
                     }}</dynamic>
@@ -368,8 +368,8 @@ impl Sidebar {
             (hidden > 0).then(|| {
                 let root = root.clone();
                 view! {
-                    <tree_row id={format!("{id}-show-more")} label={format!("Show {hidden} more")} depth=1
-                              leading={icon_slot().into_any()} label_color=Theme::current().text_muted()
+                    <tree_row test_id={format!("{id}-show-more")} label={format!("Show {hidden} more")} depth=1
+                              leading={icon_slot().into_any()} label_color=Role::TextMuted
                               on_click={move || self.show_more(root.clone())}/>
                 }
             })
@@ -404,14 +404,15 @@ impl Sidebar {
             });
             let items: Vec<MenuItem> = agents.chain(problems).collect();
             view! {
-                <context_menu items dropdown><icon_button id=button_id icon=IconName::Plus label/></context_menu>
+                <context_menu items dropdown><icon_button test_id=button_id icon=IconName::Plus label/></context_menu>
             }
             .into_any()
         } else {
             let root = root.to_path_buf();
             view! {
-                <icon_button id=button_id icon=IconName::Plus label on_click={move || self.new_thread_in(root.clone())}/>
+                <icon_button test_id=button_id icon=IconName::Plus label on_click={move || self.new_thread_in(root.clone())}/>
             }
+            .into_any()
         }
     }
 
@@ -427,11 +428,12 @@ impl Sidebar {
                     let remote = remote.clone();
                     let label = format!("New thread on {}", remote.name);
                     view! {
-                        <icon_button id={format!("{id}-new-thread")} icon=IconName::Plus label disabled={!starts}
+                        <icon_button test_id={format!("{id}-new-thread")} icon=IconName::Plus label disabled={!starts}
                                      on_click={move || {
                                          self.threads.new_cloud_thread(&remote);
                                      }}/>
                     }
+                    .into_any()
                 };
                 self.group_header(Header {
                     id: id.clone(),
@@ -462,7 +464,7 @@ impl Sidebar {
                 let remote = remote.clone();
                 let empty = placeholder(format!("{id}-empty"), text);
                 if starts {
-                    empty.on_click(move |_| {
+                    empty.on_click(move || {
                         self.threads.new_cloud_thread(&remote);
                     })
                 } else {
@@ -484,7 +486,7 @@ impl Sidebar {
 
     fn group_header(self, header: Header) -> Div {
         let Header { id, label, icon: (icon_id, icon), group, collapsed, actions, new_thread } = header;
-        let muted = Theme::current().text_muted();
+        let muted = Role::TextMuted;
         let hovered = signal(false);
         let (actions_label, items) = actions;
         let actions_id = format!("{id}-actions");
@@ -494,17 +496,18 @@ impl Sidebar {
         };
         let leading = view! { <div test_id=icon_id flex>{Icon::new(icon, muted)}</div> }.into_any();
         let row = view! {
-            <tree_row id label expanded={!collapsed} leading label_color=muted on_click=toggle on_toggle=toggle/>
+            <tree_row test_id=id label expanded={!collapsed} leading=leading label_color=muted on_click=toggle on_toggle=toggle>
+                <div flex items_center opacity={move || if hovered.get() { 1.0 } else { 0.0 }}>
+                    <context_menu items dropdown><icon_button test_id=actions_id icon=IconName::Ellipsis label=actions_label/></context_menu>
+                    {new_thread}
+                </div>
+            </tree_row>
         };
-        row.on_hover(move |inside| {
-            hovered.set_if_changed(inside);
-        })
-        .child(view! {
-            <div flex items_center opacity={move || if hovered.get() { 1.0 } else { 0.0 }}>
-                <context_menu items dropdown><icon_button id=actions_id icon=IconName::Ellipsis label=actions_label/></context_menu>
-                {new_thread}
-            </div>
-        })
+        div()
+            .on_hover(move |inside| {
+                hovered.set_if_changed(inside);
+            })
+            .child(row)
     }
 
     fn project_actions(self, root: &Path) -> Vec<MenuItem> {
@@ -583,10 +586,10 @@ fn starts_threads(remote: &RemoteSpec) -> bool {
     remote.is_static() || remote.can(Action::Launch)
 }
 
-fn placeholder(id: impl Into<String>, label: impl Into<String>) -> Div {
+fn placeholder(id: impl Into<String>, label: impl Into<String>) -> ListRow {
     let label = label.into();
     view! {
-        <list_row id depth=1>
+        <list_row test_id=id depth=1>
             {icon_slot()}
             <div flex_1 min_w=0.0 py=4.0><text caption muted>{label}</text></div>
         </list_row>

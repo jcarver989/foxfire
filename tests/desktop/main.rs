@@ -20,6 +20,7 @@ mod remotes;
 mod settings;
 mod sidebar;
 mod support;
+mod syntax;
 mod theme;
 mod thread_menu;
 mod threads;

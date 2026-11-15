@@ -3,7 +3,7 @@ use crate::clock::Clock;
 use crate::file_picker::file_picker;
 use crate::history::History;
 use crate::platform::{Notification, Platform};
-use crate::registry::{Registry, Saved, WindowSize};
+use crate::registry::{Registry, State, WindowSize};
 use crate::remotes::Fleet;
 use crate::settings::settings;
 use crate::sidebar::{Sidebar, SwitcherEntry, toggle_button};
@@ -12,10 +12,10 @@ use crate::tasks::spawn_in;
 use crate::thread_view::{ThreadTab, ThreadView};
 use crate::threads::{Attention, Thread, ThreadEvent, ThreadManager};
 use crate::ui::DEFAULT_INTERFACE_SIZE;
-use crate::ui::tokens::{HEADER_HEIGHT, MODAL_WIDTH, PANEL_INSET, PICKER_LIST_HEIGHT};
+use crate::ui::tokens::{GUTTER, HEADER_HEIGHT, MODAL_WIDTH, PICKER_LIST_HEIGHT};
 use crate::ui::{
-    ActiveReviewTheme, IconName, InterfaceSize, Material, PickerItem, SearchPickerHandle, StyledExt, Theme, UI_FONT,
-    UiStyles, WispMotion, appearance, backdrop, empty_state, picker_closed, search_picker,
+    ActiveReviewTheme, IconName, InterfaceSize, Material, PickerItem, SearchPickerHandle, StyledExt, UI_FONT, UiStyles,
+    WispMotion, appearance, backdrop, empty_state, picker_closed, search_picker,
 };
 use aether_sessions::SessionStore;
 use agent_client_protocol::v2::schema::SessionId;
@@ -23,9 +23,10 @@ use clankerdiff_core::RepoPath;
 use clankerdiff_remote::Remotes;
 use clankerdiff_rouge::ReviewHandle;
 use rouge::core::{
-    AnyView, Chord, Div, Styled, View, WindowHandle, div, dynamic, px, view, window_focused, window_handle,
+    AnyView, Chord, Div, Role, Styled, View, WindowHandle, div, dynamic, px, view, window_focused, window_handle,
     window_size, zoom,
 };
+use rouge::persist::Storage;
 use rouge::reactive::{Scope, Signal, Stored, effect, memo, signal, spawn, stored, untrack};
 use std::cell::Cell;
 use std::collections::{BTreeSet, HashMap};
@@ -61,8 +62,10 @@ pub struct DesktopConfig {
     pub remotes: Arc<dyn Remotes>,
     pub remotes_file: Option<PathBuf>,
     pub sessions: Option<SessionStore>,
-    pub registry: Saved,
     pub platform: Rc<dyn Platform>,
+    pub storage: Rc<dyn Storage>,
+    /// The state `storage` held when the app launched.
+    pub saved: State,
 }
 
 #[derive(Clone, Copy)]
@@ -101,8 +104,9 @@ pub(crate) const SETTINGS_KEYS: &str = "secondary-,";
 
 impl DesktopApp {
     pub fn new(config: DesktopConfig) -> Self {
-        let DesktopConfig { transport, clock, agents, remotes, remotes_file, sessions, registry, platform } = config;
-        let registry = Registry::new(registry);
+        let DesktopConfig { transport, clock, agents, remotes, remotes_file, sessions, platform, storage, saved } =
+            config;
+        let registry = Registry::restore(saved, storage);
         let preference = memo(move || registry.with(|state| state.theme.clone()));
         let active = ActiveReviewTheme::install(preference.get_untracked().theme(appearance().get_untracked()));
         effect(move || active.apply(&preference.get()));
@@ -166,11 +170,10 @@ impl DesktopApp {
     }
 
     pub fn view(self) -> impl View {
-        let theme = Theme::current();
         let collapsed = memo(move || self.registry.with(|state| state.sidebar_collapsed));
         let selected = memo(move || self.threads.selected());
         let root = view! {
-            <div test_id="desktop" relative size_full flex bg=theme.canvas() text_color=theme.text() font=UI_FONT body>
+            <div test_id="desktop" relative size_full flex bg=Role::Canvas text_color=Role::Text font=UI_FONT body>
                 <dynamic>{(!collapsed.get()).then(|| self.sidebar.view())}</dynamic>
                 <div test_id="main" flex_1 min_w=0.0 h_full>
                     <dynamic>{match selected.get() {
@@ -429,10 +432,10 @@ impl DesktopApp {
                     }
                 });
                 view! {
-                    <backdrop id="switcher-backdrop" align_top on_dismiss={move || self.close_modal()}>
-                        <search_picker id="switcher" handle material={Material::Glass} searchable="Search threads…"
-                                       empty="No matching threads" footer=FOOTER width={px(MODAL_WIDTH)}
-                                       height={px(PICKER_LIST_HEIGHT)}/>
+                    <backdrop test_id="switcher-backdrop" align_top on_dismiss={move || self.close_modal()}>
+                        <search_picker test_id="switcher" handle material={Material::Glass} searchable="Search threads…"
+                                       empty="No matching threads" footer=FOOTER w={px(MODAL_WIDTH)}
+                                       h={px(PICKER_LIST_HEIGHT)}/>
                     </backdrop>
                 }
                 .into_any()
@@ -455,7 +458,7 @@ pub(crate) fn chord(keys: &str) -> Chord {
 
 fn no_thread(collapsed: bool) -> impl View {
     let header = collapsed.then(|| {
-        view! { <div top_bar h=HEADER_HEIGHT pt=PANEL_INSET pr=16.0>{toggle_button(false)}</div> }
+        view! { <div top_bar h=HEADER_HEIGHT pr=GUTTER>{toggle_button(false)}</div> }
     });
     view! {
         <div size_full flex col>

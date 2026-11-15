@@ -1,22 +1,22 @@
 use agent_client_protocol::v2::schema::SessionId;
 use clankerdiff_ui_core::ThemePreference;
-use rouge::persist::Store;
-use rouge::reactive::{Signal, Stored, signal, stored};
+use rouge::persist::Storage;
+use rouge::reactive::{Signal, effect, signal, spawn};
 use serde::{Deserialize, Serialize};
+use std::cell::Cell;
 use std::collections::{HashMap, HashSet};
-use std::io;
-use std::path::PathBuf;
-use tokio::runtime::Handle;
-use tokio::task::JoinHandle;
+use std::fs;
+use std::path::{Path, PathBuf};
+use std::rc::Rc;
 
+/// The key everything the desktop app remembers is saved under, in `state.json` for file storage.
+pub const STATE_KEY: &str = "state";
 pub const STATE_FILE: &str = "state.json";
 
-pub type Saved = Store<State>;
-
+/// What the app remembers between launches, saved to the window's storage as it changes.
 #[derive(Clone, Copy)]
 pub struct Registry {
     state: Signal<State>,
-    saved: Stored<Saved>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
@@ -49,17 +49,39 @@ pub enum Collapsed {
     Remote(String),
 }
 
-pub fn default_state_file() -> Option<PathBuf> {
-    utils::path::aether_home().map(|home| home.join("desktop").join(STATE_FILE))
+pub fn default_state_dir() -> Option<PathBuf> {
+    utils::path::aether_home().map(|home| home.join("desktop"))
 }
 
-pub fn load(file: Option<PathBuf>, runtime: &Handle) -> (Saved, JoinHandle<io::Result<()>>) {
-    Store::load(file, runtime)
+/// The state saved as `json`. Unreadable state is forgotten.
+pub fn saved(json: Option<&str>) -> State {
+    json.and_then(|json| serde_json::from_str(json).ok()).unwrap_or_default()
+}
+
+/// The state saved to file storage in `dir`, read before the window opens.
+pub fn saved_in(dir: &Path) -> State {
+    saved(fs::read_to_string(dir.join(STATE_FILE)).ok().as_deref())
 }
 
 impl Registry {
-    pub fn new(saved: Saved) -> Self {
-        Self { state: signal(saved.state()), saved: stored(saved) }
+    /// Starts from `saved` and writes every change to `storage`.
+    ///
+    /// The state is read up front rather than through `rouge::persist::persisted`, whose load lands after the
+    /// app starts and would overwrite what it records on launch, like the last selected thread.
+    pub fn restore(saved: State, storage: Rc<dyn Storage>) -> Self {
+        let state = signal(saved);
+        let first = Cell::new(true);
+        effect(move || {
+            let json = state.with(serde_json::to_string_pretty);
+            if first.replace(false) {
+                return;
+            }
+            match json {
+                Ok(json) => drop(spawn(storage.write(STATE_KEY, json))),
+                Err(error) => tracing::warn!(%error, "failed to serialize the desktop state"),
+            }
+        });
+        Self { state }
     }
 
     pub fn with<T>(&self, read: impl FnOnce(&State) -> T) -> T {
@@ -77,14 +99,7 @@ impl Registry {
     pub fn update(&self, change: impl FnOnce(&mut State)) {
         let mut next = self.state.get_untracked();
         change(&mut next);
-        if self.state.set_if_changed(next.clone()) {
-            self.saved.with(|saved| {
-                saved.update(|state| {
-                    *state = next;
-                    true
-                });
-            });
-        }
+        self.state.set_if_changed(next);
     }
 }
 

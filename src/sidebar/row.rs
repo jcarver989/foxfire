@@ -2,12 +2,11 @@ use super::Sidebar;
 use super::listing::{Row, RowKind};
 use crate::remotes::{InstanceState, Lifecycle};
 use crate::threads::ThreadStatus;
-use crate::ui::tokens::{ICON_SIZE, ROW_HEIGHT, TWO_LINE_ROW_HEIGHT, UNREAD_DOT_SIZE};
+use crate::ui::tokens::{ICON_SIZE, ROW_HEIGHT, Radius, TWO_LINE_ROW_HEIGHT, UNREAD_DOT_SIZE};
 use crate::ui::{
-    Icon, IconName, SelectionState, Theme, UiStyles, WispState, hint, icon_button, icon_slot, inline_edit, list_row,
-    wisp,
+    Icon, IconName, SelectionState, UiStyles, WispState, hint, icon_button, icon_slot, inline_edit, list_row, wisp,
 };
-use rouge::core::{AnyView, Apply, Div, MenuItem as WindowMenuItem, Styled, View, div, text, view};
+use rouge::core::{AnyView, Div, MenuItem as WindowMenuItem, Role, Styled, View, div, text, view};
 use rouge::reactive::{Signal, signal};
 use rouge::widgets::context_menu;
 
@@ -29,7 +28,6 @@ pub(super) enum RowAction {
 
 pub(super) fn row(sidebar: &Sidebar, row: &Row) -> AnyView {
     let sidebar = *sidebar;
-    let theme = Theme::current();
     let selector = row.key.selector();
     let hovered = signal(false);
     let editing = matches!(row.kind, RowKind::Local { editing: true, .. });
@@ -41,8 +39,9 @@ pub(super) fn row(sidebar: &Sidebar, row: &Row) -> AnyView {
             let (id, label, icon) = action.spec();
             let target = row.clone();
             view! {
-                <icon_button id={format!("{selector}-{id}")} icon label on_click={move || action.run(&target, &sidebar)}/>
+                <icon_button test_id={format!("{selector}-{id}")} icon label on_click={move || action.run(&target, &sidebar)}/>
             }
+            .into_any()
         })
         .collect();
     let reconnect = row
@@ -50,13 +49,13 @@ pub(super) fn row(sidebar: &Sidebar, row: &Row) -> AnyView {
         .filter(|_| matches!(row.icon, RowIcon::Status(status) if status.problem().is_some()))
         .map(|thread| {
             view! {
-                <icon_button id={format!("{selector}-reconnect")} icon=IconName::RotateCw label="Reconnect"
+                <icon_button test_id={format!("{selector}-reconnect")} icon=IconName::RotateCw label="Reconnect"
                              on_click={move || thread.reconnect()}/>
             }
         });
     let title = if editing { rename_editor(&sidebar) } else { title(&selector, row) };
     let unread = row.unread.then(|| {
-        let dot = view! { <div size=UNREAD_DOT_SIZE rounded={UNREAD_DOT_SIZE / 2.0} bg=theme.accent()/> };
+        let dot = view! { <div size=UNREAD_DOT_SIZE rounded=Radius::Full bg=Role::Accent/> };
         hint(format!("{selector}-unread"), "Unread response", dot)
     });
     let title = view! { <div min_w=0.0 flex items_center gap=4.0>{title}{unread}</div> };
@@ -70,7 +69,7 @@ pub(super) fn row(sidebar: &Sidebar, row: &Row) -> AnyView {
             (title.flex_1(), trailing(&selector, age.clone(), hover_actions, row.selected, hovered).child(reconnect))
         }
         RowKind::Cloud { subtitle, expiring, .. } => {
-            let color = if *expiring { theme.warning() } else { theme.text_muted() };
+            let color = if *expiring { Role::Warning } else { Role::TextMuted };
             let body = view! {
                 <div flex_1 min_w=0.0 py=4.0 flex col>
                     {title}
@@ -97,20 +96,20 @@ pub(super) fn row(sidebar: &Sidebar, row: &Row) -> AnyView {
             open_row(&opened, &sidebar);
         }
     };
-    let list = view! {
-        <list_row id={selector.clone()} depth={usize::from(!two_line)} state on_click=open
+    let entry = view! {
+        <list_row test_id={selector.clone()} depth={usize::from(!two_line)} selection=state on_click=open
                   h={if two_line { TWO_LINE_ROW_HEIGHT } else { ROW_HEIGHT }}>
             {icon_slot()}
             {icon_slot().when(two_line, |slot| slot.self_start().mt(8.0)).child(icon)}
             {body}
             {trailing}
         </list_row>
-    }
-    .on_hover(move |inside| {
+    };
+    let list = div().w_full().child(entry).on_hover(move |inside| {
         hovered.set_if_changed(inside);
     });
     if editing {
-        return div().w_full().child(list).into_any();
+        return list.into_any();
     }
     let items: Vec<WindowMenuItem> = row
         .actions
@@ -186,8 +185,7 @@ fn open_row(row: &Row, sidebar: &Sidebar) {
 
 fn title(selector: &str, row: &Row) -> AnyView {
     let muted = matches!(row.icon, RowIcon::Status(ThreadStatus::Dormant) | RowIcon::Instance(_));
-    let theme = Theme::current();
-    let color = if muted { theme.text_muted() } else { theme.text() };
+    let color = if muted { Role::TextMuted } else { Role::Text };
     view! {
         <div test_id={format!("{selector}-title")} min_w=0.0 overflow_hidden>
             <text body no_wrap color=color>{row.title.clone()}</text>
@@ -211,7 +209,6 @@ fn rename_editor(sidebar: &Sidebar) -> AnyView {
 }
 
 fn trailing(selector: &str, age: Option<String>, actions: Vec<AnyView>, selected: bool, hovered: Signal<bool>) -> Div {
-    let theme = Theme::current();
     let age = age.map(|age| {
         view! {
             <div test_id={format!("{selector}-age-{age}")} opacity={move || if hovered.get() { 0.0 } else { 1.0 }}>
@@ -219,7 +216,7 @@ fn trailing(selector: &str, age: Option<String>, actions: Vec<AnyView>, selected
             </div>
         }
     });
-    let background = if selected { theme.surface_selected() } else { theme.surface_hover() };
+    let background = if selected { Role::SurfaceSelected } else { Role::SurfaceHover };
     view! {
         <div flex_none relative flex items_center justify_end>
             {age}
@@ -232,35 +229,31 @@ fn trailing(selector: &str, age: Option<String>, actions: Vec<AnyView>, selected
 }
 
 fn status_icon(row: &str, status: ThreadStatus) -> AnyView {
-    let theme = Theme::current();
     let (name, label, shape, icon, color) = match status {
-        ThreadStatus::Connecting => ("connecting", "Starting agent", "wisp", None, theme.text_muted()),
-        ThreadStatus::Running => ("running", "Agent working", "wisp", None, theme.info()),
+        ThreadStatus::Connecting => ("connecting", "Starting agent", "wisp", None, Role::TextMuted),
+        ThreadStatus::Running => ("running", "Agent working", "wisp", None, Role::Info),
         ThreadStatus::Background => {
-            ("background", "Background task still running", "dot", Some(IconName::CircleDot), theme.text_muted())
+            ("background", "Background task still running", "dot", Some(IconName::CircleDot), Role::TextMuted)
         }
         ThreadStatus::NeedsInput => {
-            ("needs-input", "Waiting for your answer", "speech-bubble", Some(IconName::MessageCircle), theme.warning())
+            ("needs-input", "Waiting for your answer", "speech-bubble", Some(IconName::MessageCircle), Role::Warning)
         }
         ThreadStatus::Errored => (
             "errored",
             "Unable to connect — reconnect to try again",
             "warning-triangle",
             Some(IconName::TriangleAlert),
-            theme.destructive(),
+            Role::Destructive,
         ),
         ThreadStatus::Disconnected => (
             "disconnected",
             "Disconnected — reconnect to continue",
             "warning-triangle",
             Some(IconName::TriangleAlert),
-            theme.destructive(),
+            Role::Destructive,
         ),
         ThreadStatus::Idle | ThreadStatus::Dormant => {
-            return tagged(
-                format!("{row}-conversation-icon"),
-                Icon::new(IconName::MessageSquareText, theme.text_muted()),
-            );
+            return tagged(format!("{row}-conversation-icon"), Icon::new(IconName::MessageSquareText, Role::TextMuted));
         }
     };
     let id = format!("{row}-status-{name}");
@@ -273,7 +266,7 @@ fn status_icon(row: &str, status: ThreadStatus) -> AnyView {
 }
 
 fn instance_icon(row: &str, state: Option<InstanceState>) -> AnyView {
-    let muted = Theme::current().text_muted();
+    let muted = Role::TextMuted;
     let (name, label, icon) = match state {
         Some(InstanceState::Suspended) => ("suspended", "Suspended", Some(IconName::Pause)),
         Some(InstanceState::Running) | None => ("unattached", "Running, with no thread on it", Some(IconName::Unplug)),

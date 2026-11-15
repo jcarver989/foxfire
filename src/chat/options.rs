@@ -1,12 +1,12 @@
 use crate::threads::Thread;
-use crate::ui::tokens::{COMPOSER_POPUP_HEIGHT, ICON_SIZE_SMALL, RADIUS_INNER, ROW_HEIGHT};
+use crate::ui::tokens::{COMPOSER_POPUP_HEIGHT, ICON_SIZE_SMALL, ROW_HEIGHT, Radius};
 use crate::ui::{
     Icon, IconName, Material, PickerItem, SearchPickerHandle, Theme, UiStyles, picker_closed, search_picker,
     with_middots,
 };
 use agent_client_protocol::v2::schema as acp;
 use client_core::session_config_view::LocalConfigOption;
-use rouge::core::{AnyView, Color, Cursor, Styled, View, div, dynamic, px, text, view};
+use rouge::core::{AnyView, Color, Cursor, Role, Styled, View, div, dynamic, px, text, view};
 use rouge::reactive::{memo, signal};
 use rouge::widgets::{Placement, popover};
 
@@ -26,7 +26,7 @@ impl SessionOptions {
             thread.with_connected_core(|core| core.session().config_options().to_vec()).unwrap_or_default()
         });
         view! {
-            <div test_id="session-options" flex_none flex items_center gap=4.0 body>
+            <div test_id="session-options" flex_1 min_w=0.0 overflow_hidden flex items_center gap=4.0 body>
                 <dynamic>{with_middots(options.get().iter().filter_map(|option| self.selector(option)))}</dynamic>
             </div>
         }
@@ -40,16 +40,16 @@ impl SessionOptions {
         let hovered = signal(false);
         let icon = category_icon(option).map(|icon| {
             let icon_id = format!("{id}-icon-{icon:?}").to_lowercase();
-            view! { <div test_id=icon_id flex>{Icon::new(icon, theme.text_muted()).size(ICON_SIZE_SMALL)}</div> }
+            view! { <div test_id=icon_id flex>{Icon::new(icon, Role::TextMuted).size(ICON_SIZE_SMALL)}</div> }
         });
         let trigger = view! {
-            <div test_id={id.clone()} h=ROW_HEIGHT flex items_center gap=4.0 px=8.0 rounded=RADIUS_INNER
+            <div test_id={id.clone()} h=ROW_HEIGHT flex items_center gap=4.0 px=8.0 rounded=Radius::Inner
                  cursor=Cursor::Pointer
                  bg={move || {
                      if open.get() {
-                         theme.surface_selected().get()
+                         theme.get().surface_selected
                      } else if hovered.get() {
-                         theme.surface_hover().get()
+                         theme.get().surface_hover
                      } else {
                          Color::TRANSPARENT
                      }
@@ -63,7 +63,7 @@ impl SessionOptions {
                  }}>
                 {icon}
                 <div test_id={format!("{id}-value")}>
-                    <text color={move || if open.get() || hovered.get() { theme.text().get() } else { theme.text_secondary().get() }}>
+                    <text color={move || if open.get() || hovered.get() { theme.get().text } else { theme.get().text_secondary }}>
                         {label}
                     </text>
                 </div>
@@ -102,8 +102,8 @@ impl SessionOptions {
             let searchable =
                 (select.values.len() > SEARCH_THRESHOLD).then(|| format!("Search {}…", option.name.to_lowercase()));
             view! {
-                <search_picker id=picker handle material={Material::Bare} searchable?=searchable
-                               title={option.name.clone()} width={px(PICKER_WIDTH)}
+                <search_picker test_id=picker handle material={Material::Bare} searchable?=searchable
+                               title={option.name.clone()} w={px(PICKER_WIDTH)}
                                max_list_height={px(COMPOSER_POPUP_HEIGHT)}/>
             }
             .into_any()

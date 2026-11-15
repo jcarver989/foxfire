@@ -5,7 +5,7 @@ use aether_desktop::threads::ThreadStatus;
 use agent_client_protocol::v2::schema as acp;
 
 #[test]
-fn a_new_thread_centers_the_composer_under_a_heading_with_runes_kindling_behind_it() {
+fn a_new_thread_centers_the_composer_under_a_heading_with_a_fire_kindling_behind_it() {
     let (mut harness, _) = DesktopHarness::alpha(replying("alpha-session", "hello"));
     let main = harness.bounds("main").expect("the main region is painted");
     let heading = harness.bounds("new-thread-heading").expect("a new thread asks what to build");
@@ -14,11 +14,11 @@ fn a_new_thread_centers_the_composer_under_a_heading_with_runes_kindling_behind_
     assert!(harness.shows("new-thread-heading", "What do you want to build?"));
     assert!(heading.bottom() < composer.top(), "{heading:?} {composer:?}");
     assert!((composer.center().y - main.center().y).abs() < main.size.height * 0.15, "{main:?} {composer:?}");
-    assert!(harness.bounds("kindling").is_some(), "runes kindle behind the composer");
+    assert!(harness.bounds("kindling").is_some(), "a fire kindles behind the composer");
 }
 
 #[test]
-fn the_first_prompt_docks_the_composer_and_clears_the_heading_and_runes() {
+fn the_first_prompt_docks_the_composer_and_clears_the_heading_and_fire() {
     let (mut harness, thread) = DesktopHarness::alpha(replying("alpha-session", "hello"));
 
     harness.send(thread, "hi there");
@@ -47,4 +47,18 @@ fn a_connecting_thread_already_asks_what_to_build_and_keeps_its_composer_in_plac
 
     assert!(harness.bounds("new-thread-connecting").is_none(), "the connecting message clears");
     assert_eq!(harness.bounds("composer"), Some(connecting), "the composer stays where it was");
+}
+
+#[test]
+fn the_status_row_sits_as_snug_under_a_new_threads_composer_as_under_a_docked_one() {
+    let (mut harness, thread) = DesktopHarness::alpha(replying("alpha-session", "hello"));
+    let gap = |harness: &mut DesktopHarness| {
+        let [composer, status] = ["composer", "status"].map(|id| harness.bounds(id).expect("painted"));
+        status.top() - composer.bottom()
+    };
+    let fresh = gap(&mut harness);
+
+    harness.send(thread, "hi there");
+
+    assert_eq!(fresh, gap(&mut harness));
 }

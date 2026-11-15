@@ -1,9 +1,12 @@
-use aether_desktop::registry::{Registry, STATE_FILE, State, load};
+use aether_desktop::registry::{Registry, STATE_FILE, State, saved_in};
 use agent_client_protocol::v2::schema::SessionId;
+use rouge::core::div;
+use rouge::persist::FileStorage;
 use rouge::reactive::Runtime as Reactive;
+use rouge_widgets::testing::component_test;
 use std::fs;
 use std::path::{Path, PathBuf};
-use tokio::runtime::Builder;
+use std::rc::Rc;
 
 #[test]
 fn undoing_every_change_to_a_thread_forgets_it() {
@@ -51,14 +54,12 @@ fn a_missing_state_file_loads_as_nothing_remembered() {
     assert_eq!(loaded, State::default());
 }
 
+/// Runs `test` against a registry saved in `dir`, then closes the window so everything is written.
 fn with_registry<T>(dir: &Path, test: impl FnOnce(Registry) -> T) -> T {
-    let runtime = Builder::new_current_thread().enable_all().build().unwrap();
-    let (saved, flush) = load(Some(dir.join(STATE_FILE)), runtime.handle());
-    let result = {
-        let reactive = Reactive::new();
-        let _entered = reactive.enter();
-        test(Registry::new(saved))
-    };
-    runtime.block_on(flush).unwrap().unwrap();
+    let _entered = Reactive::new().enter();
+    let (ui, registry) =
+        component_test().build_with(|| (div(), Registry::restore(saved_in(dir), Rc::new(FileStorage::new(dir)))));
+    let result = test(registry);
+    drop(ui);
     result
 }

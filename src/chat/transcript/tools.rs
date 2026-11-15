@@ -2,9 +2,7 @@ use super::code::highlights;
 use super::groups::{GroupKind, Work};
 use crate::ui::tokens::{ICON_SIZE_SMALL, ROW_HEIGHT};
 use crate::ui::typography::BODY_STRONG;
-use crate::ui::{
-    ButtonVariant, CODE_FONT, ControlSize, Hint, Icon, IconName, Theme, UiStyles, WispState, button, disclosure, wisp,
-};
+use crate::ui::{ButtonVariant, CODE_FONT, ControlSize, Hint, Icon, IconName, UiStyles, WispState, button, wisp};
 use acp_utils::content::first_line;
 use acp_utils::conversation::{
     ConversationItem, ConversationItemId, Revision, SubAgent, ToolCall, ToolStatus, diff_change_label,
@@ -14,9 +12,9 @@ use clankerdiff_core::{DiffDocument, LineStat};
 use clankerdiff_rouge::PatchPreview;
 use clankerdiff_rouge::style::stat_badges;
 use clankerdiff_ui_core::ReviewTheme;
-use rouge::core::{AnyView, Cursor, Div, FocusHandle, SpanStyle, Styled, View, div, px, rich_text, text, view};
+use rouge::core::{AnyView, Cursor, Div, FocusHandle, Role, SpanStyle, Styled, View, div, px, rich_text, text, view};
 use rouge::reactive::{Callback, ReadSignal};
-use rouge::syntax::{LanguageHint, SourceSyntax, analyze};
+use rouge::syntax::{SourceSyntax, analyze};
 use std::cell::OnceCell;
 use std::collections::HashMap;
 use std::ops::Range;
@@ -85,7 +83,6 @@ pub(crate) fn fold_header(
     expanded: bool,
     on_toggle: Callback,
 ) -> AnyView {
-    let theme = Theme::current();
     let work = Work::of(items);
     let failed = work.failed > 0;
     if kind == GroupKind::Run {
@@ -97,12 +94,8 @@ pub(crate) fn fold_header(
             Some(view! { <text no_wrap>{summary}</text> }.into_any()),
             failed,
         );
-        return view! {
-            <disclosure id={format!("tool-group-{row}")} expanded on_toggle h=ROW_HEIGHT overflow_hidden>
-                <div flex items_center gap=8.0 min_w=0.0>{icon}{title}{summary}</div>
-            </disclosure>
-        }
-        .into_any();
+        let content = view! { <div flex items_center gap=8.0 min_w=0.0>{icon}{title}{summary}</div> };
+        return disclosure_row(format!("tool-group-{row}"), expanded, on_toggle, content).into_any();
     }
     let done = match work.tools {
         0 => "Thought".to_owned(),
@@ -111,15 +104,15 @@ pub(crate) fn fold_header(
     };
     let label = std::iter::once(done).chain(work.details()).collect::<Vec<_>>().join(" · ");
     let chevron = if expanded { IconName::ChevronDown } else { IconName::ChevronRight };
-    let hairline = || view! { <div flex_1 h=px(1.0) bg=theme.border_subtle()/> };
-    let color = if failed { theme.destructive() } else { theme.text_muted() };
+    let hairline = || view! { <div flex_1 h=px(1.0) bg=Role::BorderSubtle/> };
+    let color = if failed { Role::Destructive } else { Role::TextMuted };
     view! {
         <div test_id={format!("turn-summary-{row}")} h=ROW_HEIGHT flex items_center gap=12.0 body text_color=color
-             on_press={move || on_toggle.call()}>
+             on_activate={move || on_toggle.call()}>
             {hairline()}
             <div flex_none flex items_center gap=4.0>
                 <text>{label}</text>
-                {Icon::new(chevron, theme.text_muted()).size(ICON_SIZE_SMALL)}
+                {Icon::new(chevron, Role::TextMuted).size(ICON_SIZE_SMALL)}
             </div>
             {hairline()}
         </div>
@@ -144,7 +137,6 @@ impl ToolCard<'_> {
         on_toggle: Callback,
         on_show_all: Callback,
     ) -> AnyView {
-        let theme = Theme::current();
         let expanded = fold != ToolFold::Folded;
         let diffs: Vec<&acp::Diff> = tool.diffs().collect();
         let title = view! {
@@ -157,19 +149,15 @@ impl ToolCard<'_> {
         let [icon, title, summary] =
             tool_line(status_icon(tool.status, tool.id()), title, summary, tool.status == ToolStatus::Failed);
         let changes = (!diffs.is_empty()).then(|| self.change_summary(tool, index));
-        let header = view! {
-            <disclosure id={format!("tool-card-{index}")} expanded on_toggle h=ROW_HEIGHT overflow_hidden
-                        track_focus=focus>
-                <div flex items_center gap=8.0 min_w=0.0>{icon}{title}{summary}{changes}</div>
-            </disclosure>
-        };
+        let content = view! { <div flex items_center gap=8.0 min_w=0.0>{icon}{title}{summary}{changes}</div> };
+        let header = disclosure_row(format!("tool-card-{index}"), expanded, on_toggle, content).track_focus(focus);
         let body = (expanded || !tool.sub_agents.is_empty()).then(|| {
             let details = expanded.then(|| self.details(tool, index, fold == ToolFold::Full, on_show_all));
             let changes = (expanded && !diffs.is_empty()).then(|| self.changes(&diffs, index));
             let agents = (!tool.sub_agents.is_empty()).then(|| self.sub_agent_tree(&tool.sub_agents));
             view! {
                 <div flex col gap=12.0 ml=8.0 mt=4.0 mb=8.0 pl=16.0 pr=8.0 py=4.0 border_l=px(1.0)
-                     border_color=theme.border_subtle()>
+                     border_color=Role::BorderSubtle>
                     {details}
                     {changes}
                     {agents}
@@ -205,7 +193,7 @@ impl ToolCard<'_> {
     }
 
     fn command_highlights(&self, command: &str) -> Vec<(Range<usize>, SpanStyle)> {
-        let syntax = self.preview.command.get_or_init(|| analyze(LanguageHint::Id("bash"), command));
+        let syntax = self.preview.command.get_or_init(|| analyze("bash", command));
         highlights(command, &syntax.highlights, &self.review.syntax)
     }
 
@@ -246,7 +234,6 @@ impl ToolCard<'_> {
     }
 
     fn changes(&self, diffs: &[&acp::Diff], index: usize) -> Div {
-        let theme = Theme::current();
         let changes = diffs.iter().enumerate().map(|(position, diff)| {
             let patch = diff.patch.as_ref().filter(|patch| !patch.text.trim().is_empty());
             match (patch, self.preview.patch(position)) {
@@ -267,7 +254,7 @@ impl ToolCard<'_> {
                 }
                 (None, _) => {
                     let labels = diff.changes.iter().map(|change| {
-                        view! { <text small color=theme.text_secondary()>{diff_change_label(change)}</text> }
+                        view! { <text small color=Role::TextSecondary>{diff_change_label(change)}</text> }
                     });
                     view! { <div flex col>{..labels}</div> }.into_any()
                 }
@@ -307,12 +294,11 @@ impl ToolCard<'_> {
     }
 
     fn sub_agent_tree(&self, sub_agents: &[SubAgent]) -> Div {
-        let theme = Theme::current();
         let mut rows: Vec<AnyView> = Vec::new();
         for agent in sub_agents {
             let agent_id = agent.session_id().0.to_string();
             let icon = agent.status().map_or_else(
-                || Icon::new(IconName::Circle, theme.text_muted()).size(ICON_SIZE_SMALL).into_any(),
+                || Icon::new(IconName::Circle, Role::TextMuted).size(ICON_SIZE_SMALL).into_any(),
                 |status| status_icon(status, &agent_id),
             );
             let name = agent.title().unwrap_or("sub-agent").to_owned();
@@ -345,9 +331,8 @@ const SECTION_MAX_LINES: usize = 200;
 const SECTION_MAX_BYTES: usize = 16 * 1024;
 
 fn tool_line(icon: AnyView, title: Div, summary: Option<AnyView>, failed: bool) -> [AnyView; 3] {
-    let theme = Theme::current();
-    let title = title.typography(BODY_STRONG).text_color(theme.text_secondary());
-    let color = if failed { theme.destructive() } else { theme.text_muted() };
+    let title = title.typography(BODY_STRONG).text_color(Role::TextSecondary);
+    let color = if failed { Role::Destructive } else { Role::TextMuted };
     let summary = view! { <div flex_1 min_w=0.0 overflow_hidden body text_color=color>{summary}</div> };
     [icon, title.into_any(), summary.into_any()]
 }
@@ -375,11 +360,10 @@ fn title(tool: &ToolCall) -> String {
 }
 
 fn section(label: &'static str, content: AnyView) -> Div {
-    let theme = Theme::current();
     view! {
         <div flex col gap=4.0>
             <text label muted>{label}</text>
-            <div text_color=theme.text_secondary() font=CODE_FONT small>{content}</div>
+            <div text_color=Role::TextSecondary font=CODE_FONT small>{content}</div>
         </div>
     }
 }
@@ -398,24 +382,34 @@ fn clip(text: &str) -> (&str, usize) {
 
 fn show_all(id: String, hidden: usize, on_click: Callback) -> AnyView {
     let label = if hidden == 1 { "Show 1 more line".to_owned() } else { format!("Show {hidden} more lines") };
-    view! { <button id label variant=ButtonVariant::Ghost size=ControlSize::Small on_click/> }
+    view! { <button test_id=id label variant=ButtonVariant::Ghost control_size=ControlSize::Small on_click=on_click/> }
+        .into_any()
 }
 
 fn status_icon(status: ToolStatus, id: &str) -> AnyView {
-    let theme = Theme::current();
     let (icon, color) = match status {
         ToolStatus::Running => {
             return view! {
                 <div test_id={format!("tool-status-{id}")} flex_none flex items_center gap=4.0>
-                    {wisp(ICON_SIZE_SMALL, theme.info(), || WispState::Working).test_id(format!("tool-wisp-{id}"))}
+                    {wisp(ICON_SIZE_SMALL, Role::Info, || WispState::Working).test_id(format!("tool-wisp-{id}"))}
                     <text small muted>"Running"</text>
                 </div>
             }
             .into_any();
         }
-        ToolStatus::Success => (IconName::Check, theme.text_muted()),
-        ToolStatus::Failed => (IconName::CircleX, theme.destructive()),
-        ToolStatus::Cancelled => (IconName::CircleSlash, theme.text_muted()),
+        ToolStatus::Success => (IconName::Check, Role::TextMuted),
+        ToolStatus::Failed => (IconName::CircleX, Role::Destructive),
+        ToolStatus::Cancelled => (IconName::CircleSlash, Role::TextMuted),
     };
     Icon::new(icon, color).size(ICON_SIZE_SMALL).into_any()
+}
+
+fn disclosure_row(id: String, expanded: bool, on_toggle: Callback, content: impl View) -> Div {
+    let chevron = if expanded { IconName::ChevronDown } else { IconName::ChevronRight };
+    view! {
+        <div test_id=id h=ROW_HEIGHT overflow_hidden flex items_center gap=8.0 on_activate={move || on_toggle.call()}>
+            {Icon::new(chevron, Role::TextMuted).size(ICON_SIZE_SMALL)}
+            <div>{content}</div>
+        </div>
+    }
 }

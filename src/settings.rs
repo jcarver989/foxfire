@@ -16,7 +16,7 @@ pub(crate) fn settings(registry: Registry, on_close: impl Fn() + 'static) -> imp
         on_close.call();
     };
     view! {
-        <backdrop id="settings-backdrop" on_dismiss=close>
+        <backdrop test_id="settings-backdrop" on_dismiss=close>
             <div test_id="settings" w=MODAL_WIDTH_COMPACT max_w=pct(100.0) p=16.0 flex col gap=8.0
                  overflow_hidden material=Material::Glass>
                 <text heading primary>"Settings"</text>
@@ -38,8 +38,8 @@ fn motion(registry: Registry) -> AnyView {
         let reduced = reduced.get();
         let buttons = [(false, "Full"), (true, "Reduced")].map(|(value, label)| {
             view! {
-                <button id={format!("motion-{}", label.to_lowercase())} label size=ControlSize::Small
-                        selected={value == reduced} keyboard_focusable
+                <button test_id={format!("motion-{}", label.to_lowercase())} label control_size=ControlSize::Small
+                        selected={value == reduced}
                         on_click={move || registry.update(|state| state.reduced_motion = value)}/>
             }
         });
@@ -52,19 +52,21 @@ fn mode(registry: Registry) -> AnyView {
     let current = memo(move || registry.with(|state| state.theme.mode));
     dynamic(move || {
         let current = current.get();
-        let buttons =
-            [(AppearanceMode::System, "System"), (AppearanceMode::Light, "Light"), (AppearanceMode::Dark, "Dark")].map(
-                |(mode, label)| {
-                    view! {
-                        <button id={format!("appearance-{}", label.to_lowercase())} label size=ControlSize::Small
-                                selected={mode == current} keyboard_focusable
-                                on_click={move || {
-                                    registry.update(|state| state.theme.mode = mode);
-                                    show_saved_theme(registry);
-                                }}/>
-                    }
-                },
-            );
+        let buttons = [
+            (AppearanceMode::System, "System"),
+            (AppearanceMode::Light, "Light"),
+            (AppearanceMode::Dark, "Dark"),
+        ]
+        .map(|(mode, label)| {
+            view! {
+                <button test_id={format!("appearance-{}", label.to_lowercase())} label control_size=ControlSize::Small
+                        selected={mode == current}
+                        on_click={move || {
+                            registry.update(|state| state.theme.mode = mode);
+                            show_saved_theme(registry);
+                        }}/>
+            }
+        });
         view! { <div flex gap=4.0>{..buttons}</div> }
     })
     .into_any()
@@ -82,7 +84,7 @@ fn theme_choice(registry: Registry, appearance: Appearance) -> AnyView {
     let trigger = dynamic(move || {
         let label = name.get();
         view! {
-            <button id={format!("{key}-theme")} label variant=ButtonVariant::Secondary keyboard_focusable
+            <button test_id={format!("{key}-theme")} label variant=ButtonVariant::Secondary
                     on_click={move || open.set(true)}/>
         }
     });

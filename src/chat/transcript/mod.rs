@@ -11,7 +11,7 @@ use crate::platform::Platform;
 use crate::threads::{Thread, ThreadStatus};
 use crate::ui::tokens::{HEADER_HEIGHT, ROW_HEIGHT};
 use crate::ui::{
-    ActiveReviewTheme, Hint, Icon, IconName, Material, MaterialExt, StyledExt, Theme, UiStyles, empty_state,
+    ActiveReviewTheme, Hint, Icon, IconName, Material, MaterialExt, StyledExt, UiStyles, empty_state,
     vertical_scrollbar,
 };
 use acp_utils::conversation::{
@@ -23,8 +23,8 @@ use clankerdiff_rouge::{DiffViewerEvent, DiffViewerOptions, ReviewController, Re
 use groups::{Group, GroupKind, groups};
 use message::{error, full_diff, image_preview, message_actions, notice, prompt, reconnect_button, thinking_block};
 use rouge::core::{
-    Align, AnyView, Cursor, FocusHandle, Rect, RowKey, Styled, TextAlign, View, VirtualListHandle, WindowHandle, div,
-    dynamic, focus_handle, px, show, text, view, virtual_list, virtual_list_handle, window_handle,
+    Align, AnyView, Cursor, FocusHandle, Rect, Role, RowKey, Styled, TextAlign, View, VirtualListHandle, WindowHandle,
+    div, dynamic, focus_handle, px, show, text, view, virtual_list, virtual_list_handle, window_handle,
 };
 use rouge::reactive::{Callback, Memo, Scope, Signal, Stored, effect, memo, signal, stored, untrack};
 use std::borrow::Cow;
@@ -159,7 +159,6 @@ impl Transcript {
     }
 
     fn list(self) -> impl View {
-        let theme = Theme::current();
         let (summary, structure, list, dock) = (self.summary, self.structure, self.list, self.dock);
         let rows = virtual_list(
             move || summary.with(|summary| summary.items.len()) + 1,
@@ -179,14 +178,14 @@ impl Transcript {
         let scroll = list.scroll_state();
         let jump = move || {
             view! {
-            <div test_id="jump-to-latest" flex_none h=ROW_HEIGHT px=12.0 flex items_center rounded={ROW_HEIGHT / 2.0}
+            <div test_id="jump-to-latest" flex_none h=ROW_HEIGHT px=12.0 flex items_center
                  material=Material::GlassControl cursor=Cursor::Pointer
                  on_click={move |event| {
                      event.stop_propagation();
                      following.set(true);
                      list.scroll_to_row(summary.with_untracked(|summary| summary.items.len()), Align::Bottom);
                  }}>
-                {Icon::new(IconName::ArrowDown, theme.text_secondary())}
+                {Icon::new(IconName::ArrowDown, Role::TextSecondary)}
             </div>
             }
             .tooltip("Jump to latest")
@@ -293,7 +292,7 @@ impl Transcript {
                 let (window, platform) = (self.window, self.platform);
                 view! {
                     <div reading>
-                        <div test_id={format!("reply-{index}")}>{markdown::reply(text, window, platform)}</div>
+                        <div test_id={format!("reply-{index}")}>{markdown::reply(text, platform)}</div>
                         <dynamic>{(!open.get()).then(|| message_actions(index, text.get_untracked(), hovered, window))}</dynamic>
                     </div>
                 }
@@ -433,9 +432,8 @@ impl Transcript {
                 return div().into_any();
             }
             if let Some(problem) = status.problem() {
-                let theme = Theme::current();
                 let detail = error.unwrap_or_else(|| "Reconnect to pick up where it left off".to_owned());
-                let color = if status == ThreadStatus::Errored { theme.destructive() } else { theme.warning() };
+                let color = if status == ThreadStatus::Errored { Role::Destructive } else { Role::Warning };
                 return view! {
                     <div size_full p=24.0 flex col items_center justify_center gap=12.0>
                         <text heading color=color align=TextAlign::Center>{problem}</text>

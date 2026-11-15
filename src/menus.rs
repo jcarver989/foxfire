@@ -5,7 +5,7 @@ use crate::app::{
     chord,
 };
 use crate::ui::SizeAction;
-use rouge::{Menu, MenuItem};
+use rouge::core::{Menu, MenuItem};
 
 pub(crate) const APP_NAME: &str = "Aether";
 

@@ -2,10 +2,11 @@ use crate::agents::{Agents, CommandLine, Endpoint, parse_command_line};
 use crate::clock::Clock;
 use crate::history::History;
 use crate::platform::{Notification, PathPrompt, Platform, PlatformFuture};
-use crate::registry::{self, Registry, STATE_FILE};
+use crate::registry::{self, Registry, STATE_KEY, State};
 use crate::remotes::{Acp, Fleet, InstanceState, RemoteSpec};
 use crate::target::{ConnectError, Transport, TransportFuture, client_info};
 use crate::threads::{Thread, ThreadManager, ThreadStatus};
+use crate::ui::KINDLED_AFTER;
 use crate::ui::tokens::BASE_SIZE;
 use crate::{ActiveReviewTheme, DesktopApp, DesktopConfig, cli::DEFAULT_AGENT_COMMAND, window_size};
 use acp_utils::testing::{Channel, FakeAgent, FakeAgentRequests, QueuedTurns};
@@ -19,6 +20,7 @@ use client_core::connection::Connection;
 use client_core::testing::{FakeGit, git_diff_agent};
 use rouge::core::testing::{TestError, TestUi};
 use rouge::core::{Clipboard, ClipboardMedia, PasteRequest, Point, Rect, Size, window_focused, zoom};
+use rouge::persist::{FileStorage, MemoryStorage, Storage};
 use rouge::reactive::{Entered, ReadSignal, Runtime as Reactive, Signal, set_tokio};
 use rouge_widgets::testing::component_test;
 use std::cell::RefCell;
@@ -33,7 +35,7 @@ use tempfile::TempDir;
 use tokio::runtime::{Builder, Runtime};
 use tokio::sync::mpsc::UnboundedReceiver;
 use tokio::sync::oneshot;
-use tokio::task::{AbortHandle, JoinHandle};
+use tokio::task::AbortHandle;
 
 pub const FAKE_AGENT_LOCK_FILE: &str = "agent.lock";
 
@@ -69,7 +71,6 @@ pub struct DesktopHarness {
     connector: FakeConnector,
     sessions: TestStore,
     remotes_dir: TempDir,
-    flush: Option<JoinHandle<io::Result<()>>>,
     runtime: Option<Runtime>,
     _entered: Entered,
 }
@@ -188,16 +189,18 @@ impl DesktopHarnessBuilder {
         let entered = Reactive::new().enter();
         let runtime =
             Builder::new_multi_thread().worker_threads(2).enable_all().build().expect("start the test Tokio runtime");
-        let (saved, flush) = registry::load(self.state_dir.map(|dir| dir.join(STATE_FILE)), runtime.handle());
-        saved.update(|state| {
-            let before = state.projects.len();
-            for root in &self.projects {
-                state.add_project(root.clone());
-            }
-            state.projects.len() != before
-        });
+        let projects = self.projects;
+        let (storage, state): (Rc<dyn Storage>, State) = if let Some(dir) = self.state_dir {
+            // Dropping the seeding storage waits for its write, so the app's own storage starts from it.
+            let state = seed_projects(&FileStorage::new(&dir), registry::saved_in(&dir), &projects);
+            (Rc::new(FileStorage::new(dir)), state)
+        } else {
+            let storage = MemoryStorage::default();
+            let state = seed_projects(&storage, State::default(), &projects);
+            (Rc::new(storage), state)
+        };
         let (width, height) = self.window_size.unwrap_or_else(|| {
-            let size = window_size(&saved.state());
+            let size = window_size(&state);
             (size.width, size.height)
         });
         let remotes_dir = tempfile::tempdir().expect("a directory for the remotes file");
@@ -215,8 +218,9 @@ impl DesktopHarnessBuilder {
             remotes: Arc::new(self.connector.remotes().clone()),
             remotes_file: Some(remotes_file),
             sessions: Some(SessionStore::from_path(self.sessions.path().to_path_buf())),
-            registry: saved,
             platform: Rc::new(platform.clone()),
+            storage,
+            saved: state,
         };
         let handle = runtime.handle().clone();
         let (mut ui, (app, focused, zoom, theme)) = component_test().size(width, height).build_with(move || {
@@ -235,7 +239,6 @@ impl DesktopHarnessBuilder {
             connector: self.connector,
             sessions: self.sessions,
             remotes_dir,
-            flush: Some(flush),
             runtime: Some(runtime),
             _entered: entered,
         };
@@ -434,6 +437,8 @@ impl DesktopHarness {
         let agent = threads.default_agent(&cwd);
         let thread = threads.new_thread(cwd, agent);
         self.advance();
+        // A fresh thread's composer is hidden, and so can't be clicked, until its kindling has shown it.
+        self.ui.run(KINDLED_AFTER);
         thread
     }
 
@@ -641,13 +646,9 @@ impl DesktopHarness {
         self.advance();
     }
 
-    pub fn quit(mut self) {
-        let (flush, runtime) = (self.flush.take(), self.runtime.take());
+    /// Closes the app, saving what it remembers.
+    pub fn quit(self) {
         drop(self);
-        if let (Some(flush), Some(runtime)) = (flush, runtime) {
-            let _ = runtime.block_on(flush);
-            runtime.shutdown_background();
-        }
     }
 
     fn until_answered(&mut self, thread: Thread, prompt: &str, send: impl FnOnce(&mut Self)) {
@@ -674,6 +675,19 @@ impl Drop for DesktopHarness {
             runtime.shutdown_background();
         }
     }
+}
+
+/// Adds `projects` to `state`, saving it in `storage`, and returns it.
+fn seed_projects(storage: &dyn Storage, mut state: State, projects: &[PathBuf]) -> State {
+    let before = state.projects.len();
+    for root in projects {
+        state.add_project(root.clone());
+    }
+    if state.projects.len() != before {
+        // File and memory storage both take the write as it's asked for; the future only reports it done.
+        drop(storage.write(STATE_KEY, serde_json::to_string_pretty(&state).expect("the state serializes")));
+    }
+    state
 }
 
 struct FakeClock(DateTime<Utc>);

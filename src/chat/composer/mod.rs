@@ -3,14 +3,15 @@ mod pasted;
 mod queued;
 
 use super::attachment::{chip, preview};
+use super::options::SessionOptions;
 use crate::app::chord;
 use crate::platform::{PathPrompt, Platform};
 use crate::tasks::spawn_in;
 use crate::threads::{Thread, ThreadEvent, ThreadStatus};
-use crate::ui::tokens::{COMPOSER_POPUP_HEIGHT, ICON_SIZE, ROW_HEIGHT};
+use crate::ui::tokens::{COMPOSER_POPUP_HEIGHT, ICON_SIZE, ROW_HEIGHT, Radius};
 use crate::ui::typography::READING;
 use crate::ui::{
-    Hint, Icon, IconName, LiquidGlassExt, Material, PickerItem, SearchPickerEvent, SearchPickerHandle, Theme, UI_FONT,
+    Hint, Icon, IconName, Material, MaterialExt, PickerItem, SearchPickerEvent, SearchPickerHandle, Theme, UI_FONT,
     icon_button, picker_closed, search_picker,
 };
 use client_core::composer::attachment::{AttachedFile, PromptAttachment, attach_missing, classify_paths};
@@ -24,7 +25,7 @@ use completion::{CompletionItem, CompletionMenu, active_token};
 use pasted::PastedImages;
 use queued::queued_prompts;
 use rouge::core::{
-    AnyView, ClipboardMedia, Cursor, FocusHandle, Key, KeyEvent, Modifiers, Styled, View, div, dynamic, editable,
+    AnyView, ClipboardMedia, Cursor, FocusHandle, Key, KeyEvent, Modifiers, Role, Styled, View, div, dynamic, editable,
     focus_handle, px, view,
 };
 use rouge::reactive::{Callback, Scope, Signal, Stored, batch, effect, memo, signal, stored, untrack};
@@ -38,6 +39,7 @@ pub(crate) struct SearchPrompts;
 #[derive(Clone, Copy)]
 pub(crate) struct Composer {
     thread: Thread,
+    options: SessionOptions,
     text: Signal<String>,
     selection: Signal<Range<usize>>,
     mentions: Signal<Vec<PromptAttachment>>,
@@ -64,6 +66,7 @@ impl Composer {
     pub(crate) fn new(thread: Thread, platform: Rc<dyn Platform>) -> Self {
         let composer = Self {
             thread,
+            options: SessionOptions::new(thread),
             text: signal(String::new()),
             selection: signal(0..0),
             mentions: signal(Vec::new()),
@@ -155,7 +158,6 @@ impl Composer {
     }
 
     fn input(self) -> impl View {
-        let theme = Theme::current();
         let field = editable(self.text)
             .test_id("composer-text")
             .multiline()
@@ -168,8 +170,8 @@ impl Composer {
             .font(UI_FONT)
             .text_size(READING.size)
             .line_height(READING.line_height)
-            .color(theme.text())
-            .placeholder(PLACEHOLDER, theme.text_muted())
+            .color(Role::Text)
+            .placeholder(PLACEHOLDER, Role::TextMuted)
             .w_full()
             .on_key_down(move |event| {
                 if self.intercept(event) {
@@ -195,9 +197,10 @@ impl Composer {
         let empty = memo(move || self.text.with(|text| text.trim().is_empty()) && self.media.with(Vec::is_empty));
         let running = memo(move || running(thread.status()));
         view! {
-            <div px=8.0 pb=8.0 flex items_center justify_between>
-                <icon_button id="attach-files" icon=IconName::Paperclip label="Attach files"
+            <div px=8.0 pb=8.0 flex items_center gap=4.0>
+                <icon_button test_id="attach-files" icon=IconName::Paperclip label="Attach files"
                              on_click={move || self.pick_files()}/>
+                {self.options.view()}
                 <dynamic>{
                     if running.get() && empty.get() {
                         round_button("stop", IconName::Square, "Stop (Esc)", true, Callback::from(move || self.cancel()))
@@ -219,7 +222,7 @@ impl Composer {
             let id = format!("composer-attachment-{index}");
             let thumbnail = preview(format!("{id}-thumbnail"), attachment, ICON_SIZE);
             let remove = view! {
-                <icon_button id={format!("{id}-remove")} icon=IconName::X label="Remove"
+                <icon_button test_id={format!("{id}-remove")} icon=IconName::X label="Remove"
                              on_click={move || self.remove_media(index)}/>
             };
             chip(id, thumbnail, &attachment.display_name).py(0.0).pr(0.0).child(remove)
@@ -239,9 +242,9 @@ impl Composer {
         let status = self.search_status;
         Some(
             view! {
-                <search_picker id="prompt-search" handle material={Material::Glass}
+                <search_picker test_id="prompt-search" handle material={Material::Glass}
                                searchable="Search past prompts…" empty="No matching prompts"
-                               max_list_height={px(COMPOSER_POPUP_HEIGHT)} status/>
+                               max_list_height={px(COMPOSER_POPUP_HEIGHT)} status=status/>
             }
             .into_any(),
         )
@@ -542,10 +545,11 @@ fn running(status: ThreadStatus) -> bool {
 fn round_button(id: &'static str, icon: IconName, label: &'static str, filled: bool, on_click: Callback) -> AnyView {
     let theme = Theme::current();
     let (background, foreground) =
-        if filled { (theme.text(), theme.canvas()) } else { (theme.surface_hover(), theme.text_muted()) };
+        if filled { (Role::Text, Role::Canvas) } else { (Role::SurfaceHover, Role::TextMuted) };
+    let background = theme.color(background);
     let hovered = signal(false);
     view! {
-        <div test_id=id flex_none size=ROW_HEIGHT flex items_center justify_center rounded={ROW_HEIGHT / 2.0}
+        <div test_id=id flex_none size=ROW_HEIGHT flex items_center justify_center rounded=Radius::Full
              bg={move || {
                  let color = background.get();
                  if hovered.get() { color.with_alpha(color.a * HOVER_OPACITY) } else { color }

@@ -118,7 +118,7 @@ fn the_option_shows_the_model_the_agent_switched_to() {
 }
 
 #[test]
-fn the_sessions_options_sit_below_the_composer_in_the_chat_alone_led_by_their_categorys_icon() {
+fn the_sessions_options_sit_in_the_composers_action_row_in_the_chat_alone_led_by_their_categorys_icon() {
     let option = |id: &str| select(id, id, "one", &[("one", "One")]);
     let options = vec![
         option("mode").category(acp::SessionConfigOptionCategory::Mode),
@@ -138,8 +138,11 @@ fn the_sessions_options_sit_below_the_composer_in_the_chat_alone_led_by_their_ca
             .all(|icon| harness.bounds(icon).is_none()),
         "an option of no known category has no icon"
     );
-    let (model, composer) = (harness.bounds("config-model"), harness.bounds("composer"));
-    assert!(model.zip(composer).is_some_and(|(model, composer)| model.top() >= composer.bottom()));
+    let [attach, model, send, composer] =
+        ["attach-files", "config-model", "send", "composer"].map(|id| harness.bounds(id).expect("painted"));
+    assert!(attach.right() < model.left() && model.right() < send.left(), "{attach:?} {model:?} {send:?}");
+    assert!(composer.top() < model.top() && model.bottom() < composer.bottom(), "{model:?} {composer:?}");
+    assert_eq!(model.center().y, send.center().y, "the options share the action row");
 
     harness.press("secondary-2");
 

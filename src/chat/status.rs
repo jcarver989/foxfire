@@ -1,13 +1,13 @@
 use crate::tasks::spawn_in;
 use crate::threads::{Thread, ThreadStatus};
-use crate::ui::tokens::{ICON_SIZE, ICON_SIZE_SMALL, ROW_HEIGHT};
+use crate::ui::tokens::{ICON_SIZE, ICON_SIZE_SMALL, ROW_HEIGHT, Radius};
 use crate::ui::{Hint, Icon, IconName, Theme, UiStyles, WispMotion, WispState, wisp};
 use acp_utils::conversation::{Activity, Conversation, ConversationContent, ToolStatus, is_plan_entry_finished};
 use agent_client_protocol::v2::schema as acp;
 use client_core::format::token_count;
 use rouge::core::{
-    AnyView, Cursor, Div, Ease, Keyframes, PaintRegion, Path, Point, Pose, Styled, TextAlign, Tween, View, canvas, div,
-    dynamic, pct, show, switch, text, view, window_focused,
+    AnyView, Cursor, Div, Ease, Keyframes, PaintRegion, Path, Point, Pose, Role, Styled, TextAlign, Tween, View,
+    canvas, div, dynamic, pct, show, switch, text, view, window_focused,
 };
 use rouge::reactive::{Memo, Scope, Signal, effect, memo, signal, sleep, stored, untrack};
 use rouge::widgets::{Placement, popover};
@@ -149,7 +149,7 @@ impl StatusLine {
         let detail = memo(move || activity_detail(self.thread, doing, plan));
         let trigger = view! {
             <div test_id="activity-details-trigger" min_w=0.0 flex items_center gap=8.0
-                 on_press=open_details
+                 on_activate=open_details
                  on_focus={move |event| {
                      // Popover dismissal restores focus; that must not reopen it.
                      if restoring_focus.get() {
@@ -164,7 +164,7 @@ impl StatusLine {
                     view! {
                         <div test_id="status-label" min_w=0.0 overflow_hidden>
                             <text no_wrap color={move || {
-                                if doing.get() == Some(Doing::Waiting) { theme.warning().get() } else { theme.text_secondary().get() }
+                                if doing.get() == Some(Doing::Waiting) { theme.get().warning } else { theme.get().text_secondary }
                             }}>{label}</text>
                             <dynamic>{last_turn.get().map(|took| view! {
                                 <div test_id="last-turn"><text muted no_wrap>{format!("Took {}", clock(took))}</text></div>
@@ -174,7 +174,7 @@ impl StatusLine {
                 }</dynamic>
             </div>
         };
-        let trigger = trigger.focus_visible(move |style| style.bg(theme.surface_hover()));
+        let trigger = trigger.focus_visible(move |style| style.bg(Role::SurfaceHover));
         popover(details, trigger, move || {
             view! {
                 <div test_id="activity-details" w=PLAN_PANEL_WIDTH p=12.0 flex col gap=8.0>
@@ -196,7 +196,6 @@ impl StatusLine {
 
     fn plan(self, plan: Memo<Option<Vec<acp::PlanEntry>>>) -> impl View {
         let open = self.plan_open;
-        let theme = Theme::current();
         let toggle = dynamic(move || {
             let entries = plan.get().unwrap_or_default();
             let total = entries.len().max(1);
@@ -211,13 +210,13 @@ impl StatusLine {
                          event.stop_propagation();
                          open.update(|open| *open = !*open);
                      }}>
-                    <div flex_none w=PLAN_BAR_WIDTH h=PLAN_BAR_HEIGHT flex rounded={PLAN_BAR_HEIGHT / 2.0}
-                         overflow_hidden bg=theme.border_subtle()>
-                        <div h_full w={share(done)} bg=theme.positive()/>
-                        <div h_full w={share(started)} bg=theme.accent()/>
+                    <div flex_none w=PLAN_BAR_WIDTH h=PLAN_BAR_HEIGHT flex rounded=Radius::Full
+                         overflow_hidden bg=Role::BorderSubtle>
+                        <div h_full w={share(done)} bg=Role::Positive/>
+                        <div h_full w={share(started)} bg=Role::Accent/>
                     </div>
                     <text>{format!("{done}/{}", entries.len())}</text>
-                    {Icon::new(chevron, theme.text_muted()).size(ICON_SIZE_SMALL)}
+                    {Icon::new(chevron, Role::TextMuted).size(ICON_SIZE_SMALL)}
                 </div>
             }
         });
@@ -319,9 +318,9 @@ fn indicator(doing: Memo<Option<Doing>>, plan: Memo<Option<Vec<acp::PlanEntry>>>
                     .test_id("activity-milestone")
                     .absolute()
                     .inset(0.0)
-                    .rounded(ICON_SIZE_SMALL / 2.0)
+                    .rounded(Radius::Full)
                     .border(1.0)
-                    .border_color(theme.info())
+                    .border_color(Role::Info)
                     .pass_through()
                     .animate(
                         Keyframes::new()
@@ -333,7 +332,7 @@ fn indicator(doing: Memo<Option<Doing>>, plan: Memo<Option<Vec<acp::PlanEntry>>>
             })
         },
     );
-    let tint = move || if doing.get() == Some(Doing::Waiting) { theme.warning().get() } else { theme.info().get() };
+    let tint = move || if doing.get() == Some(Doing::Waiting) { theme.get().warning } else { theme.get().info };
     view! {
         <div test_id="activity" flex_none relative size=ICON_SIZE_SMALL flex items_center justify_center track_paint_region=region>
             {wisp(ICON_SIZE_SMALL, tint, move || doing.get().unwrap_or(Doing::Waiting).wisp())}
@@ -375,20 +374,19 @@ fn activity_detail(thread: Thread, doing: Memo<Option<Doing>>, plan: Memo<Option
 }
 
 fn plan_entries(entries: &[acp::PlanEntry]) -> Div {
-    let theme = Theme::current();
     let rows = entries.iter().enumerate().map(|(index, entry)| {
         let (icon, color) = match entry.status {
-            acp::PlanEntryStatus::InProgress => (IconName::CircleDot, theme.accent()),
-            acp::PlanEntryStatus::Completed => (IconName::CircleCheck, theme.positive()),
-            acp::PlanEntryStatus::Cancelled => (IconName::CircleSlash, theme.text_muted()),
-            _ => (IconName::Circle, theme.text_muted()),
+            acp::PlanEntryStatus::InProgress => (IconName::CircleDot, Role::Accent),
+            acp::PlanEntryStatus::Completed => (IconName::CircleCheck, Role::Positive),
+            acp::PlanEntryStatus::Cancelled => (IconName::CircleSlash, Role::TextMuted),
+            _ => (IconName::Circle, Role::TextMuted),
         };
         let done = is_plan_entry_finished(&entry.status);
         view! {
             <div test_id={format!("plan-entry-{index}")} flex items_center gap=8.0>
                 {Icon::new(icon, color).size(ICON_SIZE_SMALL)}
                 <div flex_1 min_w=0.0>
-                    <text color={if done { theme.text_muted() } else { theme.text_secondary() }}>{entry.content.clone()}</text>
+                    <text color={if done { Role::TextMuted } else { Role::TextSecondary }}>{entry.content.clone()}</text>
                 </div>
             </div>
         }
@@ -416,11 +414,11 @@ fn context_meter(usage: Memo<Option<acp::UsageUpdate>>) -> impl View {
         )]
         let fraction = if usage.size == 0 { 0.0 } else { usage.used.min(usage.size) as f32 / usage.size as f32 };
         let color = if fraction >= FULL {
-            theme.destructive()
+            Role::Destructive
         } else if fraction >= NEARLY_FULL {
-            theme.warning()
+            Role::Warning
         } else {
-            theme.accent()
+            Role::Accent
         };
         let label = if usage.size == 0 {
             format!("{} tokens", token_count(usage.used))
@@ -430,16 +428,15 @@ fn context_meter(usage: Memo<Option<acp::UsageUpdate>>) -> impl View {
         let counts = (fraction >= NEARLY_FULL).then(|| {
             view! { <div test_id="context-tokens"><text no_wrap color=color>{label.clone()}</text></div> }
         });
-        let track = theme.border();
         let ring = canvas(move |painter| {
             let size = painter.size();
             let radius = size.width.min(size.height) / 2.0;
             let stroke = size.width * (RING_STROKE_WIDTH / ICON_SIZE);
             let center = Point::new(size.width / 2.0, size.height / 2.0);
             let inner = radius - stroke / 2.0;
-            painter.stroke(&arc(center, inner, 1.0), stroke, track.get());
+            painter.stroke(&arc(center, inner, 1.0), stroke, theme.with(|palette| palette.border));
             if fraction > 0.0 {
-                painter.stroke(&arc(center, inner, fraction), stroke, color.get());
+                painter.stroke(&arc(center, inner, fraction), stroke, theme.with(|palette| *palette.get(color)));
             }
         })
         .size_full();

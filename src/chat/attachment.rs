@@ -1,10 +1,10 @@
-use crate::ui::tokens::{ICON_SIZE_SMALL, RADIUS_INNER};
-use crate::ui::{Icon, IconName, Theme, UiStyles};
+use crate::ui::tokens::{ICON_SIZE_SMALL, Radius};
+use crate::ui::{Icon, IconName, UiStyles};
 use agent_client_protocol::v2::schema as acp;
 use base64::Engine;
 use base64::engine::general_purpose::STANDARD as BASE64;
 use client_core::composer::attachment::{AttachmentKind, PromptAttachment, classify_attachment};
-use rouge::core::{AnyView, Div, Fit, ImageSource, Styled, View, div, image, px, text, view};
+use rouge::core::{AnyView, Div, Fit, ImageSource, Role, Styled, View, div, image, px, text, view};
 use std::sync::Arc;
 
 #[derive(Clone, PartialEq)]
@@ -30,10 +30,9 @@ impl Attachment {
 }
 
 pub(crate) fn chip(id: String, preview: impl View, name: &str) -> Div {
-    let theme = Theme::current();
     view! {
-        <div test_id=id flex items_center gap=4.0 min_w=0.0 px=8.0 py=4.0 rounded=RADIUS_INNER
-             bg=theme.surface_selected()>
+        <div test_id=id flex items_center gap=4.0 min_w=0.0 px=8.0 py=4.0 rounded=Radius::Inner
+             bg=Role::SurfaceSelected>
             {preview}
             <div min_w=0.0 overflow_hidden><text small secondary no_wrap>{name.to_owned()}</text></div>
         </div>
@@ -41,13 +40,13 @@ pub(crate) fn chip(id: String, preview: impl View, name: &str) -> Div {
 }
 
 pub(crate) fn chip_icon(icon: IconName) -> Icon {
-    Icon::new(icon, Theme::current().text_muted()).size(ICON_SIZE_SMALL)
+    Icon::new(icon, Role::TextMuted).size(ICON_SIZE_SMALL)
 }
 
 pub(crate) fn thumbnail(id: String, source: ImageSource, size: f32) -> Div {
     view! {
-        <div test_id=id flex_none size=size rounded=RADIUS_INNER overflow_hidden border=px(1.0)
-             border_color=Theme::current().border()>
+        <div test_id=id flex_none size=size rounded=Radius::Inner overflow_hidden border=px(1.0)
+             border_color=Role::Border>
             {image(source).fit(Fit::Cover).size_full()}
         </div>
     }

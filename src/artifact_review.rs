@@ -99,7 +99,7 @@ impl ArtifactReview {
             MarkdownOutput::Event(MarkdownReviewEvent::Submit(submission)) => {
                 ElicitationAnswer::accept_strings(answer(&submission).fields())
             }
-            MarkdownOutput::Event(MarkdownReviewEvent::CopyFormatted(text)) | MarkdownOutput::CopyCode(text) => {
+            MarkdownOutput::Event(MarkdownReviewEvent::CopyFormatted(text)) => {
                 return self.window.copy_text(text);
             }
             MarkdownOutput::Event(MarkdownReviewEvent::Cancel) => ElicitationAnswer::Cancel,

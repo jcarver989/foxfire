@@ -1,5 +1,5 @@
 use rouge::core::{
-    Color, Div, Ease, Inputs, IntoProp, PaintRegion, Prop, ShaderEffect, Styled, Tween, div, switch, window_focused,
+    Div, Ease, Fill, Inputs, IntoProp, PaintRegion, Prop, ShaderEffect, Styled, Tween, div, switch, window_focused,
 };
 use rouge::reactive::{Signal, expect_context, memo, provide_context, signal, stored, use_context};
 
@@ -21,7 +21,7 @@ pub struct WispMotion(Signal<bool>);
 /// A quiet activity mark. Icons below 32 design pixels use the compact artwork.
 /// Waiting is always still; reduced motion, loss of focus, and clipping also suspend the clock.
 /// Pair this decoration with a visible activity label rather than relying on its color or motion.
-pub fn wisp<T>(size: f32, tint: impl IntoProp<Color, T>, state: impl Fn() -> WispState + 'static) -> Div {
+pub fn wisp<T>(size: f32, tint: impl IntoProp<Fill, T>, state: impl Fn() -> WispState + 'static) -> Div {
     let tint = stored(tint.into_prop());
     let state = memo(state);
     let region = signal(PaintRegion::default());

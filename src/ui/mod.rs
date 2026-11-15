@@ -1,5 +1,4 @@
 mod components;
-mod glass;
 mod kindling;
 pub mod tokens;
 mod wisp;
@@ -7,7 +6,8 @@ mod wisp;
 pub(crate) use components::{
     StyledExt, dispatch, hint, icon_slot, picker_closed, scroll_edge, text_field, with_middots,
 };
-pub(crate) use glass::LiquidGlassExt;
+#[cfg(any(test, feature = "testing"))]
+pub(crate) use kindling::KINDLED_AFTER;
 pub use kindling::kindling;
 pub use wisp::{WispMotion, WispState, wisp};
 

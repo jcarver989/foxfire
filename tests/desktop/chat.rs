@@ -137,7 +137,7 @@ fn clicking_the_composer_after_clicking_away_lets_the_user_type_again() {
     let (mut harness, _) =
         DesktopHarnessBuilder::default().agent("/alpha", replying("alpha-session", "hello")).start("/alpha");
 
-    harness.click("transcript").unwrap();
+    harness.click("new-thread-heading").unwrap();
     harness.type_text("lost");
     assert!(harness.shows("composer-text", ""), "nothing is focused after clicking away");
 

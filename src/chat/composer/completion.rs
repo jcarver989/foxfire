@@ -84,8 +84,8 @@ impl CompletionMenu {
         let highlighted = self.highlighted;
         view! {
             <div test_id="completion-menu" material=Material::Glass p=4.0>
-                <picker_list id="completion" items highlighted empty
-                             max_height={px(COMPOSER_POPUP_HEIGHT)} on_choose/>
+                <picker_list test_id="completion" items highlighted={Some(highlighted)} empty=empty
+                             max_h={px(COMPOSER_POPUP_HEIGHT)} on_choose=on_choose/>
             </div>
         }
     }

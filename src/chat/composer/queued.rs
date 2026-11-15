@@ -1,10 +1,10 @@
 use crate::ui::tokens::ICON_SIZE_SMALL;
-use crate::ui::{Icon, IconName, Material, MaterialExt, Theme, UiStyles};
+use crate::ui::{Icon, IconName, Material, MaterialExt, UiStyles};
 use client_core::session_core::QueuedPrompt;
-use rouge::core::{AnyView, Div, Styled, View, div, text, view};
+use rouge::core::{AnyView, Div, Role, Styled, View, div, text, view};
 
 pub(crate) fn queued_prompts(prompts: &[QueuedPrompt]) -> Div {
-    let muted = Theme::current().text_muted();
+    let muted = Role::TextMuted;
     let shown = if prompts.len() > MAX_QUEUED_ROWS + 1 { MAX_QUEUED_ROWS } else { prompts.len() };
     let rows: Vec<AnyView> = prompts[..shown]
         .iter()
@@ -24,7 +24,7 @@ pub(crate) fn queued_prompts(prompts: &[QueuedPrompt]) -> Div {
         view! { <div><text small muted>{format!("{} more queued", prompts.len() - shown)}</text></div> }
     });
     view! {
-        <div test_id="queued-prompts" px=12.0 py=8.0 flex col gap=4.0 material=Material::GlassPanel>
+        <div test_id="queued-prompts" px=12.0 py=8.0 flex col gap=4.0 material=Material::Glass>
             {..rows}
             {more}
         </div>

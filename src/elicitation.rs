@@ -1,10 +1,10 @@
 use crate::platform::Platform;
 use crate::threads::Thread;
-use crate::ui::{ButtonVariant, Material, MaterialExt, Theme, UiStyles, button, text_field};
+use crate::ui::{ButtonVariant, Material, MaterialExt, UiStyles, button, text_field};
 use client_core::elicitation::{
     Elicitation, ElicitationAnswer, ElicitationId, FieldInput, FormError, FormField, FormFieldKind, accept_content,
 };
-use rouge::core::{AnyView, Styled, View, div, dynamic, px, text, view};
+use rouge::core::{AnyView, Role, Styled, View, div, dynamic, px, text, view};
 use rouge::reactive::{Callback, Scope, Signal, Stored, effect, memo, signal, stored, untrack};
 use std::rc::Rc;
 
@@ -65,7 +65,6 @@ impl ElicitationCard {
     }
 
     fn card(self, elicitation: &Elicitation) -> AnyView {
-        let theme = Theme::current();
         let (primary_id, primary_label) = primary(elicitation);
         let body = match elicitation {
             Elicitation::Url { url, .. } => view! { <div><text small muted>{url.clone()}</text></div> }.into_any(),
@@ -86,13 +85,13 @@ impl ElicitationCard {
             }
         };
         view! {
-            <div test_id="elicitation" mt=8.0 p=16.0 flex col gap=16.0 material=Material::Glass border=px(1.0) border_color=theme.accent()>
+            <div test_id="elicitation" mt=8.0 p=16.0 flex col gap=16.0 material=Material::Glass border=px(1.0) border_color=Role::Accent>
                 <text title primary>{elicitation.question()}</text>
                 {body}
                 <div flex justify_end gap=8.0>
-                    <button id=primary_id label=primary_label variant=ButtonVariant::Primary
+                    <button test_id=primary_id label=primary_label variant=ButtonVariant::Primary
                             on_click={move || self.primary_action()}/>
-                    <button id="elicitation-decline" label="Decline" variant=ButtonVariant::Secondary
+                    <button test_id="elicitation-decline" label="Decline" variant=ButtonVariant::Secondary
                             on_click={move || self.answer(ElicitationAnswer::Decline)}/>
                 </div>
             </div>
@@ -121,11 +120,10 @@ impl ElicitationCard {
             }
             (FieldAnswer::Picked(_), _) => ().into_any(),
         };
-        let theme = Theme::current();
         let error = refused.filter(|refused| refused.index == index).map(|refused| {
             view! {
                 <div test_id={format!("elicitation-error-{name}")}>
-                    <text small color=theme.destructive()>{refused.to_string()}</text>
+                    <text small color=Role::Destructive>{refused.to_string()}</text>
                 </div>
             }
         });
@@ -142,7 +140,7 @@ impl ElicitationCard {
     }
 
     fn pick_button(self, id: String, label: String, selected: bool, (index, option): (usize, usize)) -> AnyView {
-        view! { <button id label selected=selected on_click={move || self.pick(index, option)}/> }
+        view! { <button test_id=id label selected=selected on_click={move || self.pick(index, option)}/> }.into_any()
     }
 
     fn sync(self, id: Option<ElicitationId>) {

@@ -59,7 +59,7 @@ clankerdiff-rouge = { workspace = true }
 clankerdiff-ui-core = { workspace = true }
 clap = { workspace = true }
 rfd = { version = "0.16", default-features = false, features = ["xdg-portal", "tokio"] }
-rouge = { workspace = true, features = ["tokio-rt", "open-url", "markdown"] }
+rouge = { workspace = true, features = ["tokio-rt", "open-url", "markdown", "persist"] }
 rouge-widgets = { workspace = true }
 rustls = { version = "0.23", default-features = false, features = ["aws_lc_rs", "std", "tls12"] }
 serde = { workspace = true }
@@ -70,6 +70,7 @@ tokio = { workspace = true, features = ["rt", "rt-multi-thread", "macros", "sync
 tokio-tungstenite = { workspace = true }
 tokio-util = { workspace = true, features = ["compat"] }
 log = { workspace = true, features = ["release_max_level_info"] }
+mimalloc = { workspace = true }
 tracing = { workspace = true, features = ["release_max_level_info"] }
 tracing-subscriber = { workspace = true }
 utils = { package = "aether-utils", path = "../utils", version = "0.3.1" }
@@ -78,6 +79,8 @@ utils = { package = "aether-utils", path = "../utils", version = "0.3.1" }
 notify-rust = "4.18"
 
 [dev-dependencies]
+clankerdiff-core = { workspace = true, features = ["test-support"] }
+clankerdiff-symbols = { workspace = true }
 clankerdiff-server = { workspace = true }
 client_core = { package = "aether-client-core", path = "../client-core", features = ["testing"], version = "0.1.0" }
 tempfile = { workspace = true }

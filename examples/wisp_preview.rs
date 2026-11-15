@@ -84,16 +84,16 @@ fn preview(reduced: bool) -> impl View {
     let cycling = signal(false);
     let choices = STATES.map(|state| {
         view! {
-            <button id={format!("state-{state:?}")} label={state.label()} size=ControlSize::Small
-                    variant=ButtonVariant::Secondary keyboard_focusable
+            <button test_id={format!("state-{state:?}")} label={state.label()} control_size=ControlSize::Small
+                    variant=ButtonVariant::Secondary
                     on_click={move || selected.set(state)}/>
         }
     });
     let controls = view! {
         <div flex flex_wrap gap=8.0>
-            <button id="toggle-motion" label={move || if motion.reduced() { "Use full motion" } else { "Reduce motion" }}
-                    keyboard_focusable on_click={move || motion.set_reduced(!motion.reduced())}/>
-            <button id="rapid-transitions" label="Rapid transitions" keyboard_focusable
+            <button test_id="toggle-motion" label={move || if motion.reduced() { "Use full motion" } else { "Reduce motion" }}
+                    on_click={move || motion.set_reduced(!motion.reduced())}/>
+            <button test_id="rapid-transitions" label="Rapid transitions"
                     on_click={move || {
                         if cycling.get_untracked() { return; }
                         cycling.set(true);

@@ -28,6 +28,12 @@ pub use app::{
     SelectPreviousThread, ShowChat, ShowFiles, ToggleSidebar,
 };
 pub use clankerdiff_ui_core::{AppearanceMode, ThemePreference};
+
+// macOS's system allocator corrupts its own bookkeeping when the UI thread follows a new review
+// document while short-lived blocking-pool threads prepare syntax, aborting with "pointer being
+// freed was not allocated". Declared in the library so the desktop tests run on it too.
+#[global_allocator]
+static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
 pub use ui::ActiveReviewTheme;
 
 use aether_sessions::SessionStore;
@@ -36,13 +42,13 @@ use clankerdiff_remote::CommandRemotes;
 use cli::Cli;
 use clock::SystemClock;
 use platform::SystemPlatform;
-use registry::{State, WindowSize, default_state_file};
+use registry::{State, WindowSize, default_state_dir, saved_in};
+use rouge::persist::{FileStorage, MemoryStorage, Storage};
 use rouge::{App, WindowOptions};
 use rouge_widgets::bundled_fonts;
 use rustls::crypto::aws_lc_rs;
 use std::rc::Rc;
 use std::sync::Arc;
-use std::time::Duration;
 use target::ProcessTransport;
 use tokio::runtime::Builder;
 
@@ -53,12 +59,14 @@ pub fn run(cli: Cli) {
         .enable_all()
         .build()
         .expect("failed to start the desktop Tokio runtime");
-    let state_file = default_state_file();
-    if state_file.is_none() {
+    let (storage, saved): (Rc<dyn Storage>, State) = if let Some(dir) = default_state_dir() {
+        let saved = saved_in(&dir);
+        (Rc::new(FileStorage::new(dir)), saved)
+    } else {
         tracing::warn!("no home directory, so nothing is remembered between runs");
-    }
-    let (saved, flush) = registry::load(state_file, runtime.handle());
-    let options = window_options(&saved.state());
+        (Rc::new(MemoryStorage::default()), State::default())
+    };
+    let options = window_options(&saved);
     let config = DesktopConfig {
         transport: Arc::new(ProcessTransport),
         clock: Arc::new(SystemClock),
@@ -66,8 +74,9 @@ pub fn run(cli: Cli) {
         remotes: Arc::new(CommandRemotes),
         remotes_file: remotes::default_file(),
         sessions: SessionStore::new().inspect_err(|error| tracing::warn!(%error, "showing no history")).ok(),
-        registry: saved,
         platform: Rc::new(SystemPlatform),
+        storage,
+        saved,
     };
     let app = App::new()
         .fonts(bundled_fonts())
@@ -77,16 +86,11 @@ pub fn run(cli: Cli) {
     if let Err(error) = app.run() {
         eprintln!("{}: {error}", menus::APP_NAME);
     }
-    runtime.block_on(async {
-        let _ = tokio::time::timeout(SHUTDOWN_FLUSH, flush).await;
-    });
     runtime.shutdown_background();
 }
 
 pub const DEFAULT_WINDOW_SIZE: WindowSize = WindowSize { width: 1280.0, height: 840.0 };
 pub const MIN_WINDOW_SIZE: WindowSize = WindowSize { width: 640.0, height: 480.0 };
-
-const SHUTDOWN_FLUSH: Duration = Duration::from_secs(2);
 
 #[must_use]
 pub fn window_size(state: &State) -> WindowSize {

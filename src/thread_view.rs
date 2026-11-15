@@ -1,20 +1,20 @@
 use crate::artifact_review::ArtifactReview;
-use crate::chat::{Composer, SessionOptions, StatusLine, Transcript, reconnect_banner};
+use crate::chat::{Composer, StatusLine, Transcript, reconnect_banner};
 use crate::elicitation::ElicitationCard;
 use crate::files::Files;
 use crate::platform::Platform;
 use crate::registry::Registry;
 use crate::sidebar::toggle_button;
 use crate::threads::{Thread, ThreadStatus};
-use crate::ui::tokens::{GROUP_HEIGHT, HEADER_HEIGHT, ICON_SIZE_SMALL, PANEL_INSET, ROW_HEIGHT};
+use crate::ui::tokens::{GROUP_HEIGHT, GUTTER, HEADER_HEIGHT, ICON_SIZE_SMALL, PANEL_INSET, ROW_HEIGHT, Radius};
 use crate::ui::{
     Icon, IconName, Material, MaterialExt, StyledExt, Theme, UiStyles, WispState, kindling, scroll_edge, wisp,
 };
 use agent_client_protocol::v2::schema as acp;
 use clankerdiff_core::RepoPath;
 use rouge::core::{
-    AnyView, Color, Cursor, Div, FileDropEvent, FileDropPhase, Rect, Styled, TextAlign, View, auto, div, dynamic, px,
-    show, text, view,
+    AnyView, Color, Cursor, Div, FileDropEvent, FileDropPhase, Motion, Rect, Role, Styled, TextAlign, View, auto, div,
+    dynamic, motion, px, show, text, view,
 };
 use rouge::reactive::{Callback, Memo, Signal, effect, memo, signal, untrack};
 use std::rc::Rc;
@@ -31,7 +31,6 @@ pub(crate) struct ThreadView {
     composer_bounds: Signal<Rect>,
     transcript: Transcript,
     status: StatusLine,
-    options: SessionOptions,
     elicitation: ElicitationCard,
     composer: Composer,
     files: Files,
@@ -71,7 +70,6 @@ impl ThreadView {
             composer_bounds: signal(Rect::ZERO),
             transcript,
             status: StatusLine::new(thread),
-            options: SessionOptions::new(thread),
             elicitation: ElicitationCard::new(thread, platform.clone(), move || show(ThreadTab::Review)),
             composer: Composer::new(thread, platform),
             files,
@@ -106,7 +104,7 @@ impl ThreadView {
     pub(crate) fn view(self, sidebar_collapsed: Memo<bool>) -> impl View {
         let tab = self.tab;
         let chat = memo(move || tab.get() == ThreadTab::Chat);
-        let body = self.body(chat);
+        let body = self.body(chat, motion(1.0));
         view! {
             <div relative size_full>
                 {body}
@@ -124,12 +122,12 @@ impl ThreadView {
             view! { <div min_w=0.0 overflow_hidden><text small muted no_wrap>{project}</text></div> }
         });
         view! {
-            <div test_id="thread-header" absolute top=0.0 left=0.0 right=0.0 h=HEADER_HEIGHT pt=PANEL_INSET px=16.0
+            <div test_id="thread-header" absolute top=0.0 left=0.0 right=0.0 h=HEADER_HEIGHT px=GUTTER
                  flex items_center gap=12.0 pass_through>
                 {scroll_edge(true, PANEL_INSET, HEADER_HEIGHT)}
                 <div flex_1 min_w=0.0 flex pass_through>
-                    <div test_id="thread-heading" min_w=0.0 h=GROUP_HEIGHT px=16.0 flex items_center gap=8.0
-                         rounded={GROUP_HEIGHT / 2.0} material=Material::GlassControl>
+                    <div test_id="thread-heading" min_w=0.0 h=GROUP_HEIGHT px=12.0 flex items_center gap=8.0
+                         material=Material::GlassControl>
                         <dynamic>{sidebar_collapsed.get().then(|| toggle_button(false))}</dynamic>
                         <div test_id="thread-title" min_w=0.0 overflow_hidden>
                             <text title no_wrap>{move || title.get()}</text>
@@ -145,7 +143,6 @@ impl ThreadView {
 
     fn switch(self) -> impl View {
         let (thread, tab, seen) = (self.thread, self.tab, self.changes_seen);
-        let theme = Theme::current();
         let files = memo(move || changed_files(thread));
         let working = memo(move || match thread.status() {
             _ if tab.get() == ThreadTab::Chat => None,
@@ -159,8 +156,8 @@ impl ThreadView {
         let chat = segment(&self, "tab-chat", IconName::MessageSquareText, "Chat", ThreadTab::Chat).child(dynamic(
             move || {
                 working.get().map(|id| {
-                    let color = if id == "chat-waiting" { theme.warning() } else { theme.info() };
-                    corner_dot(id, color.get())
+                    let color = if id == "chat-waiting" { Role::Warning } else { Role::Info };
+                    corner_dot(id, color)
                 })
             },
         ));
@@ -170,10 +167,10 @@ impl ThreadView {
                     view! { <div test_id="changes-count"><text muted>{files.to_string()}</text></div> }
                 })
             }))
-            .child(dynamic(move || unseen.get().then(|| corner_dot("changes-unseen", theme.accent().get()))));
+            .child(dynamic(move || unseen.get().then(|| corner_dot("changes-unseen", Role::Accent))));
         view! {
             <div test_id="view-switch" flex_none h=GROUP_HEIGHT p=4.0 flex items_center gap=4.0
-                 rounded={GROUP_HEIGHT / 2.0} material=Material::GlassControl small>
+                 material=Material::GlassControl small>
                 {chat}
                 {files_tab}
                 <dynamic>{reviewing.get().then(|| segment(&self, "tab-review", IconName::Eye, "Review", ThreadTab::Review))}</dynamic>
@@ -181,7 +178,8 @@ impl ThreadView {
         }
     }
 
-    fn body(self, chat: Memo<bool>) -> impl View {
+    /// `reveal` is the composer's opacity, which a fresh thread's kindling holds back until it has formed.
+    fn body(self, chat: Memo<bool>, reveal: Motion) -> impl View {
         let (tab, dropping, composer) = (self.tab, self.dropping, self.composer);
         let theme = Theme::current();
         let shown = memo(move || tab.get());
@@ -209,17 +207,17 @@ impl ThreadView {
         let kindle = memo(move || chat.get() && thread.is_fresh());
         view! {
             <div relative size_full on_file_drop=drop track_bounds={self.stage}
-                 bg={move || if dropping.get() { theme.accent().get().with_alpha(DROP_TINT) } else { Color::TRANSPARENT }}>
+                 bg={move || if dropping.get() { theme.get().accent.with_alpha(DROP_TINT) } else { Color::TRANSPARENT }}>
                 {content}
                 {self.review_pill()}
-                <show when={move || kindle.get()}>{self.kindling()}</show>
-                <show when={move || chat.get()}>{self.dock()}</show>
+                <show when={move || kindle.get()}>{self.kindling(reveal)}</show>
+                <show when={move || chat.get()}>{self.dock(reveal)}</show>
             </div>
         }
     }
 
     /// Docked under the transcript, or on a fresh thread centred beneath a heading asking what to build.
-    fn dock(self) -> impl View {
+    fn dock(self, reveal: Motion) -> impl View {
         let thread = self.thread;
         let unreachable = memo(move || unreachable(thread));
         let fresh = memo(move || thread.is_fresh());
@@ -238,10 +236,8 @@ impl ThreadView {
                     </show>
                     <dynamic>{unreachable.get().and_then(|status| reconnect_banner(thread, status)).map(|banner| banner.mt(8.0))}</dynamic>
                     {self.elicitation.view()}
-                    <div track_bounds={self.composer_bounds}>{self.composer.view()}</div>
-                    <div test_id="composer-bar" h=ROW_HEIGHT px=8.0 flex items_center gap=16.0
-                         mt={move || px(if fresh.get() { RUNE_CLEARANCE } else { 4.0 })}>
-                        {self.options.view()}
+                    <div track_bounds={self.composer_bounds} opacity=reveal>{self.composer.view()}</div>
+                    <div test_id="composer-bar" h=ROW_HEIGHT mt=4.0 px=8.0 flex items_center gap=16.0 opacity=reveal>
                         {self.status.view()}
                         <show when={move || connecting.get()}>{connecting_message()}</show>
                     </div>
@@ -251,18 +247,21 @@ impl ThreadView {
         }
     }
 
-    /// Runes that kindle around the composer and set it alight while the thread waits for its first prompt.
-    fn kindling(self) -> impl View {
+    /// A snowflake that blooms into the composer and sets it alight while the thread waits for its first prompt.
+    fn kindling(self, reveal: Motion) -> impl View {
         let (stage, composer) = (self.stage, self.composer_bounds);
-        kindling(move || {
-            let (stage, composer) = (stage.get(), composer.get());
-            Rect::new(
-                composer.origin.x - stage.origin.x,
-                composer.origin.y - stage.origin.y + COMPOSER_MARGIN,
-                composer.size.width,
-                (composer.size.height - COMPOSER_MARGIN).max(0.0),
-            )
-        })
+        kindling(
+            move || {
+                let (stage, composer) = (stage.get(), composer.get());
+                Rect::new(
+                    composer.origin.x - stage.origin.x,
+                    composer.origin.y - stage.origin.y + COMPOSER_MARGIN,
+                    composer.size.width,
+                    (composer.size.height - COMPOSER_MARGIN).max(0.0),
+                )
+            },
+            reveal,
+        )
     }
 
     fn review_pill(self) -> impl View {
@@ -274,8 +273,8 @@ impl ThreadView {
                 let label = if comments == 1 { "1 comment".to_owned() } else { format!("{comments} comments") };
                 view! {
                     <div absolute left=0.0 right=0.0 bottom=16.0 flex justify_center>
-                        <div test_id="review-pill" h=GROUP_HEIGHT p=4.0 pl=16.0 flex items_center gap=4.0 material=Material::GlassPanel
-                             rounded={GROUP_HEIGHT / 2.0} small>
+                        <div test_id="review-pill" h=GROUP_HEIGHT p=4.0 pl=12.0 flex items_center gap=4.0 material=Material::Glass
+                             rounded=Radius::Control small>
                             <div test_id="review-comments" mr=8.0><text no_wrap secondary>{label}</text></div>
                             {pill_button("review-copy", "Copy", false, Callback::from(move || files.copy()))}
                             {pill_button("review-submit", "Submit review", true, Callback::from(move || files.submit()))}
@@ -323,12 +322,12 @@ fn segment(view: &ThreadView, id: &'static str, icon: IconName, label: &'static 
     let selected = memo(move || tab.get() == value);
     let hovered = signal(false);
     let foreground = move || {
-        if selected.get() || hovered.get() { theme.text().get() } else { theme.text_secondary().get() }
+        if selected.get() || hovered.get() { theme.get().text } else { theme.get().text_secondary }
     };
     view! {
-        <div test_id=id relative h_full px=12.0 flex items_center gap=4.0 rounded={ROW_HEIGHT / 2.0}
+        <div test_id=id relative h_full px=12.0 flex items_center gap=4.0 rounded=Radius::Inner
              cursor=Cursor::Pointer text_color=foreground
-             bg={move || if selected.get() { theme.text().get().with_alpha(SELECTED_TINT) } else { Color::TRANSPARENT }}
+             bg={move || if selected.get() { theme.get().text.with_alpha(SELECTED_TINT) } else { Color::TRANSPARENT }}
              on_hover={move |inside| {
                  hovered.set_if_changed(inside);
              }}
@@ -336,7 +335,7 @@ fn segment(view: &ThreadView, id: &'static str, icon: IconName, label: &'static 
                  event.stop_propagation();
                  view.show(value);
              }}>
-            <div test_id={format!("{id}-icon")} flex>{Icon::new(icon, theme.text_muted()).size(ICON_SIZE_SMALL)}</div>
+            <div test_id={format!("{id}-icon")} flex>{Icon::new(icon, Role::TextMuted).size(ICON_SIZE_SMALL)}</div>
             <text>{label}</text>
         </div>
     }
@@ -346,9 +345,9 @@ fn below_header(content: impl View) -> AnyView {
     view! { <div size_full pt=HEADER_HEIGHT>{content}</div> }.into_any()
 }
 
-fn corner_dot(id: &'static str, color: Color) -> AnyView {
+fn corner_dot(id: &'static str, color: Role) -> AnyView {
     view! {
-        <div test_id=id absolute top=0.0 right=0.0 size=CORNER_DOT_SIZE_OFF_GRID rounded={CORNER_DOT_SIZE_OFF_GRID / 2.0}
+        <div test_id=id absolute top=0.0 right=0.0 size=CORNER_DOT_SIZE rounded=Radius::Full
              bg=color/>
     }
     .into_any()
@@ -358,11 +357,11 @@ fn pill_button(id: &'static str, label: &'static str, primary: bool, on_click: C
     let theme = Theme::current();
     let hovered = signal(false);
     view! {
-        <div test_id=id h_full px=12.0 flex items_center rounded={ROW_HEIGHT / 2.0} cursor=Cursor::Pointer
+        <div test_id=id h_full px=12.0 flex items_center rounded=Radius::Inner cursor=Cursor::Pointer
              bg={move || match (primary, hovered.get()) {
-                 (true, false) => theme.accent().get(),
-                 (true, true) => theme.accent().get().with_alpha(PILL_HOVER_OPACITY),
-                 (false, true) => theme.text().get().with_alpha(SELECTED_TINT),
+                 (true, false) => theme.get().accent,
+                 (true, true) => theme.get().accent.with_alpha(PILL_HOVER_OPACITY),
+                 (false, true) => theme.get().text.with_alpha(SELECTED_TINT),
                  (false, false) => Color::TRANSPARENT,
              }}
              on_hover={move |inside| {
@@ -372,7 +371,7 @@ fn pill_button(id: &'static str, label: &'static str, primary: bool, on_click: C
                  event.stop_propagation();
                  on_click.call();
              }}>
-            <text no_wrap color={move || if primary { theme.accent_foreground().get() } else { theme.text().get() }}>{label}</text>
+            <text no_wrap color={move || if primary { theme.get().accent_foreground } else { theme.get().text }}>{label}</text>
         </div>
     }
     .into_any()
@@ -384,7 +383,7 @@ fn changed_files(thread: Thread) -> Option<usize> {
 
 /// Shown in the composer bar while a new thread's agent starts, so the layout is already the one it will keep.
 fn connecting_message() -> impl View {
-    let muted = Theme::current().text_muted();
+    let muted = Role::TextMuted;
     view! {
         <div test_id="new-thread-connecting" flex_none flex items_center gap=8.0>
             {wisp(ICON_SIZE_SMALL, muted, || WispState::Connecting)}
@@ -403,11 +402,10 @@ const DROP_TINT: f32 = 0.08;
 const SELECTED_TINT: f32 = 0.12;
 const DOCK_EDGE_SOLID: f32 = 40.0;
 const DOCK_EDGE_REACH: f32 = 40.0;
-const CORNER_DOT_SIZE_OFF_GRID: f32 = 6.0;
+const CORNER_DOT_SIZE: f32 = 8.0;
 const PILL_HOVER_OPACITY: f32 = 0.85;
 const NEW_THREAD_HEADING: &str = "What do you want to build?";
-/// Room above and below a fresh thread's composer for the runes that kindle around it.
-const HEADING_GAP: f32 = 54.0;
-const RUNE_CLEARANCE: f32 = 48.0;
-/// The composer sits this far below the top of its own bounds; the runes ring its glass, not the margin.
+/// Room above a fresh thread's composer for the tall flames off its top edge; below it they only lick.
+const HEADING_GAP: f32 = 56.0;
+/// The composer sits this far below the top of its own bounds; the fire rings its glass, not the margin.
 const COMPOSER_MARGIN: f32 = 8.0;
