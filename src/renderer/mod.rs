@@ -30,13 +30,12 @@ use acp_utils::conversation::{ConversationId, ConversationItemId};
 use frame::draw_frame;
 use ratatui::Terminal;
 use ratatui::backend::Backend;
-use rouge_syntax::{SyntaxWorkStats, thread_work};
 
 use cache::RenderCache;
 use history::NativeHistoryCursor;
 use layout::FrameLayout;
+use stats::Lap;
 pub use stats::RenderStats;
-use stats::{Lap, work_since};
 use streaming::StreamEntry;
 
 /// Shared rendering services, borrowed for the duration of one draw.
@@ -50,7 +49,6 @@ pub struct DrawContext<'a> {
 
 pub struct Renderer {
     theme: Theme,
-    syntax_baseline: SyntaxWorkStats,
     theme_generation: Option<Generation>,
     render_cache: RenderCache,
     native_history: NativeHistoryCursor,
@@ -68,7 +66,6 @@ impl Renderer {
     pub fn new() -> Self {
         Self {
             theme: Theme::default(),
-            syntax_baseline: thread_work(),
             theme_generation: None,
             render_cache: RenderCache::default(),
             native_history: NativeHistoryCursor::default(),
@@ -78,8 +75,7 @@ impl Renderer {
     }
 
     pub fn take_stats(&mut self) -> RenderStats {
-        let before = std::mem::replace(&mut self.syntax_baseline, thread_work());
-        RenderStats { syntax: work_since(before, self.syntax_baseline), ..std::mem::take(&mut self.stats) }
+        std::mem::take(&mut self.stats)
     }
 
     pub fn theme(&self) -> &Theme {

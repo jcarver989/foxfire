@@ -1,4 +1,3 @@
-use rouge_syntax::SyntaxWorkStats;
 #[cfg(feature = "testing")]
 use std::time::Instant;
 
@@ -18,14 +17,15 @@ pub struct RenderStats {
     pub item_rebuilds: u64,
     pub markdown_bytes_parsed: u64,
     pub markdown_bytes_scanned: u64,
-    pub markdown_prefix_bytes_copied: u64,
+    pub markdown_source_bytes_copied: u64,
+    /// Code block bytes fed to the syntax highlighter.
+    pub markdown_bytes_highlighted: u64,
     pub markdown_rows_generated: u64,
     pub markdown_rows_materialized: u64,
     /// Largest live region any single render produced. Native scrollback commits
     /// are supposed to bound this to roughly the viewport height.
     pub max_live_rows: usize,
     pub history_rows_inserted: u64,
-    pub syntax: SyntaxWorkStats,
     pub ns_layout: u64,
     pub ns_live: u64,
     pub ns_draw: u64,
@@ -53,18 +53,5 @@ impl Lap {
         return u64::try_from(self.start.elapsed().as_nanos()).unwrap_or(u64::MAX);
         #[cfg(not(feature = "testing"))]
         0
-    }
-}
-
-pub(super) fn work_since(before: SyntaxWorkStats, now: SyntaxWorkStats) -> SyntaxWorkStats {
-    SyntaxWorkStats {
-        parser_input_bytes: now.parser_input_bytes - before.parser_input_bytes,
-        queried_bytes: now.queried_bytes - before.queried_bytes,
-        full_parses: now.full_parses - before.full_parses,
-        incremental_parses: now.incremental_parses - before.incremental_parses,
-        projected_bytes: now.projected_bytes - before.projected_bytes,
-        projected_lines: now.projected_lines - before.projected_lines,
-        reused_lines: now.reused_lines - before.reused_lines,
-        compared_nodes: now.compared_nodes - before.compared_nodes,
     }
 }

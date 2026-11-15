@@ -41,7 +41,7 @@ fn settled_session_renders_nothing_per_frame() {
     assert_eq!(stats.frames, 1);
     assert_eq!(stats.item_rebuilds, 0, "a frame with no state change must rebuild nothing");
     assert_eq!(stats.markdown_bytes_parsed, 0);
-    assert_eq!(stats.syntax.parses(), 0);
+    assert_eq!(stats.markdown_bytes_highlighted, 0);
     assert_eq!(stats.history_rows_inserted, 0);
     assert_eq!(backend.draws, 1);
     assert_eq!(backend.cells_drawn, 0, "a frame with no state change must repaint no cells");
@@ -108,10 +108,10 @@ fn streaming_code_block_rerenders_bounded_work() {
         stats.markdown_bytes_parsed
     );
     assert!(
-        stats.syntax.parser_input_bytes as u64 <= budget,
+        stats.markdown_bytes_highlighted <= budget,
         "streaming {} bytes re-highlighted {} bytes: a growing code block must not re-highlight from the top each chunk",
         total,
-        stats.syntax.parser_input_bytes
+        stats.markdown_bytes_highlighted
     );
 }
 
@@ -267,12 +267,12 @@ fn assert_matches_one_shot_at_every_chunk(message: &str, stream: impl Fn(&str) -
 fn rendering_work_breakdown() {
     println!();
     println!(
-        "{:<44} {:>6} {:>8} {:>10} {:>12} {:>10} {:>9} {:>9} {:>9} {:>10} {:>8}",
+        "{:<44} {:>6} {:>8} {:>10} {:>10} {:>10} {:>9} {:>9} {:>9} {:>10} {:>8}",
         "scenario",
         "frames",
         "rebuilds",
         "md bytes",
-        "hl parse/bytes",
+        "hl bytes",
         "max live",
         "layout",
         "live",
@@ -371,13 +371,12 @@ fn bench(
     let stats = ui.render_stats();
     let backend = ui.backend_mut().take_stats();
     println!(
-        "{:<44} {:>6} {:>8} {:>10} {:>5}/{:<6} {:>10} {:>8.2}ms {:>8.2}ms {:>8.2}ms {:>9.2}ms {:>8}",
+        "{:<44} {:>6} {:>8} {:>10} {:>10} {:>10} {:>8.2}ms {:>8.2}ms {:>8.2}ms {:>9.2}ms {:>8}",
         name,
         stats.frames,
         stats.item_rebuilds,
         stats.markdown_bytes_parsed,
-        stats.syntax.parses(),
-        stats.syntax.parser_input_bytes,
+        stats.markdown_bytes_highlighted,
         stats.max_live_rows,
         ms(stats.ns_layout),
         ms(stats.ns_live),

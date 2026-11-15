@@ -38,7 +38,7 @@ pub struct Composer {
 #[derive(Debug)]
 enum Overlay {
     /// The `/` command or `@` file list, drawn below the text.
-    Completion(CompletionOverlay),
+    Completion(Box<CompletionOverlay>),
     /// Prompt-history search, drawn above the text. It carries the draft it
     /// replaced, so backing out restores what the user was writing.
     PromptSearch { picker: PromptSearchPicker, draft: String },
@@ -229,11 +229,11 @@ impl Composer {
     }
 
     pub fn open_command_picker(&mut self, commands: Vec<SlashCommand>) {
-        self.overlay = Some(Overlay::Completion(CompletionOverlay::command(commands)));
+        self.overlay = Some(Overlay::Completion(Box::new(CompletionOverlay::command(commands))));
     }
 
     pub fn open_file_picker(&mut self) {
-        self.overlay = Some(Overlay::Completion(CompletionOverlay::file()));
+        self.overlay = Some(Overlay::Completion(Box::new(CompletionOverlay::file())));
     }
 
     pub fn on_files_listed(&mut self, listing: FileListing) {

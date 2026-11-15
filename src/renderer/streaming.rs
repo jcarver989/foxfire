@@ -65,7 +65,8 @@ impl Renderer {
             self.stats.markdown_bytes_parsed += work.parsed_bytes as u64;
             self.stats.markdown_bytes_scanned += work.scanned_bytes as u64;
 
-            self.stats.markdown_prefix_bytes_copied += work.prefix_bytes_copied as u64;
+            self.stats.markdown_source_bytes_copied += work.source_bytes_copied as u64;
+            self.stats.markdown_bytes_highlighted += work.highlighted_bytes as u64;
             self.stats.markdown_rows_generated += work.rows_generated as u64;
         }
         let rows = entry.rows.iter().skip(skip).map(|row| row.line.clone()).collect::<Vec<_>>();
