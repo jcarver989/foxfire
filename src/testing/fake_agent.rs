@@ -11,7 +11,7 @@ use agent_client_protocol::v2::schema::{
     ElicitationSessionScope, ElicitationUrlMode, Implementation, InitializeRequest, InitializeResponse,
     ListSessionsRequest, ListSessionsResponse, LoginAuthRequest, LoginAuthResponse, NewSessionRequest,
     NewSessionResponse, PromptRequest, PromptResponse, ResumeSessionRequest, ResumeSessionResponse, SessionConfigKind,
-    SessionConfigOption, SessionConfigOptionValue, SessionId, SessionInfo, SessionUpdate,
+    SessionConfigOption, SessionConfigOptionValue, SessionId, SessionInfo, SessionListCursor, SessionUpdate,
     SetSessionConfigOptionRequest, SetSessionConfigOptionResponse, StopReason, StringPropertySchema,
     UpdateSessionNotification,
 };
@@ -29,6 +29,7 @@ pub struct FakeAgent {
     initialize: InitializeResponse,
     new_session: Option<NewSessionResponse>,
     sessions: Option<Vec<SessionInfo>>,
+    session_page_size: Option<usize>,
     previews: Vec<SessionPreviewResponse>,
     prompt_history: Vec<String>,
     login_method: Option<String>,
@@ -78,6 +79,7 @@ impl Default for FakeAgent {
             initialize: initialize_response(),
             new_session: None,
             sessions: None,
+            session_page_size: None,
             previews: Vec::new(),
             prompt_history: Vec::new(),
             login_method: None,
@@ -152,6 +154,11 @@ impl FakeAgent {
     }
     pub fn sessions(mut self, sessions: Vec<SessionInfo>) -> Self {
         self.sessions = Some(sessions);
+        self
+    }
+
+    pub fn session_page_size(mut self, size: usize) -> Self {
+        self.session_page_size = Some(size);
         self
     }
     pub fn replay_message(mut self, session_id: &str, text: &str) -> Self {
@@ -378,7 +385,7 @@ impl HandleDispatchFrom<Client> for FakeAgent {
             })
             .await
             .if_request(async |request: ListSessionsRequest, responder| {
-                self.answer_scripted(request, responder, |_| self.sessions.clone().map(ListSessionsResponse::new))
+                self.answer_scripted(request, responder, |request| self.list_sessions(request))
             })
             .await
             .if_request(async |request: CloseSessionRequest, responder| {
@@ -504,6 +511,20 @@ impl FakeAgent {
             })
             .collect();
         super::prompt_search_response(&request.query, results)
+    }
+
+    fn list_sessions(&self, request: &ListSessionsRequest) -> Option<ListSessionsResponse> {
+        let matching: Vec<&SessionInfo> = self
+            .sessions
+            .as_ref()?
+            .iter()
+            .filter(|session| request.cwd.as_ref().is_none_or(|cwd| session.cwd == *cwd))
+            .collect();
+        let start = request.cursor.as_ref().map_or(0, |cursor| cursor.0.parse().unwrap_or(0)).min(matching.len());
+        let end = self.session_page_size.map_or(matching.len(), |size| (start + size).min(matching.len()));
+        let next_cursor = (end < matching.len()).then(|| SessionListCursor::new(end.to_string()));
+        let page = matching[start..end].iter().copied().cloned().collect();
+        Some(ListSessionsResponse::new(page).next_cursor(next_cursor))
     }
 
     fn resume(

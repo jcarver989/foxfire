@@ -62,6 +62,20 @@ pub fn first_line(text: &str) -> Option<&str> {
     text.lines().map(str::trim).find(|line| !line.is_empty())
 }
 
+pub fn prompt_title(text: Option<&str>) -> String {
+    truncate_title(text.and_then(first_line).unwrap_or("Media prompt"))
+}
+
+pub fn truncate_title(text: &str) -> String {
+    if text.len() <= MAX_TITLE_LEN {
+        text.to_owned()
+    } else {
+        format!("{}…", &text[..text.floor_char_boundary(MAX_TITLE_LEN)])
+    }
+}
+
+const MAX_TITLE_LEN: usize = 80;
+
 pub fn first_text(blocks: &[acp::ContentBlock]) -> Option<&str> {
     blocks.iter().find_map(|block| match block {
         acp::ContentBlock::Text(text) => Some(text.text.trim()).filter(|text| !text.is_empty()),
