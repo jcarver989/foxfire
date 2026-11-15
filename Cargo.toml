@@ -42,6 +42,7 @@ clankerdiff-client = { workspace = true, features = ["websocket"] }
 clankerdiff-server = { workspace = true }
 clankerdiff-core = { workspace = true }
 clankerdiff-remote = { workspace = true }
+futures = { workspace = true }
 tokio = { workspace = true, features = ["rt", "macros", "sync", "process", "io-std"] }
 tracing = { workspace = true }
 thiserror = { workspace = true }

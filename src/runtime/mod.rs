@@ -4,6 +4,8 @@ mod git_review;
 use crate::command::{Command, CommandResult};
 use crate::composer::attachment::build_attachments;
 use acp_utils::client::{AcpClientHandle, AcpEvent};
+use agent::Requests;
+use futures::StreamExt;
 use git_review::GitReviewRuntime;
 use std::collections::VecDeque;
 use tokio::sync::mpsc::UnboundedReceiver;
@@ -18,6 +20,7 @@ pub struct SessionRuntime {
     handle: AcpClientHandle,
     events: UnboundedReceiver<AcpEvent>,
     events_closed: bool,
+    requests: Requests,
     tasks: JoinSet<CommandResult>,
     preparing: Option<AbortHandle>,
     git_review: GitReviewRuntime,
@@ -31,6 +34,7 @@ impl SessionRuntime {
             handle,
             events,
             events_closed: false,
+            requests: Requests::new(),
             tasks: JoinSet::new(),
             preparing: None,
             ready: VecDeque::new(),
@@ -39,7 +43,7 @@ impl SessionRuntime {
 
     pub fn dispatch(&mut self, command: Command) {
         let result = match command {
-            Command::Agent(command) => agent::execute(&self.handle, command, &mut self.tasks),
+            Command::Agent(command) => agent::execute(&self.handle, command, &mut self.requests),
             Command::GitReview(command) => self.git_review.dispatch(command, &mut self.tasks),
             Command::PrepareSubmission { attachments, access } => {
                 let preparing = self
@@ -73,6 +77,9 @@ impl SessionRuntime {
                     Some(state) => return Input::Result(CommandResult::GitReview(state)),
                     None => self.git_review.close(),
                 },
+                Some(result) = self.requests.next(), if !self.requests.is_empty() => {
+                    return Input::Result(result);
+                }
                 Some(result) = next_task(&mut self.tasks, &mut self.preparing), if !self.tasks.is_empty() => {
                     return Input::Result(result);
                 }
@@ -92,6 +99,7 @@ impl SessionRuntime {
     pub async fn shutdown(&mut self) {
         self.git_review.close();
         self.handle.disconnect().await;
+        self.requests.clear();
         self.tasks.shutdown().await;
     }
 

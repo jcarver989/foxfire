@@ -10,16 +10,22 @@ use agent_client_protocol::v2::schema::{
     SetSessionConfigOptionRequest,
 };
 use agent_client_protocol::{ErrorCode, JsonRpcRequest};
-use tokio::task::JoinSet;
+use futures::FutureExt;
+use futures::future::BoxFuture;
+use futures::stream::FuturesUnordered;
+
+/// Agent requests are polled in place rather than spawned, so their results come back in the order
+/// the agent answered them instead of the order worker threads happen to finish.
+pub(super) type Requests = FuturesUnordered<BoxFuture<'static, CommandResult>>;
 
 pub(super) fn execute(
     handle: &AcpClientHandle,
     command: AgentCommand,
-    tasks: &mut JoinSet<CommandResult>,
+    requests: &mut Requests,
 ) -> Option<CommandResult> {
     match command {
         AgentCommand::Prompt { request_id, session_id, content } => {
-            submit_request(handle, tasks, PromptRequest::new(session_id, content), move |result| {
+            submit_request(handle, requests, PromptRequest::new(session_id, content), move |result| {
                 CommandResult::Prompt { request_id, result: result.map(drop).map_err(prompt_rejection) }
             });
         }
@@ -28,7 +34,7 @@ pub(super) fn execute(
         }
         AgentCommand::SetConfigOption { conversation_id, session_id, config_id, value } => submit_request(
             handle,
-            tasks,
+            requests,
             SetSessionConfigOptionRequest::new(session_id, config_id, value),
             move |result| CommandResult::ConfigOptionsUpdated { conversation_id, result },
         ),
@@ -37,42 +43,45 @@ pub(super) fn execute(
             return Some(CommandResult::Notified(handle.notify(request)));
         }
         AgentCommand::Authenticate { method_id } => {
-            submit_request(handle, tasks, LoginAuthRequest::new(method_id.clone()), move |result| {
+            submit_request(handle, requests, LoginAuthRequest::new(method_id.clone()), move |result| {
                 CommandResult::Reply(Reply::AuthenticationCompleted { method_id, result })
             });
         }
         AgentCommand::ListSessions => {
-            submit_request(handle, tasks, ListSessionsRequest::new(), CommandResult::SessionsListed);
+            submit_request(handle, requests, ListSessionsRequest::new(), CommandResult::SessionsListed);
         }
         AgentCommand::ResumeSession { session_id, cwd } => {
-            submit_request(handle, tasks, resume_request(session_id.clone(), cwd), move |result| {
+            submit_request(handle, requests, resume_request(session_id.clone(), cwd), move |result| {
                 CommandResult::ResumeSession { session_id, result }
             });
         }
         AgentCommand::NewSession { cwd } => {
-            submit_request(handle, tasks, NewSessionRequest::new(cwd), CommandResult::NewSession);
+            submit_request(handle, requests, NewSessionRequest::new(cwd), CommandResult::NewSession);
         }
         AgentCommand::SearchPrompts(params) => {
             let query = params.query.clone();
-            submit_request(handle, tasks, params, move |result| CommandResult::PromptSearchResults { query, result });
+            submit_request(handle, requests, params, move |result| CommandResult::PromptSearchResults {
+                query,
+                result,
+            });
         }
         AgentCommand::SessionPreview { session_id } => {
             let request = SessionPreviewParams { session_id: session_id.to_string() };
-            submit_request(handle, tasks, request, move |result| {
+            submit_request(handle, requests, request, move |result| {
                 CommandResult::Reply(Reply::SessionPreviewLoaded { session_id, result })
             });
         }
         AgentCommand::ListWorkspaces { session_id } => {
             let request = WorkspaceListParams { session_id: session_id.to_string() };
-            submit_request(handle, tasks, request, CommandResult::WorkspacesListed);
+            submit_request(handle, requests, request, CommandResult::WorkspacesListed);
         }
         AgentCommand::MoveWorkspace { session_id, target } => {
             let request = WorkspaceMoveParams { session_id: session_id.to_string(), target };
-            submit_request(handle, tasks, request, CommandResult::WorkspaceMoved);
+            submit_request(handle, requests, request, CommandResult::WorkspaceMoved);
         }
         AgentCommand::FetchWorkspaceStatus { session_id, cwd } => {
             let request = WorkspaceStatusPayload { session_id: session_id.to_string() };
-            submit_request(handle, tasks, request, move |result| {
+            submit_request(handle, requests, request, move |result| {
                 let status = result.unwrap_or_else(|_| initial_workspace_status(&cwd));
                 CommandResult::WorkspaceResolved { cwd, status }
             });
@@ -90,10 +99,10 @@ fn prompt_rejection(error: AcpClientError) -> PromptRejection {
 
 fn submit_request<T: JsonRpcRequest + Send + 'static>(
     handle: &AcpClientHandle,
-    tasks: &mut JoinSet<CommandResult>,
+    requests: &mut Requests,
     request: T,
     complete: impl FnOnce(Result<T::Response, AcpClientError>) -> CommandResult + Send + 'static,
 ) {
     let response = handle.request(request);
-    tasks.spawn(async move { complete(response.await) });
+    requests.push(response.map(complete).boxed());
 }
