@@ -29,7 +29,6 @@ required-features = ["testing"]
 testing = [
     "acp_utils/testing",
     "client_core/testing",
-    "aether-sessions/testing",
     "tokio/io-std",
     "clankerdiff-remote/test-support",
     "dep:tempfile",
@@ -46,7 +45,6 @@ workspace = true
 [dependencies]
 acp_utils = { package = "aether-acp-utils", path = "../acp-utils", features = ["client", "websocket"], version = "0.5.19" }
 agent-client-protocol = { workspace = true, features = ["process"] }
-aether-sessions = { path = "../aether-sessions", version = "0.3.19" }
 base64 = { workspace = true }
 chrono = { workspace = true }
 client_core = { package = "aether-client-core", path = "../client-core", version = "0.1.0" }
@@ -58,6 +56,7 @@ clankerdiff-remote = { workspace = true }
 clankerdiff-rouge = { workspace = true }
 clankerdiff-ui-core = { workspace = true }
 clap = { workspace = true }
+futures = { workspace = true }
 rfd = { version = "0.16", default-features = false, features = ["xdg-portal", "tokio"] }
 rouge = { workspace = true, features = ["tokio-rt", "open-url", "markdown", "persist"] }
 rouge-widgets = { workspace = true }

@@ -1,17 +1,17 @@
-use crate::agents::{Agents, CommandLine, Endpoint, parse_command_line};
+use crate::agents::{AgentProfile, Agents, CommandLine, DEFAULT_AGENT, Endpoint, parse_command_line};
 use crate::clock::Clock;
 use crate::history::History;
 use crate::platform::{Notification, PathPrompt, Platform, PlatformFuture};
 use crate::registry::{self, Registry, STATE_KEY, State};
 use crate::remotes::{Acp, Fleet, InstanceState, RemoteSpec};
-use crate::target::{ConnectError, Transport, TransportFuture, client_info};
+use crate::sessions::{ListFuture, SessionSource};
+use crate::target::{AgentConnector, ConnectError, Transport, TransportFuture, client_info};
 use crate::threads::{Thread, ThreadManager, ThreadStatus};
 use crate::ui::KINDLED_AFTER;
 use crate::ui::tokens::BASE_SIZE;
 use crate::{ActiveReviewTheme, DesktopApp, DesktopConfig, cli::DEFAULT_AGENT_COMMAND, window_size};
 use acp_utils::testing::{Channel, FakeAgent, FakeAgentRequests, QueuedTurns};
-use aether_sessions::SessionStore;
-use aether_sessions::testing::{TestStore, session_meta, user_message};
+use agent_client_protocol::v2::schema::{AbsolutePath, SessionId, SessionInfo};
 use chrono::{DateTime, Utc};
 use clankerdiff_remote::RemotesFile;
 use clankerdiff_remote::testing::FakeRemotes;
@@ -26,6 +26,7 @@ use rouge_widgets::testing::component_test;
 use std::cell::RefCell;
 use std::collections::{HashMap, VecDeque};
 use std::fs;
+use std::future;
 use std::io;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
@@ -43,8 +44,7 @@ pub struct DesktopHarnessBuilder {
     window_size: Option<(f32, f32)>,
     connector: FakeConnector,
     projects: Vec<PathBuf>,
-    sessions: TestStore,
-    saved_sessions: bool,
+    sessions: FakeSessions,
     state_dir: Option<PathBuf>,
     remotes: Vec<RemoteSpec>,
     now: DateTime<Utc>,
@@ -54,6 +54,11 @@ pub struct DesktopHarnessBuilder {
 pub struct FakeConnector {
     state: Arc<Mutex<FakeConnectorState>>,
     remotes: FakeRemotes,
+}
+
+#[derive(Clone, Default)]
+pub struct FakeSessions {
+    saved: Arc<Mutex<Vec<(String, SessionInfo)>>>,
 }
 
 #[derive(Clone, Default)]
@@ -69,7 +74,7 @@ pub struct DesktopHarness {
     theme: ActiveReviewTheme,
     platform: FakePlatform,
     connector: FakeConnector,
-    sessions: TestStore,
+    sessions: FakeSessions,
     remotes_dir: TempDir,
     runtime: Option<Runtime>,
     _entered: Entered,
@@ -103,8 +108,7 @@ impl Default for DesktopHarnessBuilder {
             window_size: None,
             connector: FakeConnector::default(),
             projects: Vec::new(),
-            sessions: TestStore::new(),
-            saved_sessions: false,
+            sessions: FakeSessions::default(),
             state_dir: None,
             remotes: Vec::new(),
             now: parse_time(DEFAULT_NOW),
@@ -163,14 +167,24 @@ impl DesktopHarnessBuilder {
     }
 
     pub fn session<'a>(
-        mut self,
+        self,
         session_id: &str,
-        cwd: &str,
-        created_at: &str,
-        prompt: impl Into<Option<&'a str>>,
+        cwd: impl AsRef<Path>,
+        updated_at: &str,
+        title: impl Into<Option<&'a str>>,
     ) -> Self {
-        save_session(&self.sessions, session_id, cwd, created_at, prompt.into());
-        self.saved_sessions = true;
+        self.agent_session(DEFAULT_AGENT, session_id, cwd, updated_at, title)
+    }
+
+    pub fn agent_session<'a>(
+        self,
+        agent: &str,
+        session_id: &str,
+        cwd: impl AsRef<Path>,
+        updated_at: &str,
+        title: impl Into<Option<&'a str>>,
+    ) -> Self {
+        self.sessions.save(agent, saved_session(session_id, cwd.as_ref(), updated_at, title.into()));
         self
     }
 
@@ -208,16 +222,17 @@ impl DesktopHarnessBuilder {
         let file = serde_json::to_string(&RemotesFile { remotes: self.remotes }).expect("the remotes serialize");
         fs::write(&remotes_file, file).expect("the remotes file is written");
         let platform = FakePlatform::default();
+        let remotes = Arc::new(self.connector.remotes().clone());
         let config = DesktopConfig {
-            transport: Arc::new(self.connector.clone()),
+            connector: Arc::new(AgentConnector::new(remotes.clone(), Arc::new(self.connector.clone()))),
             clock: Arc::new(FakeClock(self.now)),
             agents: Agents::new(
                 parse_command_line(DEFAULT_AGENT_COMMAND).expect("the default agent command parses"),
                 None,
             ),
-            remotes: Arc::new(self.connector.remotes().clone()),
+            remotes,
             remotes_file: Some(remotes_file),
-            sessions: Some(SessionStore::from_path(self.sessions.path().to_path_buf())),
+            sessions: Arc::new(self.sessions.clone()),
             platform: Rc::new(platform.clone()),
             storage,
             saved: state,
@@ -243,10 +258,8 @@ impl DesktopHarnessBuilder {
             _entered: entered,
         };
         harness.advance();
-        if self.saved_sessions {
-            let history = harness.history();
-            harness.run_until(|_| !history.with_projects(<[_]>::is_empty));
-        }
+        let history = harness.history();
+        harness.run_until(|_| history.has_listed());
         let fleet = harness.fleet();
         harness.run_until(|_| fleet.with_inventory(clankerdiff_remote::Inventory::has_listed));
         harness
@@ -323,6 +336,24 @@ impl Transport for FakeConnector {
 
     fn run<'a>(&'a self, _: &'a CommandLine, _: &'a Path) -> TransportFuture<'a, Vec<u8>> {
         Box::pin(std::future::pending())
+    }
+}
+
+impl FakeSessions {
+    fn save(&self, agent: &str, session: SessionInfo) {
+        self.lock().push((agent.to_owned(), session));
+    }
+
+    fn lock(&self) -> MutexGuard<'_, Vec<(String, SessionInfo)>> {
+        self.saved.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+}
+
+impl SessionSource for FakeSessions {
+    fn list<'a>(&'a self, agent: &'a AgentProfile) -> ListFuture<'a> {
+        let listed = |(name, session): &(String, SessionInfo)| *name == agent.name && session.cwd.0 == agent.workspace;
+        let saved = self.lock().iter().filter(|saved| listed(saved)).map(|(_, session)| session.clone()).collect();
+        Box::pin(future::ready(Ok(saved)))
     }
 }
 
@@ -442,6 +473,11 @@ impl DesktopHarness {
         thread
     }
 
+    pub fn resume(&self, session_id: &str, cwd: impl AsRef<Path>) -> Thread {
+        let threads = self.threads();
+        threads.resume(SessionId::new(session_id), threads.default_agent(cwd.as_ref()))
+    }
+
     pub fn start_thread(&mut self, cwd: impl Into<PathBuf>) -> Thread {
         let thread = self.new_thread(cwd);
         self.run_until(|_| thread.status() == ThreadStatus::Idle);
@@ -507,8 +543,8 @@ impl DesktopHarness {
         &self.platform
     }
 
-    pub fn save_session(&self, session_id: &str, cwd: &str, created_at: &str, prompt: Option<&str>) {
-        save_session(&self.sessions, session_id, cwd, created_at, prompt);
+    pub fn save_session(&self, session_id: &str, cwd: impl AsRef<Path>, updated_at: &str, title: Option<&str>) {
+        self.sessions.save(DEFAULT_AGENT, saved_session(session_id, cwd.as_ref(), updated_at, title));
     }
 
     pub fn ui(&mut self) -> &mut TestUi {
@@ -733,13 +769,10 @@ impl FakeConnectorState {
     }
 }
 
-fn save_session(store: &TestStore, session_id: &str, cwd: &str, created_at: &str, prompt: Option<&str>) {
-    let mut meta = session_meta(session_id, created_at);
-    meta.cwd = cwd.into();
-    store.append_meta(session_id, &meta);
-    if let Some(prompt) = prompt {
-        store.append(session_id, &user_message(prompt));
-    }
+fn saved_session(session_id: &str, cwd: &Path, updated_at: &str, title: Option<&str>) -> SessionInfo {
+    SessionInfo::new(session_id, AbsolutePath::new(cwd))
+        .updated_at(updated_at.to_owned())
+        .title(title.map(str::to_owned))
 }
 
 const DEFAULT_NOW: &str = "2026-01-07T12:00:00Z";

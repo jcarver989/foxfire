@@ -12,6 +12,7 @@ mod menus;
 pub mod platform;
 pub mod registry;
 pub mod remotes;
+pub mod sessions;
 mod settings;
 pub mod sidebar;
 pub mod target;
@@ -36,9 +37,8 @@ pub use clankerdiff_ui_core::{AppearanceMode, ThemePreference};
 static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
 pub use ui::ActiveReviewTheme;
 
-use aether_sessions::SessionStore;
 use agents::{Agents, default_agents_file};
-use clankerdiff_remote::CommandRemotes;
+use clankerdiff_remote::{CommandRemotes, Remotes};
 use cli::Cli;
 use clock::SystemClock;
 use platform::SystemPlatform;
@@ -47,9 +47,10 @@ use rouge::persist::{FileStorage, MemoryStorage, Storage};
 use rouge::{App, WindowOptions};
 use rouge_widgets::bundled_fonts;
 use rustls::crypto::aws_lc_rs;
+use sessions::AcpSessions;
 use std::rc::Rc;
 use std::sync::Arc;
-use target::ProcessTransport;
+use target::{AgentConnector, ProcessTransport};
 use tokio::runtime::Builder;
 
 pub fn run(cli: Cli) {
@@ -67,13 +68,15 @@ pub fn run(cli: Cli) {
         (Rc::new(MemoryStorage::default()), State::default())
     };
     let options = window_options(&saved);
+    let remotes: Arc<dyn Remotes> = Arc::new(CommandRemotes);
+    let connector = Arc::new(AgentConnector::new(remotes.clone(), Arc::new(ProcessTransport)));
     let config = DesktopConfig {
-        transport: Arc::new(ProcessTransport),
+        sessions: Arc::new(AcpSessions::new(connector.clone())),
+        connector,
         clock: Arc::new(SystemClock),
         agents: Agents::new(cli.agent, default_agents_file()),
-        remotes: Arc::new(CommandRemotes),
+        remotes,
         remotes_file: remotes::default_file(),
-        sessions: SessionStore::new().inspect_err(|error| tracing::warn!(%error, "showing no history")).ok(),
         platform: Rc::new(SystemPlatform),
         storage,
         saved,

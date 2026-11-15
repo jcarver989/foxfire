@@ -1,5 +1,5 @@
 use super::row::{RowAction, RowIcon};
-use crate::history::{ProjectHistory, SavedSession};
+use crate::history::SavedSession;
 use crate::registry::{Collapsed, State};
 use crate::remotes::{
     EXPIRY_WARNING, Fleet, Instance, InstanceState, Lifecycle, RemoteSpec, short_id, time_left, time_left_label,
@@ -19,7 +19,7 @@ pub(super) const SAVED_ROWS: usize = 5;
 pub(super) struct Listing<'a> {
     pub(super) state: &'a State,
     pub(super) threads: ThreadManager,
-    pub(super) history: &'a [ProjectHistory],
+    pub(super) history: &'a [SavedSession],
     pub(super) fleet: Fleet,
     pub(super) renaming: Option<&'a SessionId>,
     pub(super) now: DateTime<Utc>,
@@ -100,7 +100,7 @@ impl Listing<'_> {
                     .filter(|session| {
                         !live_sessions.contains(&session.id) && !self.state.archived.contains(&session.id)
                     })
-                    .filter(|session| session.created_at.is_some_and(|created_at| created_at >= cutoff))
+                    .filter(|session| session.updated_at.is_some_and(|updated_at| updated_at >= cutoff))
                     .map(|session| self.saved_row(session));
                 let limit = limits.get(root).copied().unwrap_or(SAVED_ROWS);
                 (section.rows, section.hidden) = visible(live.chain(saved).collect(), limit);
@@ -130,16 +130,6 @@ impl Listing<'_> {
             .collect()
     }
 
-    pub(super) fn unlisted_projects(&self, limit: usize) -> Vec<PathBuf> {
-        let listed = self.roots();
-        self.history
-            .iter()
-            .map(|project| project.root.clone())
-            .filter(|root| !listed.contains(&root.as_path()))
-            .take(limit)
-            .collect()
-    }
-
     pub(super) fn inactive_sessions(&self, root: &Path) -> Vec<SessionId> {
         let live_sessions = self.live_sessions();
         self.saved_sessions(root)
@@ -162,16 +152,13 @@ impl Listing<'_> {
             }
         });
         let live_sessions = self.live_sessions();
-        let saved = self.history.iter().flat_map(|project| {
-            project.sessions.iter().filter(|session| !live_sessions.contains(&session.id)).map(|session| {
-                SwitcherEntry {
-                    key: RowKey::Saved(session.id.clone()),
-                    title: self.state.title(Some(&session.id), session.title.clone()),
-                    project: project_name(&project.root),
-                    thread: saved_thread(session),
-                }
-            })
-        });
+        let saved =
+            self.history.iter().filter(|session| !live_sessions.contains(&session.id)).map(|session| SwitcherEntry {
+                key: RowKey::Saved(session.id.clone()),
+                title: self.state.title(Some(&session.id), session.title.clone()),
+                project: project_name(&session.agent.workspace),
+                thread: saved_thread(session),
+            });
         live.chain(saved).collect()
     }
 
@@ -263,7 +250,7 @@ impl Listing<'_> {
     fn saved_row(&self, session: &SavedSession) -> Row {
         let key = RowKey::Saved(session.id.clone());
         let session_id = Some(session.id.clone());
-        self.local_row(key, saved_thread(session), session_id, session.title.clone(), session.created_at)
+        self.local_row(key, saved_thread(session), session_id, session.title.clone(), session.updated_at)
     }
 
     fn local_row(
@@ -304,7 +291,7 @@ impl Listing<'_> {
     }
 
     fn saved_sessions(&self, root: &Path) -> impl Iterator<Item = &SavedSession> {
-        self.history.iter().filter(move |project| project.root == root).flat_map(|project| &project.sessions)
+        self.history.iter().filter(move |session| session.agent.workspace == root)
     }
 
     fn live_sessions(&self) -> HashSet<SessionId> {
@@ -349,7 +336,7 @@ fn visible(rows: Vec<Row>, limit: usize) -> (Vec<Row>, usize) {
 }
 
 fn saved_thread(session: &SavedSession) -> ThreadRef {
-    ThreadRef::Saved { session_id: session.id.clone(), cwd: session.cwd.clone() }
+    ThreadRef::Saved { session_id: session.id.clone(), agent: session.agent.clone() }
 }
 
 fn relative_time(then: DateTime<Utc>, now: DateTime<Utc>) -> String {

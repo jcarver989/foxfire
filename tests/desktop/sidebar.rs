@@ -1,6 +1,5 @@
 use crate::support::Edges;
 use crate::support::replying;
-use acp_utils::testing::FakeAgent;
 use aether_desktop::testing::{DesktopHarness, DesktopHarnessBuilder};
 use aether_desktop::threads::ThreadStatus;
 use std::path::{Path, PathBuf};
@@ -44,22 +43,17 @@ fn saved_sessions_older_than_a_week_are_hidden() {
 
 #[test]
 fn opening_a_thread_in_a_project_adds_the_project_to_the_sidebar() {
-    let mut harness = DesktopHarnessBuilder::default()
-        .script("/beta", FakeAgent::default().replay_message("beta-session", "hi"))
-        .session("beta-session", "/beta", "2026-01-02T00:00:00Z", "Refactor auth")
-        .build();
+    let mut harness = DesktopHarnessBuilder::default().script("/beta", replying("beta-session", "hi")).build();
     assert!(harness.bounds("project-beta").is_none());
 
-    harness.press("secondary-k");
-    harness.type_text("refactor");
-    harness.press("enter");
+    harness.new_thread("/beta");
 
     assert!(harness.bounds("project-beta").is_some());
     assert_eq!(harness.projects(), [PathBuf::from("/beta")]);
 }
 
 #[test]
-fn removing_a_project_hides_it_and_keeps_its_sessions_in_the_switcher() {
+fn removing_a_project_hides_it_and_its_saved_sessions() {
     let mut harness = DesktopHarnessBuilder::default()
         .session("saved", "/alpha", "2026-01-02T00:00:00Z", "prompt")
         .project("/alpha")
@@ -72,8 +66,10 @@ fn removing_a_project_hides_it_and_keeps_its_sessions_in_the_switcher() {
     assert!(harness.bounds("project-alpha").is_none());
     assert!(harness.bounds("project-beta").is_some());
     assert_eq!(harness.projects(), [PathBuf::from("/beta")]);
+    let history = harness.history();
+    harness.run_until(|_| history.with_sessions(<[_]>::is_empty));
     harness.press("secondary-k");
-    assert!(harness.bounds("switcher-history-row-saved").is_some(), "the session can still be found");
+    assert!(harness.bounds("switcher-history-row-saved").is_none(), "only listed projects are asked for sessions");
 }
 
 #[test]
@@ -108,24 +104,19 @@ fn a_rows_archive_button_removes_it_from_the_sidebar() {
 }
 
 #[test]
-fn add_project_offers_the_recent_projects_history_knows_about_or_a_picked_folder() {
+fn adding_a_picked_folder_lists_it_with_its_saved_sessions() {
     let mut harness = DesktopHarnessBuilder::default()
-        .session("alpha-session", "/alpha", "2026-01-02T00:00:00Z", "prompt")
         .session("beta-session", "/beta", "2026-01-02T00:00:00Z", "prompt")
         .project("/alpha")
         .build();
+    assert!(harness.bounds("history-row-beta-session").is_none(), "an unlisted project is not asked for sessions");
 
     harness.click("add-project").unwrap();
-    assert!(harness.bounds("add-project-recent-alpha").is_none(), "a listed project is not offered");
-    harness.click("add-project-recent-beta").unwrap();
-    assert!(harness.bounds("project-beta").is_some());
-    assert!(harness.bounds("history-row-beta-session").is_some());
+    let prompt = harness.platform().answer_path_prompt(Some(vec![PathBuf::from("/beta")]));
 
-    harness.click("add-project").unwrap();
-    harness.click("add-project-browse").unwrap();
-    let prompt = harness.platform().answer_path_prompt(Some(vec![PathBuf::from("/picked")]));
     assert!(prompt.is_some_and(|prompt| prompt.directories && !prompt.multiple));
-    assert!(harness.bounds("project-picked").is_some());
+    harness.run_until_painted("history-row-beta-session");
+    assert!(harness.bounds("project-beta").is_some());
 }
 
 #[test]

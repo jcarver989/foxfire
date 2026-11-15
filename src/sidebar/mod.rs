@@ -202,10 +202,6 @@ impl Sidebar {
         })
     }
 
-    fn add_project(self, root: PathBuf) {
-        self.registry.update(|state| state.add_project(root));
-    }
-
     fn browse_for_project(self) {
         let prompt = PathPrompt { title: "Add project".to_owned(), directories: true, multiple: false };
         let picked = self.platform.with(|platform| platform.pick_paths(prompt));
@@ -259,11 +255,9 @@ impl Sidebar {
     fn local(self) -> impl View {
         let collapsed = memo(move || self.is_collapsed(&Collapsed::Section(LOCAL.to_owned())));
         let header = move || {
-            let items = self.add_project_items();
             let add = view! {
-                <context_menu items dropdown>
-                    <icon_button test_id="add-project" icon=IconName::FolderPlus label="Add project"/>
-                </context_menu>
+                <icon_button test_id="add-project" icon=IconName::FolderPlus label="Add project"
+                             on_click={move || self.browse_for_project()}/>
             };
             view! {
                 <section_header test_id="section-local" title="Local" expanded={!collapsed.get()}
@@ -289,24 +283,6 @@ impl Sidebar {
                 </show>
             </div>
         }
-    }
-
-    fn add_project_items(self) -> Vec<MenuItem> {
-        let recent = self.with_listing(|listing| listing.unlisted_projects(RECENT_PROJECTS));
-        let mut items: Vec<MenuItem> = recent
-            .into_iter()
-            .map(|root| {
-                let name = project_name(&root);
-                MenuItem::callback(name.clone(), move || self.add_project(root.clone()))
-                    .id(format!("add-project-recent-{name}"))
-            })
-            .collect();
-        items.push(
-            MenuItem::callback("Choose folder…", move || self.browse_for_project())
-                .id("add-project-browse")
-                .icon(IconName::FolderPlus),
-        );
-        items
     }
 
     fn cloud(self) -> impl View {
@@ -545,12 +521,12 @@ impl Sources {
     fn with_listing<T>(self, read: impl FnOnce(&Listing<'_>) -> T) -> T {
         let now = self.clock.with(|clock| clock.now());
         self.registry.with(|state| {
-            self.history.with_projects(|projects| {
+            self.history.with_sessions(|sessions| {
                 self.rename.with(|rename| {
                     read(&Listing {
                         state,
                         threads: self.threads,
-                        history: projects,
+                        history: sessions,
                         fleet: self.fleet,
                         renaming: rename.as_ref().map(|rename| &rename.session_id),
                         now,
@@ -576,8 +552,6 @@ const MIN_SIDEBAR_WIDTH: f32 = 200.0;
 const MAX_SIDEBAR_WIDTH: f32 = 480.0;
 
 const MORE_SAVED_ROWS: usize = 20;
-
-const RECENT_PROJECTS: usize = 8;
 
 const LOCAL: &str = "local";
 const CLOUD: &str = "cloud";

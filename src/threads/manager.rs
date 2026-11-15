@@ -32,7 +32,7 @@ struct Manager {
 #[derive(Debug, Clone, PartialEq)]
 pub enum ThreadRef {
     Live(Thread),
-    Saved { session_id: SessionId, cwd: PathBuf },
+    Saved { session_id: SessionId, agent: AgentProfile },
 }
 
 #[derive(Debug, Clone)]
@@ -131,18 +131,17 @@ impl ThreadManager {
     pub fn open(&self, thread: &ThreadRef) {
         match thread {
             ThreadRef::Live(thread) => self.select(*thread),
-            ThreadRef::Saved { session_id, cwd } => {
-                self.resume(session_id.clone(), cwd.clone());
+            ThreadRef::Saved { session_id, agent } => {
+                self.resume(session_id.clone(), agent.clone());
             }
         }
     }
 
-    pub fn resume(&self, session_id: SessionId, cwd: PathBuf) -> Thread {
+    pub fn resume(&self, session_id: SessionId, agent: AgentProfile) -> Thread {
         if let Some(thread) = self.thread_with_session(&session_id) {
             return self.reconnect_and_select(thread);
         }
-        let agent = self.default_agent(&cwd);
-        self.spawn_thread(SessionTarget::agent(cwd, agent), Some(session_id))
+        self.spawn_thread(SessionTarget::agent(agent.workspace.clone(), agent), Some(session_id))
     }
 
     pub fn default_agent(&self, cwd: &Path) -> AgentProfile {

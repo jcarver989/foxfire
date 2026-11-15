@@ -15,7 +15,6 @@ fn the_next_launch_restores_what_the_user_changed() {
     let state = tempfile::tempdir().unwrap();
     let mut harness = launch(state.path());
     harness.click("add-project").unwrap();
-    harness.click("add-project-browse").unwrap();
     harness.platform().answer_path_prompt(Some(vec![PathBuf::from("/picked")]));
     harness.click("project-beta").unwrap();
     choose(&mut harness, "history-row-gone", "menu-item-Archive");

@@ -1,9 +1,13 @@
-use crate::tasks::{blocking, spawn_in};
-use aether_sessions::{SessionStore, SessionSummary, SummaryCache};
-use agent_client_protocol::v2::schema::SessionId;
+use crate::agents::{AgentProfile, Catalogs};
+use crate::registry::Registry;
+use crate::sessions::SessionSource;
+use crate::target::ConnectError;
+use crate::tasks::spawn_in;
+use agent_client_protocol::v2::schema::{SessionId, SessionInfo};
 use chrono::{DateTime, Utc};
-use rouge::reactive::{Scope, Signal, Stored, signal, stored};
-use std::collections::HashMap;
+use futures::future::join_all;
+use rouge::reactive::{Scope, Signal, Stored, effect, memo, signal, spawn_tokio, stored, untrack};
+use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
@@ -11,50 +15,56 @@ pub const UNTITLED: &str = "New thread";
 
 #[derive(Clone, Copy)]
 pub struct History {
-    store: Stored<Option<Arc<SessionStore>>>,
-    summaries: Stored<Option<SummaryCache>>,
-    projects: Signal<Vec<ProjectHistory>>,
+    source: Stored<Arc<dyn SessionSource>>,
+    registry: Registry,
+    agents: Catalogs,
+    sessions: Signal<Vec<SavedSession>>,
+    listed: Signal<bool>,
     refreshing: Stored<Refresh>,
     scope: Scope,
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct ProjectHistory {
-    pub root: PathBuf,
-    pub sessions: Vec<SavedSession>,
-}
-
-#[derive(Debug, Clone, PartialEq)]
 pub struct SavedSession {
     pub id: SessionId,
-    pub cwd: PathBuf,
-    pub created_at: Option<DateTime<Utc>>,
+    pub agent: AgentProfile,
+    pub updated_at: Option<DateTime<Utc>>,
     pub title: String,
 }
 
 impl History {
-    pub fn new(store: Option<SessionStore>) -> Self {
-        Self {
-            store: stored(store.map(Arc::new)),
-            summaries: stored(Some(SummaryCache::default())),
-            projects: signal(Vec::new()),
+    pub fn new(source: Arc<dyn SessionSource>, registry: Registry, agents: Catalogs) -> Self {
+        let history = Self {
+            source: stored(source),
+            registry,
+            agents,
+            sessions: signal(Vec::new()),
+            listed: signal(false),
             refreshing: stored(Refresh::Idle),
             scope: Scope::new(),
-        }
+        };
+        let roots = memo(move || registry.with(|state| state.projects.clone()));
+        effect(move || {
+            roots.with(|_| ());
+            agents.revision();
+            untrack(|| history.refresh());
+        });
+        history
     }
 
-    pub fn projects(&self) -> Vec<ProjectHistory> {
-        self.projects.get()
+    pub fn sessions(&self) -> Vec<SavedSession> {
+        self.sessions.get()
     }
 
-    pub fn with_projects<T>(&self, read: impl FnOnce(&[ProjectHistory]) -> T) -> T {
-        self.projects.with(|projects| read(projects))
+    pub fn with_sessions<T>(&self, read: impl FnOnce(&[SavedSession]) -> T) -> T {
+        self.sessions.with(|sessions| read(sessions))
+    }
+
+    pub fn has_listed(&self) -> bool {
+        self.listed.get()
     }
 
     pub fn refresh(&self) {
-        let Some(store) = self.store.get() else {
-            return;
-        };
         let busy = self.refreshing.update(|refreshing| match refreshing {
             Refresh::Idle => {
                 *refreshing = Refresh::Running { again: false };
@@ -69,23 +79,19 @@ impl History {
             return;
         }
         let history = *self;
-        let mut summaries = self.summaries.update(Option::take).unwrap_or_default();
+        let (source, agents) = (self.source.get(), self.listed_agents());
         spawn_in(self.scope, async move {
-            let read = blocking(move || {
-                let sessions = store.list_cached(&mut summaries);
-                let mut roots = HashMap::new();
-                let projects = group_by_project(sessions, |cwd| {
-                    roots.entry(cwd.to_path_buf()).or_insert_with(|| git_root(cwd)).clone()
-                });
-                (summaries, projects)
+            let listed = spawn_tokio(async move {
+                let listings = join_all(agents.iter().map(|agent| source.list(agent))).await;
+                saved_sessions(agents, listings)
             })
             .await;
-            if !history.projects.is_alive() {
+            if !history.sessions.is_alive() {
                 return;
             }
-            if let Some((summaries, projects)) = read {
-                history.summaries.set(Some(summaries));
-                history.projects.set_if_changed(projects);
+            if let Ok(sessions) = listed {
+                history.sessions.set_if_changed(sessions);
+                history.listed.set_if_changed(true);
             }
             let again = history.refreshing.update(|refreshing| {
                 let again = matches!(refreshing, Refresh::Running { again: true });
@@ -97,6 +103,15 @@ impl History {
             }
         });
     }
+
+    fn listed_agents(&self) -> Vec<AgentProfile> {
+        let roots = self.registry.with_untracked(|state| state.projects.clone());
+        roots.iter().flat_map(|root| untrack(|| self.agents.catalog(root)).agents().to_vec()).collect()
+    }
+}
+
+pub fn git_root(dir: &Path) -> PathBuf {
+    dir.ancestors().find(|ancestor| ancestor.join(".git").exists()).unwrap_or(dir).to_path_buf()
 }
 
 enum Refresh {
@@ -104,35 +119,34 @@ enum Refresh {
     Running { again: bool },
 }
 
-impl From<SessionSummary> for SavedSession {
-    fn from(summary: SessionSummary) -> Self {
-        let SessionSummary { meta, title } = summary;
+impl SavedSession {
+    fn new(info: SessionInfo, agent: AgentProfile) -> Self {
         Self {
-            id: SessionId::new(meta.session_id.as_str()),
-            created_at: DateTime::parse_from_rfc3339(&meta.created_at).ok().map(|time| time.to_utc()),
-            cwd: meta.cwd,
-            title: title.filter(|title| !title.trim().is_empty()).unwrap_or_else(|| UNTITLED.to_owned()),
+            id: info.session_id,
+            agent,
+            updated_at: info
+                .updated_at
+                .and_then(|time| DateTime::parse_from_rfc3339(&time).ok())
+                .map(|time| time.to_utc()),
+            title: info.title.filter(|title| !title.trim().is_empty()).unwrap_or_else(|| UNTITLED.to_owned()),
         }
     }
 }
 
-pub fn group_by_project(
-    sessions: Vec<SessionSummary>,
-    mut project_root: impl FnMut(&Path) -> PathBuf,
-) -> Vec<ProjectHistory> {
-    let mut sessions: Vec<SavedSession> = sessions.into_iter().map(SavedSession::from).collect();
-    sessions.sort_by(|a, b| b.created_at.cmp(&a.created_at).then_with(|| b.id.0.cmp(&a.id.0)));
-    let mut projects: Vec<ProjectHistory> = Vec::new();
-    for session in sessions {
-        let root = project_root(&session.cwd);
-        match projects.iter_mut().find(|project| project.root == root) {
-            Some(project) => project.sessions.push(session),
-            None => projects.push(ProjectHistory { root, sessions: vec![session] }),
-        }
-    }
-    projects
-}
-
-pub fn git_root(dir: &Path) -> PathBuf {
-    dir.ancestors().find(|ancestor| ancestor.join(".git").exists()).unwrap_or(dir).to_path_buf()
+fn saved_sessions(
+    agents: Vec<AgentProfile>,
+    listings: Vec<Result<Vec<SessionInfo>, ConnectError>>,
+) -> Vec<SavedSession> {
+    let mut seen = HashSet::new();
+    let mut sessions: Vec<SavedSession> = agents
+        .into_iter()
+        .zip(listings)
+        .flat_map(|(agent, listed)| {
+            let listed = listed.inspect_err(|error| tracing::warn!(%error, agent = agent.name, "leaving out an agent"));
+            listed.into_iter().flatten().map(move |info| SavedSession::new(info, agent.clone()))
+        })
+        .filter(|session| seen.insert(session.id.clone()))
+        .collect();
+    sessions.sort_by(|a, b| b.updated_at.cmp(&a.updated_at).then_with(|| b.id.0.cmp(&a.id.0)));
+    sessions
 }

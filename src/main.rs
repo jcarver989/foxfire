@@ -3,7 +3,7 @@ use clap::Parser;
 use std::process::ExitCode;
 use tracing_subscriber::EnvFilter;
 
-const DEFAULT_LOG_FILTER: &str = "warn,aether_sessions=error";
+const DEFAULT_LOG_FILTER: &str = "warn";
 
 fn main() -> ExitCode {
     if let Some(code) = clankerdiff_lspd::run_if_requested() {

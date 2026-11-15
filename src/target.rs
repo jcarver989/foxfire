@@ -154,15 +154,7 @@ impl AgentConnector {
     ) -> Result<Session, ConnectError> {
         match target {
             SessionTarget::Agent { agent, cwd } => {
-                let connection = match &agent.config.transport {
-                    AgentTransport::Stdio(command) => {
-                        self.transport.stdio(&expand_command_line(command, &agent.vars())?, cwd).await?
-                    }
-                    AgentTransport::WebSocket(source) => {
-                        self.transport.websocket(&self.resolve(source, agent).await?, Duration::ZERO).await?
-                    }
-                };
-                Ok(connection.open(session_id, cwd.clone()).await?)
+                Ok(self.connect_agent(agent, cwd).await?.open(session_id, cwd.clone()).await?)
             }
             SessionTarget::Remote { remote, instance } => {
                 let instance = instance.as_deref().ok_or(ConnectError::NotLaunched)?;
@@ -186,6 +178,17 @@ impl AgentConnector {
                         error @ ConnectionError::Acp(_) => error.into(),
                     }),
                 }
+            }
+        }
+    }
+
+    pub async fn connect_agent(&self, agent: &AgentProfile, dir: &Path) -> Result<Connection, ConnectError> {
+        match &agent.config.transport {
+            AgentTransport::Stdio(command) => {
+                self.transport.stdio(&expand_command_line(command, &agent.vars())?, dir).await
+            }
+            AgentTransport::WebSocket(source) => {
+                self.transport.websocket(&self.resolve(source, agent).await?, Duration::ZERO).await
             }
         }
     }

@@ -13,7 +13,7 @@ fn concurrent_threads_each_receive_only_their_own_updates() {
         .agent("/gamma", resumed)
         .start("/alpha");
     let beta = harness.start_thread("/beta");
-    let gamma = harness.threads().resume(SessionId::new("gamma-session"), "/gamma".into());
+    let gamma = harness.resume("gamma-session", "/gamma");
     let threads = [alpha, beta, gamma];
     harness.run_until(|_| gamma.status() == ThreadStatus::Idle);
 
@@ -118,14 +118,13 @@ fn resuming_a_session_that_is_already_open_selects_its_thread() {
         .agent("/alpha", FakeAgent::default().replay_message("saved-session", "an earlier answer"))
         .agent("/beta", replying("beta-session", "hello"))
         .build();
-    let threads = harness.threads();
-    let resumed = threads.resume(SessionId::new("saved-session"), "/alpha".into());
+    let resumed = harness.resume("saved-session", "/alpha");
     harness.new_thread("/beta");
 
-    let again = threads.resume(SessionId::new("saved-session"), "/alpha".into());
+    let again = harness.resume("saved-session", "/alpha");
 
     assert_eq!(again, resumed);
-    assert_eq!(threads.threads().len(), 2);
+    assert_eq!(harness.threads().threads().len(), 2);
     assert_eq!(harness.selected_thread(), Some(resumed));
 }
 

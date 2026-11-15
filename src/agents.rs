@@ -135,7 +135,7 @@ impl AgentCatalog {
     }
 
     pub fn default_agent(&self) -> &AgentProfile {
-        self.get(DEFAULT_AGENT).expect("every catalog has the default agent")
+        &self.agents[0]
     }
 
     pub fn problems(&self) -> &[JsonFileError] {
@@ -206,8 +206,10 @@ fn read_catalog(builtin: &CommandLine, user_file: Option<&Path>, project: &Path)
             }
         }
     }
-    let agents = configs
+    let default = configs.remove_entry(DEFAULT_AGENT);
+    let agents = default
         .into_iter()
+        .chain(configs)
         .map(|(name, config)| AgentProfile { name, workspace: project.to_path_buf(), config })
         .collect();
     AgentCatalog { agents, problems }

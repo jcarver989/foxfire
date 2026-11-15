@@ -17,6 +17,7 @@ mod navigation;
 mod new_thread;
 mod registry;
 mod remotes;
+mod sessions;
 mod settings;
 mod sidebar;
 mod support;

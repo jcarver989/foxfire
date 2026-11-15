@@ -1,13 +1,14 @@
 use crate::agents::{Agents, Catalogs};
 use crate::clock::Clock;
 use crate::file_picker::file_picker;
-use crate::history::History;
+use crate::history::{History, SavedSession};
 use crate::platform::{Notification, Platform};
 use crate::registry::{Registry, State, WindowSize};
 use crate::remotes::Fleet;
+use crate::sessions::SessionSource;
 use crate::settings::settings;
 use crate::sidebar::{Sidebar, SwitcherEntry, toggle_button};
-use crate::target::{AgentConnector, Transport};
+use crate::target::AgentConnector;
 use crate::tasks::spawn_in;
 use crate::thread_view::{ThreadTab, ThreadView};
 use crate::threads::{Attention, Thread, ThreadEvent, ThreadManager};
@@ -17,7 +18,6 @@ use crate::ui::{
     ActiveReviewTheme, IconName, InterfaceSize, Material, PickerItem, SearchPickerHandle, StyledExt, UI_FONT, UiStyles,
     WispMotion, appearance, backdrop, empty_state, picker_closed, search_picker,
 };
-use aether_sessions::SessionStore;
 use agent_client_protocol::v2::schema::SessionId;
 use clankerdiff_core::RepoPath;
 use clankerdiff_remote::Remotes;
@@ -56,12 +56,12 @@ pub struct NewCloudThread;
 pub struct ToggleSidebar;
 
 pub struct DesktopConfig {
-    pub transport: Arc<dyn Transport>,
+    pub connector: Arc<AgentConnector>,
     pub clock: Arc<dyn Clock>,
     pub agents: Agents,
     pub remotes: Arc<dyn Remotes>,
     pub remotes_file: Option<PathBuf>,
-    pub sessions: Option<SessionStore>,
+    pub sessions: Arc<dyn SessionSource>,
     pub platform: Rc<dyn Platform>,
     pub storage: Rc<dyn Storage>,
     /// The state `storage` held when the app launched.
@@ -104,7 +104,7 @@ pub(crate) const SETTINGS_KEYS: &str = "secondary-,";
 
 impl DesktopApp {
     pub fn new(config: DesktopConfig) -> Self {
-        let DesktopConfig { transport, clock, agents, remotes, remotes_file, sessions, platform, storage, saved } =
+        let DesktopConfig { connector, clock, agents, remotes, remotes_file, sessions, platform, storage, saved } =
             config;
         let registry = Registry::restore(saved, storage);
         let preference = memo(move || registry.with(|state| state.theme.clone()));
@@ -124,9 +124,8 @@ impl DesktopApp {
             });
         });
         let agents = Catalogs::new(agents);
-        let connector = Arc::new(AgentConnector::new(remotes.clone(), transport));
         let threads = ThreadManager::new(connector, agents, clock.clone());
-        let history = History::new(sessions);
+        let history = History::new(sessions, registry, agents);
         let fleet = Fleet::new(remotes, remotes_file);
         let platform = stored(platform);
         let sidebar = Sidebar::new(threads, history, registry, agents, fleet, clock, platform);
@@ -221,13 +220,11 @@ impl DesktopApp {
             untrack(|| {
                 threads.set_window_active(active);
                 if active && !first.replace(false) {
-                    self.history.refresh();
                     self.agents.reload();
                     self.fleet.reload();
                 }
             });
         });
-        self.history.refresh();
         let (size, zoom) = (window_size(), zoom());
         effect(move || {
             let (size, zoom) = (size.get(), zoom.get());
@@ -263,8 +260,8 @@ impl DesktopApp {
             }
         });
         effect(move || {
-            let projects = self.history.projects();
-            untrack(|| self.restore_selection(&projects));
+            let sessions = self.history.sessions();
+            untrack(|| self.restore_selection(&sessions));
         });
     }
 
@@ -310,16 +307,17 @@ impl DesktopApp {
         }
     }
 
-    fn restore_selection(self, projects: &[crate::history::ProjectHistory]) {
-        if self.restore.with(Option::is_none) || projects.is_empty() || self.threads.selected().is_some() {
+    fn restore_selection(self, sessions: &[SavedSession]) {
+        if self.restore.with(Option::is_none) || sessions.is_empty() || self.threads.selected().is_some() {
             return;
         }
         let Some(session_id) = self.restore.update(Option::take) else {
             return;
         };
-        let saved = projects.iter().flat_map(|project| &project.sessions).find(|session| session.id == session_id);
-        if let Some(cwd) = saved.map(|session| session.cwd.clone()) {
-            self.threads.resume(session_id, cwd);
+        if let Some(agent) =
+            sessions.iter().find(|session| session.id == session_id).map(|session| session.agent.clone())
+        {
+            self.threads.resume(session_id, agent);
         }
     }
 
