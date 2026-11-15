@@ -15,7 +15,7 @@ use std::time::{Duration, Instant};
 use tokio::runtime::Runtime as TokioRuntime;
 
 #[derive(Parser)]
-#[command(about = "Preview the actual desktop shader, capture a deterministic frame, or measure rendering work")]
+#[command(about = "Preview the actual activity mark, capture a deterministic frame, or measure rendering work")]
 struct Options {
     #[arg(long)]
     capture: Option<PathBuf>,
@@ -124,7 +124,7 @@ fn preview(reduced: bool) -> impl View {
             <scroll size_full>
                 <div p=24.0 flex col gap=20.0>
                     <text heading>"Activity, not progress"</text>
-                    <text>"12 / 16 px compact · 48 px expanded · waiting is always still"</text>
+                    <text>"12 / 16 / 48 px · waiting is always still"</text>
                     <div flex gap=16.0>{palette(false)}{palette(true)}</div>
                     {sandbox}
                     <text heading>"Completion is quiet and explicit"</text>

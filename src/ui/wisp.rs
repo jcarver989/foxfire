@@ -1,10 +1,12 @@
 use rouge::core::{
-    Div, Ease, Fill, Inputs, IntoProp, PaintRegion, Prop, ShaderEffect, Styled, Tween, div, switch, window_focused,
+    Corners, Div, Fill, IntoProp, Keyframes, PaintRegion, Pose, Prop, Styled, Tween, View, div, each, switch,
+    window_focused,
 };
 use rouge::reactive::{Signal, expect_context, memo, provide_context, signal, stored, use_context};
+use std::f32::consts::TAU;
 
-/// Activity, not progress: each state has a distinct silhouette and direction of motion.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+/// Activity, not progress: each state has a distinct choreography and direction of motion.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum WispState {
     Connecting,
     Thinking,
@@ -18,11 +20,13 @@ pub enum WispState {
 #[derive(Clone, Copy)]
 pub struct WispMotion(Signal<bool>);
 
-/// A quiet activity mark. Icons below 32 design pixels use the compact artwork.
-/// Waiting is always still; reduced motion, loss of focus, and clipping also suspend the clock.
+/// A quiet activity mark: a 3×3 matrix of cells, lit in a different pattern for each state.
+/// Cells move on compositor keyframes, so a running mark never relays out or repaints; each new state fades in.
+/// Waiting is always still; reduced motion, loss of focus, and clipping also stop the clock.
 /// Pair this decoration with a visible activity label rather than relying on its color or motion.
 pub fn wisp<T>(size: f32, tint: impl IntoProp<Fill, T>, state: impl Fn() -> WispState + 'static) -> Div {
     let tint = stored(tint.into_prop());
+    let fill = move || tint.with(Prop::get);
     let state = memo(state);
     let region = signal(PaintRegion::default());
     let focused = window_focused();
@@ -33,16 +37,26 @@ pub fn wisp<T>(size: f32, tint: impl IntoProp<Fill, T>, state: impl Fn() -> Wisp
             && !motion.is_some_and(WispMotion::reduced)
             && region.with(|region| !region.bounds.is_empty())
     });
-    let expanded = size >= EXPANDED_SIZE;
-    div().flex_none().size(size).track_paint_region(region).child(switch(
+    div().flex_none().relative().size(size).pass_through().track_paint_region(region).child(switch(
         move || animated.get(),
         move |animated| {
-            let art = div().size_full().bg(move || tint.with(Prop::get)).pass_through();
             if animated {
-                art.transition(Tween::ms(SETTLE_MS).ease(Ease::Out))
-                    .effect(move || Flow { state: state.get(), expanded })
+                each(
+                    move || vec![state.get()],
+                    |state| *state,
+                    move |state| {
+                        let state = state.get_untracked();
+                        matrix(size, fill, |cell, column, row| moving(cell, state, size, column, row))
+                    },
+                )
+                .enter(Pose::new().opacity(0.0), Tween::ms(FADE_IN_MS))
+                .into_any()
             } else {
-                art.effect(move || Still { state: state.get(), expanded })
+                switch(
+                    move || state.get(),
+                    move |state| matrix(size, fill, |cell, column, row| still(cell, state, size, column, row)),
+                )
+                .into_any()
             }
         },
     ))
@@ -58,6 +72,30 @@ impl WispState {
             Self::Working => "Working",
             Self::Writing => "Writing",
             Self::Waiting => "Waiting for you",
+        }
+    }
+
+    /// One loop of the state's choreography: its length, and how many samples the keyframes take of it.
+    /// Writing is typed, so it holds each sample instead of easing between them.
+    fn choreography(self) -> (f32, u8, bool) {
+        match self {
+            Self::Connecting => (8.0 / 7.0, 64, false),
+            Self::Thinking => (2.0, 32, false),
+            Self::Working => (1.0, 64, false),
+            Self::Writing => (f32::from(WRITING_STEPS) / 9.0, WRITING_STEPS, true),
+            Self::Compacting => (1.5, 48, false),
+            Self::Waiting => (1.0, 1, false),
+        }
+    }
+
+    /// The moment of the choreography that best stands in for it when the clock is stopped.
+    fn still_phase(self) -> f32 {
+        match self {
+            Self::Connecting => 1.0 / 8.0,
+            Self::Thinking => 0.884,
+            Self::Working | Self::Waiting => 0.0,
+            Self::Writing => 5.5 / f32::from(WRITING_STEPS),
+            Self::Compacting => 0.4,
         }
     }
 }
@@ -85,59 +123,121 @@ impl WispMotion {
     }
 }
 
-#[derive(Clone, Copy)]
-struct Flow {
-    state: WispState,
-    expanded: bool,
+/// How lit a cell is (0–1) and how far it has been pulled toward the center (0–1 of a cell's pitch).
+struct Frame {
+    lit: f32,
+    pull: f32,
 }
 
-#[derive(Clone, Copy)]
-struct Still {
-    state: WispState,
-    expanded: bool,
-}
-
-impl ShaderEffect for Flow {
-    const WGSL: &'static str = include_str!("wisp.wgsl");
-    const INPUTS: Inputs = Inputs::CONTENT;
-    const CLOCK: Option<usize> = Some(0);
-
-    fn uniforms(&self, values: &mut [f32; 16]) {
-        uniforms(values, self.state, self.expanded);
+impl Frame {
+    fn opacity(&self) -> f32 {
+        UNLIT + (1.0 - UNLIT) * self.lit
     }
 
-    fn margin(&self) -> f32 {
-        HALO_REACH
+    fn pose(&self, size: f32, column: u8, row: u8) -> Pose {
+        let (x, y) = toward_center(size, column, row, self.pull);
+        Pose::new().opacity(self.opacity()).translate_x(x).translate_y(y)
     }
 }
 
-impl ShaderEffect for Still {
-    const WGSL: &'static str = include_str!("wisp.wgsl");
-    const INPUTS: Inputs = Inputs::CONTENT;
+/// The grid is four cells wide with half-cell gaps, so 12 and 16 px marks land on whole pixels at 2×.
+fn matrix(size: f32, fill: impl Fn() -> Fill + Copy + 'static, cell: impl Fn(Div, u8, u8) -> Div) -> Div {
+    let edge = size / 4.0;
+    div().absolute().inset(0.0).pass_through().children((0..9u8).map(|index| {
+        let (column, row) = (index % 3, index / 3);
+        let at = div()
+            .absolute()
+            .left(f32::from(column) * edge * PITCH)
+            .top(f32::from(row) * edge * PITCH)
+            .size(edge)
+            .rounded(Corners::all(edge * ROUNDNESS))
+            .bg(fill);
+        cell(at, column, row)
+    }))
+}
 
-    fn uniforms(&self, values: &mut [f32; 16]) {
-        uniforms(values, self.state, self.expanded);
-    }
+fn still(cell: Div, state: WispState, size: f32, column: u8, row: u8) -> Div {
+    let frame = frame(state, column, row, state.still_phase());
+    let (x, y) = toward_center(size, column, row, frame.pull);
+    cell.opacity(frame.opacity()).translate_x(x).translate_y(y)
+}
 
-    fn margin(&self) -> f32 {
-        HALO_REACH
+fn moving(cell: Div, state: WispState, size: f32, column: u8, row: u8) -> Div {
+    let (seconds, samples, held) = state.choreography();
+    let pose = |phase| frame(state, column, row, phase).pose(size, column, row);
+    let keyframes = (0..samples).fold(Keyframes::new(), |keyframes, sample| {
+        let start = f32::from(sample) / f32::from(samples);
+        let keyframes = keyframes.at(start, |_| pose(start));
+        if held { keyframes.at(f32::from(sample + 1) / f32::from(samples) - HOLD, |_| pose(start)) } else { keyframes }
+    });
+    let keyframes = if held { keyframes } else { keyframes.at(1.0, |_| pose(1.0)) };
+    cell.animate(keyframes.duration(seconds).repeat())
+}
+
+fn frame(state: WispState, column: u8, row: u8, phase: f32) -> Frame {
+    let ring = (0..8u8).find(|&index| RING[usize::from(index)] == (column, row));
+    let distance = (f32::from(column) - 1.0).hypot(f32::from(row) - 1.0);
+    let lit = match state {
+        WispState::Connecting => ring.map_or(0.0, |index| chase(phase * 8.0, index, 2.2)),
+        WispState::Thinking => (0.5 + 0.5 * (TAU * phase + distance * 2.3).sin()).powi(2),
+        WispState::Working => ring.map_or(0.45 + 0.4 * (TAU * phase).sin(), |index| chase(phase * 8.0, index, 4.0)),
+        WispState::Writing => typed(step(phase), row * 3 + column),
+        WispState::Compacting if ring.is_some() => 1.0 - smoothstep(0.1, 0.6, phase),
+        WispState::Compacting => 0.5 + 0.5 * smoothstep(0.3, 0.7, phase),
+        WispState::Waiting => {
+            if ring.is_some() {
+                0.0
+            } else {
+                1.0
+            }
+        }
+    };
+    let pull = match state {
+        WispState::Compacting => 0.36 * smoothstep(0.1, 0.55, phase) * (1.0 - smoothstep(0.75, 1.0, phase)),
+        _ => 0.0,
+    };
+    Frame { lit, pull }
+}
+
+/// A head running clockwise around the ring with a tail `length` cells long.
+fn chase(head: f32, index: u8, length: f32) -> f32 {
+    let behind = (head - f32::from(index)).rem_euclid(8.0);
+    if behind < length { (1.0 - behind / length).powf(1.3) } else { 0.0 }
+}
+
+/// Fills the cells in reading order, then blinks a cursor in the first cell before starting over.
+fn typed(step: u8, cell: u8) -> f32 {
+    match step {
+        TYPED.. if cell == 0 && step % 2 == 1 => 0.7,
+        TYPED.. => 0.0,
+        _ if cell < step => 1.0,
+        _ if cell == step => 0.45,
+        _ => 0.0,
     }
 }
 
-fn uniforms(values: &mut [f32; 16], state: WispState, expanded: bool) {
-    let on = |target| if state == target { 1.0 } else { 0.0 };
-    values[..8].copy_from_slice(&[
-        0.0,
-        on(WispState::Thinking),
-        on(WispState::Working),
-        on(WispState::Writing),
-        on(WispState::Connecting),
-        on(WispState::Compacting),
-        on(WispState::Waiting),
-        if expanded { 1.0 } else { 0.0 },
-    ]);
+/// The typed step a phase falls in; the slack keeps sampled step boundaries from rounding down a step.
+fn step(phase: f32) -> u8 {
+    (0..WRITING_STEPS).rev().find(|&step| f32::from(step) <= phase * f32::from(WRITING_STEPS) + 1e-3).unwrap_or(0)
 }
 
-const EXPANDED_SIZE: f32 = 32.0;
-const HALO_REACH: f32 = 2.0;
-const SETTLE_MS: f32 = 320.0;
+fn toward_center(size: f32, column: u8, row: u8, pull: f32) -> (f32, f32) {
+    let pitch = size / 4.0 * PITCH;
+    ((1.0 - f32::from(column)) * pitch * pull, (1.0 - f32::from(row)) * pitch * pull)
+}
+
+fn smoothstep(from: f32, to: f32, x: f32) -> f32 {
+    let t = ((x - from) / (to - from)).clamp(0.0, 1.0);
+    t * t * (3.0 - 2.0 * t)
+}
+
+/// The outer cells, clockwise from the top left.
+const RING: [(u8, u8); 8] = [(0, 0), (1, 0), (2, 0), (2, 1), (2, 2), (1, 2), (0, 2), (0, 1)];
+const PITCH: f32 = 1.5;
+const ROUNDNESS: f32 = 0.3;
+/// Unlit cells stay faintly visible so the grid reads as one mark rather than scattered specks.
+const UNLIT: f32 = 0.1;
+const FADE_IN_MS: f32 = 160.0;
+const WRITING_STEPS: u8 = 14;
+const TYPED: u8 = 10;
+const HOLD: f32 = 1e-3;

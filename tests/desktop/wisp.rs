@@ -16,7 +16,7 @@ fn waiting_and_reduced_motion_have_no_clock_and_never_change_pixels() {
 }
 
 #[test]
-fn every_state_renders_a_distinct_legible_mark_at_both_detail_levels() {
+fn every_state_renders_a_distinct_legible_still_mark_at_every_size() {
     for size in [12.0, 48.0] {
         for scale in [1.0, 2.0] {
             let mut scene = SceneBuilder::default().size(size).scale(scale).reduced(true).build();
@@ -47,18 +47,14 @@ fn each_active_state_actually_moves_instead_of_only_running_a_clock() {
 }
 
 #[test]
-fn working_states_morph_without_recreating_the_art_or_relaying_out() {
-    let mut scene = SceneBuilder::default().build();
+fn a_new_state_fades_in_instead_of_cutting() {
+    let mut scene = SceneBuilder::default().size(48.0).build();
     scene.ui.run(1.0);
-    let before = scene.ui.stats();
-    for state in [WispState::Working, WispState::Writing, WispState::Compacting, WispState::Thinking] {
-        scene.state.set(state);
-        scene.ui.run(0.1);
-    }
-    scene.ui.run(1.0);
-    let after = scene.ui.stats();
-    assert_eq!(after.elements_created, before.elements_created, "state changes preserve the running art");
-    assert_eq!(after.layouts, before.layouts, "animation only updates compositor uniforms");
+    scene.state.set(WispState::Working);
+    scene.ui.advance(0.0);
+    assert_eq!(lit_pixels(&mut scene), 0, "the incoming matrix starts transparent");
+    scene.ui.run(0.3);
+    assert!(lit_pixels(&mut scene) > 0);
     assert!(scene.ui.is_animating());
 }
 
@@ -90,16 +86,17 @@ fn clipped_hidden_and_unfocused_wisps_stop_and_resume_their_clocks() {
 }
 
 #[test]
-fn many_compact_wisps_have_a_bounded_rendering_cost_and_do_not_repaint_the_tree() {
+fn many_running_wisps_animate_on_the_compositor_alone() {
     let mut scene = SceneBuilder::default().count(32).build();
+    scene.ui.run(1.0);
     let before = scene.ui.stats();
     scene.ui.run(1.0);
     let after = scene.ui.stats();
     assert_eq!(before.layouts, after.layouts);
     assert_eq!(before.paints, after.paints);
+    assert_eq!(before.patches, after.patches, "no reactive work per frame");
     let stats = scene.ui.draw().unwrap();
-    assert_eq!(stats.groups, 32, "one effect group per compact wisp");
-    assert_eq!(stats.group_passes, 32, "one content-effect pass per compact wisp");
+    assert_eq!(stats.groups, 0, "cells need no offscreen groups");
     assert_eq!(stats.backdrop_passes, 0);
     assert_eq!(stats.content_blurs, 0);
 }
@@ -112,6 +109,10 @@ const STATES: [WispState; 6] = [
     WispState::Writing,
     WispState::Waiting,
 ];
+
+fn lit_pixels(scene: &mut Scene) -> usize {
+    scene.ui.render().unwrap().pixels.as_chunks::<4>().0.iter().filter(|pixel| pixel[3] > 64).count()
+}
 
 struct Scene {
     ui: TestUi,
