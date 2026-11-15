@@ -104,7 +104,7 @@ pub(crate) fn fold_header(
     };
     let label = std::iter::once(done).chain(work.details()).collect::<Vec<_>>().join(" · ");
     let chevron = if expanded { IconName::ChevronDown } else { IconName::ChevronRight };
-    let hairline = || view! { <div flex_1 h=px(1.0) bg=Role::BorderSubtle/> };
+    let hairline = || view! { <div flex_1 border_t=1.0 border_color=Role::BorderSubtle/> };
     let color = if failed { Role::Destructive } else { Role::TextMuted };
     view! {
         <div test_id={format!("turn-summary-{row}")} h=ROW_HEIGHT flex items_center gap=12.0 body text_color=color
