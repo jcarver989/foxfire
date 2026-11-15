@@ -26,7 +26,7 @@ impl SessionOptions {
             thread.with_connected_core(|core| core.session().config_options().to_vec()).unwrap_or_default()
         });
         view! {
-            <div test_id="session-options" flex_1 min_w=0.0 overflow_hidden flex items_center gap=4.0 body>
+            <div test_id="session-options" min_w=0.0 overflow_hidden flex items_center gap=4.0 body>
                 <dynamic>{with_middots(options.get().iter().filter_map(|option| self.selector(option)))}</dynamic>
             </div>
         }

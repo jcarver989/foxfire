@@ -3,7 +3,6 @@ mod pasted;
 mod queued;
 
 use super::attachment::{chip, preview};
-use super::options::SessionOptions;
 use crate::app::chord;
 use crate::platform::{PathPrompt, Platform};
 use crate::tasks::spawn_in;
@@ -39,7 +38,6 @@ pub(crate) struct SearchPrompts;
 #[derive(Clone, Copy)]
 pub(crate) struct Composer {
     thread: Thread,
-    options: SessionOptions,
     text: Signal<String>,
     selection: Signal<Range<usize>>,
     mentions: Signal<Vec<PromptAttachment>>,
@@ -66,7 +64,6 @@ impl Composer {
     pub(crate) fn new(thread: Thread, platform: Rc<dyn Platform>) -> Self {
         let composer = Self {
             thread,
-            options: SessionOptions::new(thread),
             text: signal(String::new()),
             selection: signal(0..0),
             mentions: signal(Vec::new()),
@@ -200,7 +197,7 @@ impl Composer {
             <div px=8.0 pb=8.0 flex items_center gap=4.0>
                 <icon_button test_id="attach-files" icon=IconName::Paperclip label="Attach files"
                              on_click={move || self.pick_files()}/>
-                {self.options.view()}
+                <div flex_1/>
                 <dynamic>{
                     if running.get() && empty.get() {
                         round_button("stop", IconName::Square, "Stop (Esc)", true, Callback::from(move || self.cancel()))

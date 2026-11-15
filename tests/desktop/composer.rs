@@ -118,7 +118,7 @@ fn the_option_shows_the_model_the_agent_switched_to() {
 }
 
 #[test]
-fn the_sessions_options_sit_in_the_composers_action_row_in_the_chat_alone_led_by_their_categorys_icon() {
+fn the_sessions_options_are_led_by_their_categorys_icon() {
     let option = |id: &str| select(id, id, "one", &[("one", "One")]);
     let options = vec![
         option("mode").category(acp::SessionConfigOptionCategory::Mode),
@@ -138,15 +138,30 @@ fn the_sessions_options_sit_in_the_composers_action_row_in_the_chat_alone_led_by
             .all(|icon| harness.bounds(icon).is_none()),
         "an option of no known category has no icon"
     );
-    let [attach, model, send, composer] =
-        ["attach-files", "config-model", "send", "composer"].map(|id| harness.bounds(id).expect("painted"));
-    assert!(attach.right() < model.left() && model.right() < send.left(), "{attach:?} {model:?} {send:?}");
-    assert!(composer.top() < model.top() && model.bottom() < composer.bottom(), "{model:?} {composer:?}");
-    assert_eq!(model.center().y, send.center().y, "the options share the action row");
+}
+
+#[test]
+fn the_sessions_options_sit_in_the_status_row_under_the_composer_in_the_chat_alone() {
+    let (agent, mut requests) = agent_with_models(&["fast", "slow"], "fast");
+    let (mut harness, thread) = DesktopHarness::alpha(agent);
+    assert!(harness.bounds("new-thread-heading").is_some(), "a new thread asks what to build");
+    assert_options_lead_the_status_row(&mut harness);
+
+    let turn = harness.start_turn(thread, &mut requests, "hi");
+    turn.update(acp::SessionUpdate::UsageUpdate(acp::UsageUpdate::new(50_000, 200_000)));
+    turn.end(acp::StopReason::EndTurn);
+    harness.run_until(|_| thread.status() == ThreadStatus::Idle);
+
+    assert!(harness.bounds("new-thread-heading").is_none(), "the composer has docked");
+    assert_options_lead_the_status_row(&mut harness);
+    let [model, ring, send] = ["config-model", "context-ring", "send"].map(|id| harness.bounds(id).expect("painted"));
+    assert_eq!(model.center().y, ring.center().y, "the options share the context ring's row");
+    assert!(model.right() < ring.left(), "{model:?} {ring:?}");
+    assert_eq!(ring.right(), send.right(), "the ring lines up with the composer's send button");
 
     harness.press("secondary-2");
 
-    assert!(harness.bounds("config-model").is_none(), "the options leave with the composer");
+    assert!(harness.bounds("config-model").is_none(), "the options leave with the chat");
 }
 
 #[test]
@@ -268,4 +283,12 @@ fn agent_with_models(names: &[&str], current: &str) -> (FakeAgent, FakeAgentRequ
 
 fn offering(options: Vec<acp::SessionConfigOption>) -> FakeAgent {
     FakeAgent::default().new_session_response(acp::NewSessionResponse::new("alpha-session").config_options(options))
+}
+
+fn assert_options_lead_the_status_row(harness: &mut DesktopHarness) {
+    let [attach, model, composer, status] =
+        ["attach-files", "config-model", "composer", "status"].map(|id| harness.bounds(id).expect("painted"));
+    assert!(model.top() >= composer.bottom(), "the options sit below the composer: {model:?} {composer:?}");
+    assert_eq!(model.center().y, status.center().y, "the options share the status row");
+    assert_eq!(model.left(), attach.left(), "the options line up with the composer's attach button");
 }

@@ -1,5 +1,5 @@
 use crate::artifact_review::ArtifactReview;
-use crate::chat::{Composer, StatusLine, Transcript, reconnect_banner};
+use crate::chat::{Composer, SessionOptions, StatusLine, Transcript, reconnect_banner};
 use crate::elicitation::ElicitationCard;
 use crate::files::Files;
 use crate::platform::Platform;
@@ -30,6 +30,7 @@ pub(crate) struct ThreadView {
     stage: Signal<Rect>,
     composer_bounds: Signal<Rect>,
     transcript: Transcript,
+    options: SessionOptions,
     status: StatusLine,
     elicitation: ElicitationCard,
     composer: Composer,
@@ -69,6 +70,7 @@ impl ThreadView {
             stage: signal(Rect::ZERO),
             composer_bounds: signal(Rect::ZERO),
             transcript,
+            options: SessionOptions::new(thread),
             status: StatusLine::new(thread),
             elicitation: ElicitationCard::new(thread, platform.clone(), move || show(ThreadTab::Review)),
             composer: Composer::new(thread, platform),
@@ -238,6 +240,7 @@ impl ThreadView {
                     {self.elicitation.view()}
                     <div track_bounds={self.composer_bounds} opacity=reveal>{self.composer.view()}</div>
                     <div test_id="composer-bar" h=ROW_HEIGHT mt=4.0 px=8.0 flex items_center gap=16.0 opacity=reveal>
+                        {self.options.view()}
                         {self.status.view()}
                         <show when={move || connecting.get()}>{connecting_message()}</show>
                     </div>
