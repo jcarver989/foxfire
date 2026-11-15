@@ -4,7 +4,8 @@ use crate::session_model::{WorkspaceAccess, initial_workspace_status};
 use acp_utils::client::{AcpClient, AcpClientError, connect_acp_client, initialize_request};
 use acp_utils::notifications::{RemoteServerInfo, SessionPreviewParams};
 use agent_client_protocol::v2::schema::{
-    Implementation, NewSessionRequest, NewSessionResponse, ReplayFrom, ReplayFromStart, ResumeSessionRequest, SessionId,
+    AbsolutePath, Implementation, ListSessionsRequest, NewSessionRequest, NewSessionResponse, ReplayFrom,
+    ReplayFromStart, ResumeSessionRequest, SessionId, SessionInfo,
 };
 use agent_client_protocol::{Client, ConnectTo};
 use std::path::{Path, PathBuf};
@@ -63,6 +64,20 @@ impl Connection {
             (requested, live) => (requested.or(live), remote.cwd),
         };
         self.start(selected, working_dir, WorkspaceAccess::Remote).await
+    }
+
+    pub async fn list_sessions(&self, cwd: &Path) -> Result<Vec<SessionInfo>, ConnectionError> {
+        let mut sessions = Vec::new();
+        let mut cursor = None;
+        loop {
+            let request = ListSessionsRequest::new().cwd(AbsolutePath::new(cwd)).cursor(cursor);
+            let page = self.client.handle.request(request).await?;
+            sessions.extend(page.sessions);
+            cursor = page.next_cursor;
+            if cursor.is_none() {
+                return Ok(sessions);
+            }
+        }
     }
 
     fn remote_server(&self) -> Option<RemoteServerInfo> {
