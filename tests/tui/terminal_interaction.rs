@@ -1,6 +1,6 @@
 use super::support::*;
+use acp_utils::ReasoningEffort;
 use crossterm::event::{MouseButton, MouseEvent, MouseEventKind};
-use utils::ReasoningEffort;
 use wisp::error::AppError;
 
 const MODELS: &[(&str, &str)] = &[("a", "Alpha"), ("b", "Beta")];

@@ -2,6 +2,7 @@ use crate::settings::{ResolvedStatusLineSettings, StatusLineSegmentConfig, Statu
 use crate::theme::Theme;
 use crate::view::reasoning_bar::{reasoning_bar, reasoning_color, slot_bar};
 use crate::view::wrap::{truncate_spans, truncate_to_width};
+use acp_utils::ReasoningEffort;
 use agent_client_protocol::v2::schema as acp;
 use client_core::format::token_count;
 use client_core::session_config_view::{LocalConfigOption, LocalConfigView};
@@ -11,7 +12,6 @@ use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::style::{Color, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::Widget;
-use utils::ReasoningEffort;
 
 /// Everything the status line reads out of `App`, borrowed for one frame.
 ///

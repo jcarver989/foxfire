@@ -42,7 +42,6 @@ clankerdiff-ratatui = { workspace = true }
 rouge-syntax = { workspace = true }
 clankerdiff-client = { workspace = true }
 clankerdiff-lspd = { workspace = true, features = ["daemon"] }
-utils = { package = "aether-utils", path = "../utils", version = "0.3.1" }
 acp_utils = { package = "aether-acp-utils", path = "../acp-utils", features = ["client"], version = "0.5.19" }
 client_core = { package = "aether-client-core", path = "../client-core", version = "0.1.0" }
 agent-client-protocol = { workspace = true }

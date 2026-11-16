@@ -7,6 +7,7 @@ use crate::view::input::{Nav, UiEvent};
 use crate::view::reasoning_bar::{reasoning_bar, reasoning_column_width, reasoning_label_width};
 use crate::view::selection::Direction;
 use crate::view::wrap::truncate_to_width;
+use acp_utils::ReasoningEffort;
 use client_core::session_config_view::{LocalConfigSelect, LocalConfigValue};
 use crossterm::event::KeyCode;
 use ratatui::buffer::Buffer;
@@ -15,7 +16,6 @@ use ratatui::style::Style;
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Paragraph, StatefulWidget, Widget};
 use std::collections::BTreeSet;
-use utils::ReasoningEffort;
 
 /// Multi-select pane for models, with a reasoning-effort control that follows
 /// whichever model is focused.

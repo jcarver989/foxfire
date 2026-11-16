@@ -20,6 +20,7 @@ use clankerdiff_core::RepoPath;
 use client_core::composer::file_listing::{FileListing, RepoFiles};
 pub(crate) use client_core::session_core::CommandEntry;
 
+pub(crate) use acp_utils::artifact_review::ArtifactReviewElicitationMeta;
 pub(crate) use client_core::session_core::{ForegroundOperation, SessionCore};
 pub(crate) use client_core::testing::{FakeGit, SessionCoreConfigBuilder};
 pub(crate) use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
@@ -32,7 +33,6 @@ pub(crate) use std::io::Write as IoWrite;
 pub(crate) use std::path::{Path, PathBuf};
 pub(crate) use std::time::{Duration, Instant};
 pub(crate) use unicode_width::UnicodeWidthStr;
-pub(crate) use utils::artifact_review::ArtifactReviewElicitationMeta;
 pub(crate) use wisp::command::HostCommandResult;
 pub(crate) use wisp::testing::ElicitationReply;
 pub(crate) use wisp::testing::{
