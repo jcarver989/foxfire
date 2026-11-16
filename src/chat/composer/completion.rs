@@ -74,7 +74,7 @@ impl CompletionMenu {
             .map(|(position, item)| match item {
                 CompletionItem::Command(command) => {
                     PickerItem::new(format!("completion-item-{position}"), format!("/{}", command.name))
-                        .detail(command.description.clone())
+                        .subtitle(command.description.clone())
                 }
                 CompletionItem::File(file) => {
                     PickerItem::new(format!("completion-item-{position}"), file.display_name.clone())

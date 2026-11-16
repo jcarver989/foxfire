@@ -48,6 +48,20 @@ fn a_slash_offers_the_agents_commands_and_sends_the_chosen_one() {
 }
 
 #[test]
+fn a_long_description_never_hides_the_command_name() {
+    let (mut harness, thread) = DesktopHarness::alpha(advertising_commands());
+    harness.send(thread, "hi");
+
+    harness.type_text("/sum");
+    let menu = harness.bounds("completion-menu").expect("menu painted");
+    let name = harness.bounds("completion-item-0-label").expect("name painted");
+
+    assert!(name.size.width > 0.0, "the name keeps its width: {name:?}");
+    assert!(name.max().x <= menu.max().x, "the name sits inside the menu: {name:?} {menu:?}");
+    assert!(name.origin.x >= menu.origin.x, "the name sits inside the menu: {name:?} {menu:?}");
+}
+
+#[test]
 fn a_command_that_takes_input_waits_for_it() {
     let (mut harness, thread) = DesktopHarness::alpha(advertising_commands());
     harness.send(thread, "hi");
@@ -261,9 +275,11 @@ fn advertising_commands() -> FakeAgent {
     let explain = acp::Command::new("explain", "Explain something")
         .input(acp::AvailableCommandInput::Text(acp::TextCommandInput::new("topic")));
     let review = acp::Command::new("review", "Review the diff");
+    let summarize = acp::Command::new("summarize", "Summarize ".repeat(80));
     let commands = acp::AvailableCommandsUpdate::new(vec![
         acp::AvailableCommand::Command(review),
         acp::AvailableCommand::Command(explain),
+        acp::AvailableCommand::Command(summarize),
     ]);
     FakeAgent::new("alpha-session").prompt_updates(vec![acp::SessionUpdate::AvailableCommandsUpdate(commands)])
 }
