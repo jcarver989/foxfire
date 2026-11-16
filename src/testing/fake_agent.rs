@@ -4,6 +4,7 @@ use crate::aether::{
     SessionPreviewParams, SessionPreviewResponse, WorkspaceListParams, WorkspaceMoveParams, WorkspaceMoveTarget,
     WorkspaceStatusPayload, WorkspaceStatusResponse,
 };
+use crate::artifact_review::{ArtifactReviewDecision, ArtifactReviewElicitationMeta};
 use agent_client_protocol::util::MatchDispatchFrom;
 use agent_client_protocol::v2::schema::{
     AgentAuthCapabilities, AgentCapabilities, AuthStatusCapabilities, AuthStatusRequest, AuthStatusResponse,
@@ -24,7 +25,6 @@ use std::any::{Any, TypeId};
 use std::collections::{HashMap, VecDeque};
 use std::sync::{Arc, Mutex};
 use tokio::sync::{mpsc, oneshot};
-use utils::artifact_review::{ArtifactReviewDecision, ArtifactReviewElicitationMeta};
 
 pub struct FakeAgent {
     initialize: InitializeResponse,

@@ -1,6 +1,6 @@
 # aether-acp-utils
 
-Utilities for the [Agent Client Protocol](https://agentclientprotocol.com/) (ACP), handling notifications, elicitation, and protocol extensions between agents and their host UIs.
+Utilities for the [Agent Client Protocol](https://agentclientprotocol.com/) (ACP): Aether's protocol extensions and the client that UIs use to talk to agents. The crate depends on no Aether agent crates, so ACP clients can use it on their own; with `default-features = false` it is only the serde wire types, so Aether's agent crates depend on it without pulling in ACP.
 
 ## Table of Contents
 
@@ -17,7 +17,8 @@ Utilities for the [Agent Client Protocol](https://agentclientprotocol.com/) (ACP
 
 ## Key Types
 
-- **`elicitation`** -- Typed conversion between MCP elicitation and native ACP `elicitation/create` messages
+- **`aether`** -- The `_aether/*` requests and notifications, `AetherCapabilities`, and the `_meta` Aether reads and writes
+- **`display_meta`**, **`mcp_status`**, **`artifact_review`**, **`ReasoningEffort`** -- Wire types carried in tool, MCP status, elicitation, and config option metadata
 - **`McpNotification` / `McpRequest`** -- MCP message tunneling over ACP
 - Agent subprocesses -- use upstream `agent_client_protocol::{AcpAgent, AcpAgentConfig, Stdio}`
 - **`AcpClientHandle`** -- Initialized, cloneable client for typed ACP v2 requests
@@ -28,8 +29,9 @@ Utilities for the [Agent Client Protocol](https://agentclientprotocol.com/) (ACP
 
 | Feature | Description | Default |
 |---------|-------------|---------|
-| `client` | ACP client and conversation model (for UIs connecting to agents) | yes |
-| `websocket` | Message-oriented WebSocket transport | no |
+| `protocol` | The `aether` extension messages and `content` helpers, built on `agent-client-protocol` | via `client` |
+| `client` | ACP client and conversation model (for UIs connecting to agents); enables `protocol` | yes |
+| `websocket` | Message-oriented WebSocket transport; enables `client` | no |
 | `testing` | Public in-memory ACP test peers and transport helpers (enables `client`) | no |
 
 ## WebSocket transport

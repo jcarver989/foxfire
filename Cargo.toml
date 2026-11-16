@@ -25,39 +25,34 @@ workspace = true
 
 [features]
 default = ["client"]
-client = []
-server = ["dep:llm", "dep:rmcp"]
+protocol = ["dep:agent-client-protocol", "dep:clankerdiff-protocol"]
+client = ["protocol", "dep:futures", "dep:tokio", "dep:tokio-util", "dep:tracing"]
 testing = ["client"]
-websocket = ["dep:tokio-tungstenite"]
+websocket = ["client", "dep:tokio-tungstenite"]
 
 [[example]]
 name = "fake_agent_server"
 required-features = ["testing", "websocket"]
 
 [dependencies]
-agent-client-protocol = { workspace = true, features = ["schemars"] }
-clankerdiff-protocol = { workspace = true }
-futures = { workspace = true }
-tokio-util = { workspace = true }
+agent-client-protocol = { workspace = true, features = ["schemars"], optional = true }
+clankerdiff-protocol = { workspace = true, optional = true }
+futures = { workspace = true, optional = true }
+tokio-util = { workspace = true, optional = true }
 schemars = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
-tokio = { workspace = true, features = ["rt", "macros", "sync", "io-util", "time"] }
-tracing = { workspace = true }
-utils = { package = "aether-utils", path = "../utils", version = "0.3.1" }
+tokio = { workspace = true, features = ["rt", "macros", "sync", "io-util", "time"], optional = true }
+tracing = { workspace = true, optional = true }
 thiserror = { workspace = true }
 tokio-tungstenite = { workspace = true, optional = true }
 
-[target.'cfg(not(target_family = "wasm"))'.dependencies]
-llm = { package = "aether-llm", path = "../llm", version = "0.9.19", optional = true }
-rmcp = { workspace = true, features = ["client", "elicitation"], optional = true }
-
 [target.'cfg(target_family = "wasm")'.dependencies]
-agent-client-protocol = { workspace = true, features = ["wasm_js"] }
+agent-client-protocol = { workspace = true, features = ["wasm_js"], optional = true }
 wasm-bindgen-futures = { workspace = true }
 
 [dev-dependencies]
-aether-acp-utils = { path = ".", features = ["server", "testing"] }
+aether-acp-utils = { path = ".", features = ["testing"] }
 tokio = { workspace = true, features = ["full", "test-util"] }
 tokio-util = { workspace = true, features = ["compat"] }
 serde_json = { workspace = true }

@@ -6,6 +6,8 @@ pub use config_meta::*;
 
 use std::path::PathBuf;
 
+pub use crate::display_meta::{ToolDisplayMeta, ToolResultMeta};
+pub use crate::mcp_status::{McpServerAuthCapability, McpServerStatus, McpServerStatusEntry};
 use agent_client_protocol::v2::schema::{self as acp, Meta, SessionId, ToolCallId};
 use agent_client_protocol::{JsonRpcNotification, JsonRpcRequest, JsonRpcResponse};
 use clankerdiff_protocol::client::ClientCommand;
@@ -14,10 +16,8 @@ use schemars::JsonSchema;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-pub use utils::display_meta::{ToolDisplayMeta, ToolResultMeta};
-pub use utils::mcp_status::{McpServerAuthCapability, McpServerStatus, McpServerStatusEntry};
 
-use utils::meta::{from_meta, to_meta};
+use crate::meta::{from_meta, to_meta};
 
 pub const AETHER_META_NAMESPACE: &str = "contextbridge/aether";
 
