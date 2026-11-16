@@ -36,9 +36,8 @@ impl SessionCore {
                 self.ask(Elicitation::permission(&params), Reply::Permission(responder));
             }
             AcpEvent::McpNotification(notification) => self.on_mcp_notification(&notification),
-            AcpEvent::AuthMethodsUpdated(params) => {
-                self.session.set_auth_methods(&params.auth_methods);
-                self.settings_changed(SessionSetting::AuthMethods);
+            AcpEvent::AuthStatusUpdated(update) => {
+                self.set_auth_status(acp::AuthStatusResponse::new(update.state).accounts(update.accounts));
             }
             AcpEvent::ConnectionClosed => {
                 self.foreground = ForegroundOperation::Idle;

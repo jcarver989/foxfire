@@ -1,5 +1,5 @@
 use crate::support::{LiveSession, client_info, next_result, run_local};
-use acp_utils::aether::RemoteServerInfo;
+use acp_utils::aether::{AetherCapabilities, RemoteServerInfo};
 use acp_utils::client::{AcpClientError, AcpEvent};
 use acp_utils::conversation::Conversation;
 use acp_utils::testing::{
@@ -21,6 +21,7 @@ use client_core::connection::ConnectionError;
 use client_core::runtime::SessionRuntime;
 use client_core::session_core::SessionCoreConfig;
 use client_core::session_model::WorkspaceAccess;
+use client_core::testing::SessionCoreConfigBuilder;
 use std::path::{Path, PathBuf};
 
 #[test]
@@ -41,6 +42,20 @@ fn connection_negotiates_v2_and_projects_optional_capabilities() {
         let prompt = config.initialize_response.capabilities.session.and_then(|session| session.prompt);
         assert!(prompt.is_some_and(|prompt| prompt.image.is_some()));
         runtime.shutdown().await;
+    });
+}
+
+#[test]
+fn a_session_config_builders_agent_advertises_the_capabilities_its_config_has() {
+    run_local(async {
+        for builder in [SessionCoreConfigBuilder::new(), SessionCoreConfigBuilder::new().without_extensions()] {
+            let expected = AetherCapabilities::of(&builder.build().initialize_response.capabilities);
+            let connection = Connection::connect_to(client_info(), builder.agent().serve()).await.unwrap();
+            let (config, mut runtime) = connection.open(None, PathBuf::from(".")).await.unwrap().into_core();
+
+            assert_eq!(AetherCapabilities::of(&config.initialize_response.capabilities), expected);
+            runtime.shutdown().await;
+        }
     });
 }
 

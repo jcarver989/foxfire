@@ -14,6 +14,7 @@ pub struct SessionCoreConfigBuilder {
     prompt_capabilities: acp::PromptCapabilities,
     config_options: Vec<acp::SessionConfigOption>,
     auth_methods: Vec<acp::AuthMethod>,
+    auth_status: Option<acp::AuthStatusResponse>,
 }
 
 impl Default for SessionCoreConfigBuilder {
@@ -26,6 +27,7 @@ impl Default for SessionCoreConfigBuilder {
             prompt_capabilities: acp::PromptCapabilities::new(),
             config_options: Vec::new(),
             auth_methods: Vec::new(),
+            auth_status: None,
         }
     }
 }
@@ -65,6 +67,11 @@ impl SessionCoreConfigBuilder {
         self
     }
 
+    pub fn auth_status(mut self, status: acp::AuthStatusResponse) -> Self {
+        self.auth_status = Some(status);
+        self
+    }
+
     pub fn prompt_search(mut self) -> Self {
         self.capabilities.prompt_search = true;
         self
@@ -94,10 +101,15 @@ impl SessionCoreConfigBuilder {
     /// A fake agent that advertises what this session's client was told it supports.
     pub fn agent(&self) -> FakeAgent {
         let config = self.build();
-        FakeAgent::default()
-            .capabilities(config.initialize_response.capabilities)
-            .workspace_status(&config.session_response.session_id.0, config.workspace_status)
-            .new_session_response(config.session_response)
+        let mut agent = FakeAgent::default().capabilities(config.initialize_response.capabilities);
+        if self.capabilities.workspace_status {
+            agent = agent.workspace_status(&config.session_response.session_id.0, config.workspace_status);
+        }
+        let agent = agent.new_session_response(config.session_response);
+        match self.auth_status.clone() {
+            Some(status) => agent.auth_status(status),
+            None => agent,
+        }
     }
 
     pub fn build(&self) -> SessionCoreConfig {
@@ -109,7 +121,13 @@ impl SessionCoreConfigBuilder {
                 ProtocolVersion::V2,
                 acp::Implementation::new("aether", "test"),
             )
-            .capabilities(acp::AgentCapabilities::new().session(session_capabilities))
+            .capabilities(
+                acp::AgentCapabilities::new().session(session_capabilities).auth(
+                    self.auth_status
+                        .is_some()
+                        .then(|| acp::AgentAuthCapabilities::new().status(acp::AuthStatusCapabilities::new())),
+                ),
+            )
             .auth_methods(self.auth_methods.clone()),
             session_response: acp::NewSessionResponse::new("test-session").config_options(self.config_options.clone()),
             working_dir: self.working_dir.clone(),

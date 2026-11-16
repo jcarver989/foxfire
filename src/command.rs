@@ -7,8 +7,8 @@ use acp_utils::aether::{
 use acp_utils::client::AcpClientError;
 use acp_utils::conversation::ConversationId;
 use agent_client_protocol::v2::schema::{
-    ContentBlock, LoginAuthResponse, NewSessionResponse, ResumeSessionResponse, SessionConfigOptionValue, SessionId,
-    SessionInfo, SetSessionConfigOptionResponse,
+    AuthStatusResponse, ContentBlock, LoginAuthResponse, NewSessionResponse, ResumeSessionResponse,
+    SessionConfigOptionValue, SessionId, SessionInfo, SetSessionConfigOptionResponse,
 };
 use clankerdiff_client::{ClientError, ClientState, ConnectionHeader, DiffReviewEvent, LookupReply};
 use clankerdiff_remote::Invocation;
@@ -54,6 +54,7 @@ pub enum AgentCommand {
     Authenticate {
         method_id: String,
     },
+    FetchAuthStatus,
     ListSessions,
     ResumeSession {
         session_id: SessionId,
@@ -121,6 +122,7 @@ pub enum CommandResult {
         result: Result<ResumeSessionResponse, AcpClientError>,
     },
     SessionsListed(Result<Vec<SessionInfo>, AcpClientError>),
+    AuthStatusFetched(Result<AuthStatusResponse, AcpClientError>),
     PromptSearchResults {
         query: String,
         result: Result<PromptSearchResponse, AcpClientError>,

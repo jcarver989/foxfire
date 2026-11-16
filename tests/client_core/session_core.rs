@@ -1,7 +1,5 @@
 use crate::support::{LiveSession, deliver, notices, offline, receive, run_local};
-use acp_utils::aether::{
-    AuthMethodsUpdatedParams, WorkspaceEntry, WorkspaceListResponse, WorkspaceMoveResponse, WorkspaceMoveTarget,
-};
+use acp_utils::aether::{WorkspaceEntry, WorkspaceListResponse, WorkspaceMoveResponse, WorkspaceMoveTarget};
 use acp_utils::client::AcpEvent;
 use acp_utils::conversation::NoticeLevel;
 use acp_utils::testing::{
@@ -330,18 +328,46 @@ fn an_agent_config_update_replaces_the_session_selections() {
 }
 
 #[test]
-fn an_auth_methods_update_replaces_the_advertised_methods() {
-    let method = |id: &str| acp::AuthMethod::Agent(acp::AuthMethodAgent::new(id.to_owned(), id.to_owned()));
-    let mut core = SessionCore::new(SessionCoreConfigBuilder::new().auth_methods(vec![method("initial")]).build());
+fn an_auth_status_update_replaces_the_reported_status() {
+    let mut core = core();
+    let accounts = vec![acp::AuthAccount::new("Codex")];
 
     receive(
         &mut core,
-        AcpEvent::AuthMethodsUpdated(AuthMethodsUpdatedParams { auth_methods: vec![method("updated")] }),
+        AcpEvent::AuthStatusUpdated(
+            acp::AuthStatusUpdateNotification::new(acp::AuthState::Authenticated).accounts(accounts.clone()),
+        ),
     );
 
-    let methods: Vec<_> = core.session().auth_methods().iter().map(|method| method.method_id().0.as_ref()).collect();
-    assert_eq!(methods, ["updated"]);
-    assert!(matches!(core.take_effects()[..], [Effect::SessionSettingsChanged(SessionSetting::AuthMethods)]));
+    let expected = acp::AuthStatusResponse::new(acp::AuthState::Authenticated).accounts(accounts);
+    assert_eq!(core.session().auth_status(), Some(&expected));
+    assert!(matches!(core.take_effects()[..], [Effect::SessionSettingsChanged(SessionSetting::AuthStatus)]));
+}
+
+#[test]
+fn an_agent_with_auth_status_reports_who_is_signed_in() {
+    run_local(async {
+        let status = acp::AuthStatusResponse::new(acp::AuthState::Authenticated)
+            .accounts(vec![acp::AuthAccount::new("Anthropic API key")]);
+        let agent = FakeAgent::new("signed-in").auth_status(status.clone());
+        let mut live = LiveSession::connect(agent, "/workspace", None).await.unwrap();
+
+        live.core.refresh_auth_status();
+        live.run_until(|core| core.session().auth_status().is_some()).await;
+
+        assert_eq!(live.core.session().auth_status(), Some(&status));
+        live.shutdown().await;
+    });
+}
+
+#[test]
+fn an_agent_without_auth_status_is_not_asked_for_it() {
+    let mut core = core();
+
+    core.refresh_auth_status();
+
+    assert!(core.take_effects().is_empty());
+    assert_eq!(core.session().auth_status(), None);
 }
 
 #[test]

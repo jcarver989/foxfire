@@ -6,7 +6,8 @@ use acp_utils::aether::{
 };
 use acp_utils::client::{AcpClientError, AcpClientHandle};
 use agent_client_protocol::v2::schema::{
-    CancelSessionNotification, LoginAuthRequest, NewSessionRequest, PromptRequest, SetSessionConfigOptionRequest,
+    AuthStatusRequest, CancelSessionNotification, LoginAuthRequest, NewSessionRequest, PromptRequest,
+    SetSessionConfigOptionRequest,
 };
 use agent_client_protocol::{ErrorCode, JsonRpcRequest};
 use futures::FutureExt;
@@ -43,6 +44,9 @@ pub(super) fn execute(
             submit_request(handle, requests, LoginAuthRequest::new(method_id.clone()), move |result| {
                 CommandResult::Reply(Reply::AuthenticationCompleted { method_id, result })
             });
+        }
+        AgentCommand::FetchAuthStatus => {
+            submit_request(handle, requests, AuthStatusRequest::new(), CommandResult::AuthStatusFetched);
         }
         AgentCommand::ListSessions => {
             let handle = handle.clone();

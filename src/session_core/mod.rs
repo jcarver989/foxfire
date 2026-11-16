@@ -185,6 +185,12 @@ impl SessionCore {
         self.dispatch(AgentCommand::Authenticate { method_id });
     }
 
+    pub fn refresh_auth_status(&mut self) {
+        if self.session.supports_auth_status() {
+            self.dispatch(AgentCommand::FetchAuthStatus);
+        }
+    }
+
     pub fn authenticate_mcp_server(&mut self, server_name: String) {
         self.dispatch(AgentCommand::AuthenticateMcpServer { session_id: self.session_id().clone(), server_name });
     }
@@ -278,6 +284,10 @@ impl SessionCore {
             CommandResult::SessionsListed(Err(error)) => {
                 self.report_error(&format!("Failed to list sessions: {error}"));
             }
+            CommandResult::AuthStatusFetched(Ok(response)) => self.set_auth_status(response),
+            CommandResult::AuthStatusFetched(Err(error)) => {
+                tracing::warn!("auth/status failed: {error}");
+            }
             CommandResult::WorkspacesListed(Ok(response)) => {
                 self.foreground = ForegroundOperation::PickingWorkspace;
                 self.effects.push(Effect::WorkspacesListed(response.workspaces));
@@ -335,6 +345,11 @@ impl SessionCore {
 
     fn can_start_foreground_operation(&self) -> bool {
         self.foreground.is_idle() && !self.waiting_for_response()
+    }
+
+    fn set_auth_status(&mut self, auth_status: acp::AuthStatusResponse) {
+        self.session.set_auth_status(auth_status);
+        self.settings_changed(SessionSetting::AuthStatus);
     }
 
     fn settings_changed(&mut self, setting: SessionSetting) {

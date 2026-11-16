@@ -15,13 +15,15 @@ pub struct SessionModel {
     capabilities: AetherCapabilities,
     config_options: Vec<LocalConfigOption>,
     auth_methods: Vec<acp::AuthMethod>,
+    supports_auth_status: bool,
+    auth_status: Option<acp::AuthStatusResponse>,
     server_statuses: Vec<McpServerStatusEntry>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SessionSetting {
     ConfigOptions,
-    AuthMethods,
+    AuthStatus,
     ServerStatuses,
 }
 
@@ -64,6 +66,14 @@ impl SessionModel {
 
     pub fn auth_methods(&self) -> &[acp::AuthMethod] {
         &self.auth_methods
+    }
+
+    pub fn supports_auth_status(&self) -> bool {
+        self.supports_auth_status
+    }
+
+    pub fn auth_status(&self) -> Option<&acp::AuthStatusResponse> {
+        self.auth_status.as_ref()
     }
 
     pub fn workspace_status(&self) -> &WorkspaceStatus {
@@ -114,6 +124,11 @@ impl SessionModel {
         } = config;
         Self {
             capabilities: AetherCapabilities::of(&initialize_response.capabilities),
+            supports_auth_status: initialize_response
+                .capabilities
+                .auth
+                .as_ref()
+                .is_some_and(|auth| auth.status.is_some()),
             workspace_access,
             agent_name: initialize_response.info.title.unwrap_or(initialize_response.info.name),
             working_dir,
@@ -125,6 +140,7 @@ impl SessionModel {
                 .unwrap_or_default(),
             config_options: session_response.config_options.into_iter().map(LocalConfigOption::from_acp).collect(),
             auth_methods: initialize_response.auth_methods,
+            auth_status: None,
             server_statuses: Vec::new(),
         }
     }
@@ -133,8 +149,8 @@ impl SessionModel {
         self.server_statuses = statuses.to_vec();
     }
 
-    pub(crate) fn set_auth_methods(&mut self, auth_methods: &[acp::AuthMethod]) {
-        self.auth_methods = auth_methods.to_vec();
+    pub(crate) fn set_auth_status(&mut self, auth_status: acp::AuthStatusResponse) {
+        self.auth_status = Some(auth_status);
     }
 
     pub(crate) fn update_config_options(&mut self, config_options: Vec<acp::SessionConfigOption>) {
