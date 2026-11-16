@@ -4,7 +4,7 @@ use crate::surfaces::modal::frame::MODAL_HORIZONTAL_PADDING;
 use crate::theme::Theme;
 use crate::view::filterable_list::FilterableList;
 use crate::view::input::{Nav, UiEvent};
-use agent_client_protocol::v2::schema::AuthMethod;
+use agent_client_protocol::v2::schema::{AuthMethod, AuthState, AuthStatusResponse};
 use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
 use ratatui::text::Line;
@@ -24,9 +24,10 @@ pub(crate) struct ProviderLoginEntry {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum ProviderLoginStatus {
-    NeedsLogin,
+    Available,
     Authenticating,
     LoggedIn,
+    Failed,
 }
 
 impl ProviderLoginPane {
@@ -52,14 +53,15 @@ impl ProviderLoginPane {
     pub(super) fn render(&mut self, area: Rect, buf: &mut Buffer, theme: &Theme) {
         let (view, selection) = self.entries.view(theme, |entry| {
             let (indicator, detail, style) = match entry.status {
-                ProviderLoginStatus::NeedsLogin => ("⚡", "needs login", theme.warning),
+                ProviderLoginStatus::Available => ("→", "log in", theme.text_primary),
                 ProviderLoginStatus::Authenticating => ("⏳", "authenticating...", theme.warning),
                 ProviderLoginStatus::LoggedIn => ("✓", "logged in", theme.success),
+                ProviderLoginStatus::Failed => ("✗", "login failed", theme.error),
             };
             Line::styled(format!(" {}  {indicator} {detail}", entry.name), style)
         });
         let view = view
-            .empty_message(" (no providers need login)")
+            .empty_message(" (no login methods)")
             .highlight_style((theme.background, theme.warning))
             .highlight_horizontal_padding(MODAL_HORIZONTAL_PADDING);
         StatefulWidget::render(view, area, buf, selection);
@@ -87,23 +89,36 @@ pub(crate) fn build_provider_login_entries(methods: &[AuthMethod]) -> Vec<Provid
         .map(|method| ProviderLoginEntry {
             method_id: method.method_id().0.to_string(),
             name: method.name().to_string(),
-            status: if method.description() == Some("authenticated") {
-                ProviderLoginStatus::LoggedIn
-            } else {
-                ProviderLoginStatus::NeedsLogin
-            },
+            status: ProviderLoginStatus::Available,
         })
         .collect()
 }
 
-pub(super) fn summary(entries: &[ProviderLoginEntry]) -> String {
-    let count = |status: ProviderLoginStatus| entries.iter().filter(|entry| entry.status == status).count();
-    summarize(
-        &[
-            (count(ProviderLoginStatus::NeedsLogin), "needs login"),
-            (count(ProviderLoginStatus::Authenticating), "authenticating"),
-            (count(ProviderLoginStatus::LoggedIn), "logged in"),
-        ],
-        "all logged in",
-    )
+pub(super) fn summary(status: Option<&AuthStatusResponse>, entries: &[ProviderLoginEntry]) -> String {
+    if entries.iter().any(|entry| entry.status == ProviderLoginStatus::Authenticating) {
+        return "authenticating".to_string();
+    }
+    match status {
+        Some(status) if !status.accounts.is_empty() => {
+            let labels: Vec<&str> = status.accounts.iter().map(|account| account.label.as_str()).collect();
+            format!("signed in: {}", labels.join(", "))
+        }
+        Some(status) => state_label(&status.state).to_string(),
+        None => {
+            let count = |status: ProviderLoginStatus| entries.iter().filter(|entry| entry.status == status).count();
+            summarize(
+                &[(count(ProviderLoginStatus::LoggedIn), "logged in"), (count(ProviderLoginStatus::Failed), "failed")],
+                "log in",
+            )
+        }
+    }
+}
+
+fn state_label(state: &AuthState) -> &'static str {
+    match state {
+        AuthState::Authenticated => "signed in",
+        AuthState::Unauthenticated => "not signed in",
+        AuthState::NotRequired => "no login needed",
+        _ => "unknown",
+    }
 }

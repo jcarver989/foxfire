@@ -1,9 +1,8 @@
 pub(crate) use acp_utils::aether::SelectOptionMeta;
 pub(crate) use acp_utils::aether::{
-    AuthMethodsUpdatedParams, ContextClearedParams, McpNotification, McpRequest, McpServerAuthCapability,
-    McpServerStatus, McpServerStatusEntry, PromptSearchParams, PromptSearchResult, SessionPreviewParams,
-    WorkspaceEntry, WorkspaceListParams, WorkspaceListResponse, WorkspaceMoveParams, WorkspaceMoveResponse,
-    WorkspaceMoveTarget,
+    ContextClearedParams, McpNotification, McpRequest, McpServerAuthCapability, McpServerStatus, McpServerStatusEntry,
+    PromptSearchParams, PromptSearchResult, SessionPreviewParams, WorkspaceEntry, WorkspaceListParams,
+    WorkspaceListResponse, WorkspaceMoveParams, WorkspaceMoveResponse, WorkspaceMoveTarget,
 };
 pub(crate) use acp_utils::client::AcpEvent;
 pub(crate) use acp_utils::testing::{

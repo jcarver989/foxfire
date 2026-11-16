@@ -12,16 +12,13 @@ fn oauth_server(name: &str, status: McpServerStatus) -> McpServerStatusEntry {
     McpServerStatusEntry::new(name, status).with_auth_capability(McpServerAuthCapability::OAuth)
 }
 
-fn auth_method(id: &str, name: &str, description: Option<&str>) -> acp::AuthMethod {
-    let mut agent = acp::AuthMethodAgent::new(id.to_string(), name);
-    if let Some(desc) = description {
-        agent = agent.description(desc);
-    }
-    acp::AuthMethod::Agent(agent)
+fn auth_method(id: &str, name: &str) -> acp::AuthMethod {
+    acp::AuthMethod::Agent(acp::AuthMethodAgent::new(id.to_string(), name))
 }
 
-fn auth_methods_updated(methods: Vec<acp::AuthMethod>) -> AcpEvent {
-    AcpEvent::AuthMethodsUpdated(AuthMethodsUpdatedParams { auth_methods: methods })
+fn signed_in(labels: &[&str]) -> acp::AuthStatusResponse {
+    let accounts = labels.iter().map(|label| acp::AuthAccount::new(*label)).collect();
+    acp::AuthStatusResponse::new(acp::AuthState::Authenticated).accounts(accounts)
 }
 
 /// Walks settings down to the MCP servers pane and authenticates the selected
@@ -67,7 +64,7 @@ fn settings_overlay_shows_mcp_servers_entry() {
 #[test]
 fn settings_overlay_shows_provider_logins_when_auth_methods_present() {
     let mut ui =
-        TestUiBuilder::new().session(|session| session.auth_methods(vec![auth_method("codex", "Codex", None)])).build();
+        TestUiBuilder::new().session(|session| session.auth_methods(vec![auth_method("codex", "Codex")])).build();
 
     ui.run_command("/settings");
 
@@ -139,7 +136,7 @@ fn selecting_non_oauth_server_is_noop() {
 #[test]
 fn provider_login_emits_authenticate() {
     let mut ui =
-        TestUiBuilder::new().session(|session| session.auth_methods(vec![auth_method("codex", "Codex", None)])).build();
+        TestUiBuilder::new().session(|session| session.auth_methods(vec![auth_method("codex", "Codex")])).build();
 
     open_settings_row(&mut ui, "Provider Logins");
     ui.key(key(KeyCode::Enter));
@@ -150,7 +147,7 @@ fn provider_login_emits_authenticate() {
 #[test]
 fn authenticate_complete_updates_correct_entry() {
     let mut ui = TestUiBuilder::new()
-        .session(|session| session.auth_methods(vec![auth_method("a", "A", None), auth_method("b", "B", None)]))
+        .session(|session| session.auth_methods(vec![auth_method("a", "A"), auth_method("b", "B")]))
         .build();
 
     open_settings_row(&mut ui, "Provider Logins");
@@ -162,29 +159,33 @@ fn authenticate_complete_updates_correct_entry() {
 }
 
 #[test]
-fn authenticate_failed_resets_to_needs_login() {
-    let mut ui =
-        TestUiBuilder::new().session(|session| session.auth_methods(vec![auth_method("x", "X", None)])).build();
+fn authenticate_failed_shows_the_failure() {
+    let mut ui = TestUiBuilder::new().session(|session| session.auth_methods(vec![auth_method("x", "X")])).build();
 
     open_settings_row(&mut ui, "Provider Logins");
     ui.key(key(KeyCode::Enter));
 
     ui.answer::<Login>(Err(agent_error("login failed")));
 
-    ui.assert_viewport_contains("needs login");
+    ui.assert_viewport_contains("login failed");
 }
 
 #[test]
-fn auth_methods_updated_replaces_provider_entries() {
-    let mut ui =
-        TestUiBuilder::new().session(|session| session.auth_methods(vec![auth_method("old", "Old", None)])).build();
+fn settings_show_the_signed_in_accounts_and_follow_auth_status_updates() {
+    let mut ui = TestUiBuilder::new()
+        .session(|session| session.auth_methods(vec![auth_method("codex", "Codex")]).auth_status(signed_in(&["Codex"])))
+        .dimensions(80, 24)
+        .build();
+    ui.run_command("/settings");
+    ui.assert_viewport_contains("signed in: Codex");
 
-    open_settings_row(&mut ui, "Provider Logins");
+    ui.acp_event(AcpEvent::AuthStatusUpdated(
+        acp::AuthStatusUpdateNotification::new(acp::AuthState::Authenticated)
+            .accounts(vec![acp::AuthAccount::new("ChatGPT")]),
+    ));
 
-    ui.acp_event(auth_methods_updated(vec![auth_method("new", "New", None)]));
-
-    ui.assert_viewport_contains("New");
-    ui.assert_viewport_not_contains("Old");
+    ui.assert_viewport_contains("signed in: ChatGPT");
+    ui.assert_viewport_not_contains("signed in: Codex");
 }
 
 #[test]
@@ -294,22 +295,16 @@ fn server_status_updated_while_pane_open_refreshes() {
 }
 
 #[test]
-fn provider_login_pane_shows_all_statuses() {
+fn provider_login_pane_lists_a_login_action_per_method() {
     let mut ui = TestUiBuilder::new()
-        .session(|session| {
-            session.auth_methods(vec![
-                auth_method("needs", "NeedsLogin", None),
-                auth_method("authd", "Authed", Some("authenticated")),
-            ])
-        })
+        .session(|session| session.auth_methods(vec![auth_method("codex", "Codex"), auth_method("other", "Other")]))
         .build();
 
     open_settings_row(&mut ui, "Provider Logins");
 
-    ui.assert_viewport_contains("NeedsLogin");
-    ui.assert_viewport_contains("needs login");
-    ui.assert_viewport_contains("Authed");
-    ui.assert_viewport_contains("logged in");
+    ui.assert_viewport_contains("Codex");
+    ui.assert_viewport_contains("Other");
+    ui.assert_viewport_contains("log in");
 }
 
 #[test]
@@ -326,8 +321,7 @@ fn esc_from_server_status_returns_to_menu() {
 
 #[test]
 fn esc_from_provider_login_returns_to_menu() {
-    let mut ui =
-        TestUiBuilder::new().session(|session| session.auth_methods(vec![auth_method("x", "X", None)])).build();
+    let mut ui = TestUiBuilder::new().session(|session| session.auth_methods(vec![auth_method("x", "X")])).build();
 
     open_settings_row(&mut ui, "Provider Logins");
     ui.key(key(KeyCode::Esc));
@@ -353,7 +347,7 @@ fn server_status_summary_updates_in_menu() {
 #[test]
 fn provider_login_summary_updates_in_menu_after_login() {
     let mut ui = TestUiBuilder::new()
-        .session(|session| session.auth_methods(vec![auth_method("codex", "Codex", None)]))
+        .session(|session| session.auth_methods(vec![auth_method("codex", "Codex")]))
         .dimensions(80, 24)
         .build();
     open_settings_row(&mut ui, "Provider Logins");
@@ -363,18 +357,6 @@ fn provider_login_summary_updates_in_menu_after_login() {
     ui.key(key(KeyCode::Esc));
 
     ui.assert_viewport_contains("Provider Logins: 1 logged in");
-}
-
-#[test]
-fn provider_logins_row_is_shown_only_while_there_are_providers() {
-    let mut ui = TestUi::with_dimensions(80, 24);
-    ui.run_command("/settings");
-
-    ui.acp_event(auth_methods_updated(vec![auth_method("codex", "Codex", None)]));
-    ui.assert_viewport_contains("Provider Logins: 1 needs login");
-
-    ui.acp_event(auth_methods_updated(vec![]));
-    ui.assert_viewport_not_contains("Provider Logins");
 }
 
 fn deferred_server_entry(name: &str, status: McpServerStatus) -> McpServerStatusEntry {

@@ -84,7 +84,7 @@ impl App {
             Reply::AuthenticationCompleted { method_id, result } => {
                 if let Some(Overlay::Settings(overlay)) = self.overlay.as_mut() {
                     let status =
-                        if result.is_ok() { ProviderLoginStatus::LoggedIn } else { ProviderLoginStatus::NeedsLogin };
+                        if result.is_ok() { ProviderLoginStatus::LoggedIn } else { ProviderLoginStatus::Failed };
                     overlay.set_provider_status(&method_id, status);
                 }
             }

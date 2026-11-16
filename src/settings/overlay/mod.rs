@@ -16,7 +16,6 @@ use crate::surfaces::modal::{ElicitationModal, frame::ModalFrame};
 use crate::theme::Theme;
 use crate::view::input::{Nav, UiEvent};
 use crate::view::widgets::key_hints;
-use agent_client_protocol::v2::schema::AuthMethod;
 use client_core::elicitation::ElicitationId;
 use client_core::session_config_view::{LocalConfigOption, LocalConfigSelect, LocalConfigValue, LocalConfigView};
 use client_core::session_model::{SessionModel, SessionSetting};
@@ -63,7 +62,7 @@ impl PaneKind {
     fn summary(self, session: &SessionModel, providers: &[ProviderLoginEntry]) -> String {
         match self {
             Self::McpServers => server_status::summary(session.server_statuses()),
-            Self::ProviderLogins => provider_login::summary(providers),
+            Self::ProviderLogins => provider_login::summary(session.auth_status(), providers),
         }
     }
 }
@@ -146,7 +145,7 @@ impl SettingsOverlay {
     pub fn on_setting_changed(&mut self, setting: SessionSetting, session: &SessionModel) {
         match setting {
             SessionSetting::ConfigOptions => self.menu.update_options(session.config_options()),
-            SessionSetting::AuthMethods => self.update_auth_methods(session.auth_methods()),
+            SessionSetting::AuthStatus => {}
             SessionSetting::ServerStatuses => {
                 if let Some(SettingsPane::ServerStatus(pane)) = self.pane.as_mut() {
                     pane.refresh(session.server_statuses());
@@ -241,12 +240,6 @@ impl SettingsOverlay {
 }
 
 impl SettingsOverlay {
-    fn update_auth_methods(&mut self, methods: &[AuthMethod]) {
-        self.providers = build_provider_login_entries(methods);
-        self.sync_pane_rows();
-        self.refresh_providers();
-    }
-
     /// Key hints for the current focus, shown in the overlay footer.
     fn footer_hints(&self) -> Vec<KeyHint> {
         if let Some(pending) = self.pending_elicitation.as_ref() {

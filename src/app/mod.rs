@@ -90,6 +90,7 @@ impl App {
             app.update_core(|core| core.notify(&format!("Could not load selected theme: {error}")));
         }
         app.update_core(SessionCore::refresh_workspace_status);
+        app.update_core(SessionCore::refresh_auth_status);
         app
     }
 
