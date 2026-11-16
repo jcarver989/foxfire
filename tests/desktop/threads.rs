@@ -42,7 +42,7 @@ fn stopping_a_thread_ends_its_agent_and_returns_its_session_to_history() {
         .agent("/alpha", replying("alpha-session", "hello"))
         .agent("/alpha", FakeAgent::default().replay_message("alpha-session", "replayed answer"))
         .start("/alpha");
-    assert!(harness.bounds("history-row-alpha-session").is_none(), "the live thread stands in for its session");
+    assert!(harness.bounds("history-row-agent:alpha-session").is_none(), "the live thread stands in for its session");
 
     harness.hover("thread-row-0").unwrap();
     harness.click("thread-row-0-stop").unwrap();
@@ -52,9 +52,9 @@ fn stopping_a_thread_ends_its_agent_and_returns_its_session_to_history() {
     assert!(harness.selected_thread().is_none());
     assert_eq!(thread.status(), ThreadStatus::Dormant);
     assert!(harness.bounds("thread-row-0").is_none());
-    assert!(harness.bounds("history-row-alpha-session").is_some(), "the session is back in history");
+    assert!(harness.bounds("history-row-agent:alpha-session").is_some(), "the session is back in history");
 
-    harness.click("history-row-alpha-session").unwrap();
+    harness.click("history-row-agent:alpha-session").unwrap();
     let resumed = harness.connected_thread();
 
     assert_eq!(texts(resumed), ["replayed answer"]);
@@ -102,13 +102,13 @@ fn clicking_a_saved_session_resumes_it_in_a_selected_thread_that_replaces_its_ro
         .agent("/alpha", FakeAgent::default().replay_message("saved-session", "an earlier answer"))
         .build();
 
-    harness.click("history-row-saved-session").unwrap();
+    harness.click("history-row-agent:saved-session").unwrap();
     let thread = harness.connected_thread();
 
     assert_eq!(thread.session_id(), Some(SessionId::new("saved-session")));
     assert_eq!(texts(thread), ["an earlier answer"]);
     assert!(harness.bounds("transcript-row-0").is_some(), "the replayed history is painted");
-    assert!(harness.bounds("history-row-saved-session").is_none(), "the live thread replaces the saved row");
+    assert!(harness.bounds("history-row-agent:saved-session").is_none(), "the live thread replaces the saved row");
     assert!(harness.bounds("thread-row-0").is_some());
 }
 

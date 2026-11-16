@@ -48,7 +48,7 @@ fn a_saved_session_resumes_with_the_agent_that_listed_it_in_its_project() {
         .agent(&root, agent)
         .build();
 
-    harness.click("history-row-claude-session").unwrap();
+    harness.click("history-row-claude:claude-session").unwrap();
     let thread = harness.connected_thread();
 
     assert_eq!(thread.target().label(), "claude");
@@ -58,19 +58,50 @@ fn a_saved_session_resumes_with_the_agent_that_listed_it_in_its_project() {
 }
 
 #[test]
-fn a_session_two_agents_list_shows_once_and_resumes_with_the_projects_default_agent() {
+fn independent_agents_listing_the_same_session_id_each_keep_their_own_row() {
     let project = tempfile::tempdir().unwrap();
     let root = project.path().to_path_buf();
-    write_agents_file(&root, &json!({ "agents": { "aether-opus": { "type": "stdio", "command": "aether" } } }));
-    let harness = DesktopHarnessBuilder::default()
-        .agent_session("aether-opus", "shared", &root, "2026-01-01T00:00:00Z", "prompt")
-        .agent_session(TEST_AGENT, "shared", &root, "2026-01-01T00:00:00Z", "prompt")
+    write_agents_file(&root, &json!({ "agents": { "claude": { "type": "stdio", "command": "claude-code-acp" } } }));
+    let mut harness = DesktopHarnessBuilder::default()
+        .agent_session("claude", "shared", &root, "2026-01-01T00:00:00Z", "claude prompt")
+        .agent_session(TEST_AGENT, "shared", &root, "2026-01-01T00:00:00Z", "agent prompt")
         .project(&root)
         .build();
 
-    let sessions = harness.history().sessions();
-    assert_eq!(sessions.len(), 1);
-    assert_eq!(sessions[0].agent.name, TEST_AGENT);
+    harness.run_until_painted("history-row-claude:shared");
+    assert!(harness.shows("history-row-claude:shared-title", "claude prompt"));
+    assert!(harness.shows("history-row-agent:shared-title", "agent prompt"));
+}
+
+#[test]
+fn a_session_its_agent_lists_twice_shows_once() {
+    let harness = DesktopHarnessBuilder::default()
+        .session("shared", "/alpha", "2026-01-01T00:00:00Z", "prompt")
+        .session("shared", "/alpha", "2026-01-01T00:00:00Z", "prompt")
+        .project("/alpha")
+        .build();
+
+    assert_eq!(listed(&harness), [("/alpha".into(), "shared".to_owned(), "prompt".to_owned())]);
+}
+
+#[test]
+fn opening_a_session_whose_id_a_live_thread_of_another_agent_shares_resumes_it_with_its_own_agent() {
+    let project = tempfile::tempdir().unwrap();
+    let root = project.path().to_path_buf();
+    write_agents_file(&root, &json!({ "agents": { "claude": { "type": "stdio", "command": "claude-code-acp" } } }));
+    let mut harness = DesktopHarnessBuilder::default()
+        .agent_session("claude", "shared", &root, "2026-01-01T00:00:00Z", "claude prompt")
+        .agent(&root, FakeAgent::new("shared"))
+        .script(&root, FakeAgent::default().replay_message("shared", "from claude"))
+        .build();
+    let live = harness.start_thread(&root);
+
+    harness.click("history-row-claude:shared").unwrap();
+    let resumed = harness.connected_thread();
+
+    assert_ne!(resumed, live);
+    assert_eq!(resumed.target().label(), "claude");
+    assert_eq!(texts(resumed), ["from claude"]);
 }
 
 #[test]

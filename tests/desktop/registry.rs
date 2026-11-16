@@ -1,4 +1,5 @@
 use aether_desktop::registry::{Registry, STATE_FILE, State, saved_in};
+use aether_desktop::sessions::SessionKey;
 use agent_client_protocol::v2::schema::SessionId;
 use rouge::core::div;
 use rouge::persist::FileStorage;
@@ -11,7 +12,7 @@ use std::rc::Rc;
 #[test]
 fn undoing_every_change_to_a_thread_forgets_it() {
     let dir = tempfile::tempdir().unwrap();
-    let session = SessionId::new("session");
+    let session = SessionKey::new("agent", &SessionId::new("session"));
 
     let title = with_registry(dir.path(), |registry| {
         registry.update(|state| {

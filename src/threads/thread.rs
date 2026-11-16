@@ -1,5 +1,6 @@
 use super::driver::{Driver, DriverMessage};
 use crate::history::{UNTITLED, git_root};
+use crate::sessions::SessionKey;
 use crate::target::{AgentConnector, SessionTarget};
 use acp_utils::content::{first_text, prompt_title};
 use acp_utils::conversation::ConversationContent;
@@ -107,6 +108,10 @@ impl Thread {
 
     pub fn session_id(&self) -> Option<SessionId> {
         self.state.with(|state| state.session_id.clone())
+    }
+
+    pub fn session_key(&self) -> Option<SessionKey> {
+        self.state.with(|state| state.session_id.as_ref().map(|id| SessionKey::new(state.target.label(), id)))
     }
 
     pub fn target(&self) -> SessionTarget {

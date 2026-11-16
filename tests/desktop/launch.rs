@@ -17,11 +17,11 @@ fn the_next_launch_restores_what_the_user_changed() {
     harness.click("add-project").unwrap();
     harness.platform().answer_path_prompt(Some(vec![PathBuf::from("/picked")]));
     harness.click("project-beta").unwrap();
-    choose(&mut harness, "history-row-gone", "menu-item-Archive");
-    choose(&mut harness, "history-row-renamed", "menu-item-Rename");
+    choose(&mut harness, "history-row-agent:gone", "menu-item-Archive");
+    choose(&mut harness, "history-row-agent:renamed", "menu-item-Rename");
     harness.type_text("Renamed");
     harness.press("enter");
-    harness.click("history-row-saved").unwrap();
+    harness.click("history-row-agent:saved").unwrap();
     let resumed = harness.selected_thread().expect("the resumed session is selected");
     harness.run_until(|_| resumed.status() == ThreadStatus::Idle);
     harness.press("secondary-= secondary-=");
@@ -37,9 +37,9 @@ fn the_next_launch_restores_what_the_user_changed() {
     let thread = relaunched.selected_thread().expect("the last selected session is selected again");
     assert_eq!(thread.session_id(), Some(SessionId::new("saved")));
     assert!(relaunched.bounds("project-picked").is_some(), "an added project is listed");
-    assert!(relaunched.bounds("history-row-hidden").is_none(), "a collapsed project stays collapsed");
-    assert!(relaunched.bounds("history-row-gone").is_none(), "archived rows stay archived");
-    assert!(relaunched.shows("history-row-renamed-title", "Renamed"));
+    assert!(relaunched.bounds("history-row-agent:hidden").is_none(), "a collapsed project stays collapsed");
+    assert!(relaunched.bounds("history-row-agent:gone").is_none(), "archived rows stay archived");
+    assert!(relaunched.shows("history-row-agent:renamed-title", "Renamed"));
     assert_eq!(relaunched.interface_size(), DEFAULT_INTERFACE_SIZE + 2.0);
     let sidebar = relaunched.bounds("sidebar").expect("the sidebar is painted");
     let main = relaunched.bounds("main").expect("the main region is painted");
@@ -55,7 +55,7 @@ fn the_next_launch_restores_what_the_user_changed() {
 #[test]
 fn a_last_selected_session_missing_from_history_is_not_resumed() {
     let state = tempfile::tempdir().unwrap();
-    fs::write(state.path().join(STATE_FILE), r#"{ "last_selected": "deleted" }"#).unwrap();
+    fs::write(state.path().join(STATE_FILE), r#"{ "last_selected": "agent:deleted" }"#).unwrap();
 
     let relaunched = launch(state.path());
 

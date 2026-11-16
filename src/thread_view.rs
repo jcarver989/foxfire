@@ -117,7 +117,7 @@ impl ThreadView {
 
     fn header(self, sidebar_collapsed: Memo<bool>) -> impl View {
         let (thread, registry) = (self.thread, self.registry);
-        let title = memo(move || registry.with(|state| state.title(thread.session_id().as_ref(), thread.title())));
+        let title = memo(move || registry.with(|state| state.title(thread.session_key().as_ref(), thread.title())));
         let project = thread.project().map(|project| project.display().to_string());
         let agent = thread.target().label().to_owned();
         let project = project.map(|project| {
@@ -218,7 +218,6 @@ impl ThreadView {
         }
     }
 
-    /// Docked under the transcript, or on a fresh thread centred beneath a heading asking what to build.
     fn dock(self, reveal: Motion) -> impl View {
         let thread = self.thread;
         let unreachable = memo(move || unreachable(thread));
@@ -250,7 +249,6 @@ impl ThreadView {
         }
     }
 
-    /// A snowflake that blooms into the composer and sets it alight while the thread waits for its first prompt.
     fn kindling(self, reveal: Motion) -> impl View {
         let (stage, composer) = (self.stage, self.composer_bounds);
         kindling(

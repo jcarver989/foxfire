@@ -10,6 +10,7 @@ use crate::history::{History, git_root};
 use crate::platform::{PathPrompt, Platform};
 use crate::registry::{Collapsed, Registry};
 use crate::remotes::{Action, Fleet, RemoteSpec};
+use crate::sessions::SessionKey;
 use crate::tasks::spawn_in;
 use crate::threads::{Thread, ThreadManager};
 use crate::ui::tokens::{GUTTER, HEADER_HEIGHT};
@@ -17,7 +18,6 @@ use crate::ui::{
     Icon, IconName, ListRow, MenuItem, Side, StyledExt, UiStyles, context_menu, dispatch, icon_button, icon_slot,
     list_row, resizable_panel, section_header, tree_row,
 };
-use agent_client_protocol::v2::schema::SessionId;
 use listing::{Listing, RemoteSection, Row, Section, project_name};
 use rouge::core::{AnyView, Div, Role, Styled, View, div, dynamic, each, scroll, show, text, view, window_size};
 use rouge::reactive::{Callback, Memo, ReadSignal, Scope, Signal, Stored, effect, memo, signal, stored, untrack};
@@ -56,7 +56,7 @@ struct Sources {
 
 #[derive(Clone, PartialEq)]
 struct Rename {
-    session_id: SessionId,
+    session_id: SessionKey,
     value: Signal<String>,
 }
 
@@ -256,7 +256,7 @@ impl Sidebar {
         self.limits.update(|limits| *limits.entry(root).or_insert(listing::SAVED_ROWS) += MORE_SAVED_ROWS);
     }
 
-    fn start_rename(self, session_id: SessionId, title: &str) {
+    fn start_rename(self, session_id: SessionKey, title: &str) {
         let value = self.scope.run(|| signal(title.to_owned()));
         self.sources.rename.set(Some(Rename { session_id, value }));
     }

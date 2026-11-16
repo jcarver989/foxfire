@@ -47,7 +47,7 @@ fn the_switcher_resumes_a_saved_session() {
 
     harness.press("secondary-k");
     harness.type_text("auth");
-    harness.click("switcher-history-row-saved-session").unwrap();
+    harness.click("switcher-history-row-agent:saved-session").unwrap();
 
     let thread = harness.selected_thread().expect("the resumed thread is selected");
     assert_eq!(thread.session_id(), Some(SessionId::new("saved-session")));

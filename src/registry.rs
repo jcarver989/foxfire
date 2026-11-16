@@ -1,4 +1,4 @@
-use agent_client_protocol::v2::schema::SessionId;
+use crate::sessions::SessionKey;
 use clankerdiff_ui_core::ThemePreference;
 use rouge::persist::Storage;
 use rouge::reactive::{Signal, effect, signal, spawn};
@@ -27,10 +27,10 @@ pub struct State {
     pub last_agents: HashMap<PathBuf, String>,
     /// Agents once added to the user's agents file on their own, so removing one keeps it out.
     pub auto_added_agents: HashSet<String>,
-    pub archived: HashSet<SessionId>,
-    pub titles: HashMap<SessionId, String>,
+    pub archived: HashSet<SessionKey>,
+    pub titles: HashMap<SessionKey, String>,
     pub window_size: Option<WindowSize>,
-    pub last_selected: Option<SessionId>,
+    pub last_selected: Option<SessionKey>,
     pub interface_size: Option<f32>,
     pub sidebar_width: Option<f32>,
     pub sidebar_collapsed: bool,
@@ -112,7 +112,7 @@ impl State {
         }
     }
 
-    pub fn archive(&mut self, session_id: SessionId) {
+    pub fn archive(&mut self, session_id: SessionKey) {
         self.archived.insert(session_id);
     }
 
@@ -122,11 +122,11 @@ impl State {
         }
     }
 
-    pub fn title(&self, session_id: Option<&SessionId>, derived: String) -> String {
+    pub fn title(&self, session_id: Option<&SessionKey>, derived: String) -> String {
         session_id.and_then(|id| self.titles.get(id)).cloned().unwrap_or(derived)
     }
 
-    pub fn rename(&mut self, session_id: SessionId, title: &str) {
+    pub fn rename(&mut self, session_id: SessionKey, title: &str) {
         match title.trim() {
             "" => self.titles.remove(&session_id),
             title => self.titles.insert(session_id, title.to_owned()),

@@ -26,36 +26,36 @@ fn renaming_a_thread_retitles_its_row_and_header_until_the_name_is_cleared() {
 fn a_rename_keeps_spaces_and_escape_cancels_it() {
     let mut harness = with_sessions(&["saved"]);
 
-    choose(&mut harness, "history-row-saved", "menu-item-Rename");
+    choose(&mut harness, "history-row-agent:saved", "menu-item-Rename");
     harness.press("a space b enter");
-    assert!(harness.shows("history-row-saved-title", "a b"));
+    assert!(harness.shows("history-row-agent:saved-title", "a b"));
 
-    choose(&mut harness, "history-row-saved", "menu-item-Rename");
+    choose(&mut harness, "history-row-agent:saved", "menu-item-Rename");
     harness.type_text("Never mind");
     harness.press("escape");
     assert!(harness.bounds("rename-input").is_none());
-    assert!(harness.shows("history-row-saved-title", "a b"));
+    assert!(harness.shows("history-row-agent:saved-title", "a b"));
 }
 
 #[test]
 fn archiving_removes_a_row_from_the_sidebar() {
     let mut harness = with_sessions(&["kept", "gone"]);
 
-    choose(&mut harness, "history-row-gone", "menu-item-Archive");
+    choose(&mut harness, "history-row-agent:gone", "menu-item-Archive");
 
-    assert!(harness.bounds("history-row-gone").is_none());
-    assert!(harness.bounds("history-row-kept").is_some());
+    assert!(harness.bounds("history-row-agent:gone").is_none());
+    assert!(harness.bounds("history-row-agent:kept").is_some());
     assert!(harness.bounds("project-alpha-archived").is_none(), "archived rows have no group to show in");
 }
 
 #[test]
 fn archived_rows_do_not_count_toward_show_more() {
     let mut harness = with_sessions(&["day-1", "day-2", "day-3", "day-4", "day-5", "day-6"]);
-    assert!(harness.bounds("history-row-day-1").is_none(), "the oldest session is behind Show more");
+    assert!(harness.bounds("history-row-agent:day-1").is_none(), "the oldest session is behind Show more");
 
-    choose(&mut harness, "history-row-day-6", "menu-item-Archive");
+    choose(&mut harness, "history-row-agent:day-6", "menu-item-Archive");
 
-    assert!(harness.bounds("history-row-day-1").is_some());
+    assert!(harness.bounds("history-row-agent:day-1").is_some());
     assert!(harness.bounds("project-alpha-show-more").is_none());
 }
 
@@ -67,7 +67,7 @@ fn archiving_a_live_thread_stops_its_agent_and_removes_its_row() {
 
     harness.run_until(|harness| harness.connector().live_agents("/alpha") == 0);
     assert!(harness.bounds("thread-row-0").is_none());
-    assert!(harness.bounds("history-row-alpha-session").is_none());
+    assert!(harness.bounds("history-row-agent:alpha-session").is_none());
 }
 
 fn with_sessions(ids: &[&str]) -> DesktopHarness {

@@ -5,7 +5,7 @@ use crate::history::{History, SavedSession};
 use crate::platform::{Notification, Platform};
 use crate::registry::{Registry, State, WindowSize};
 use crate::remotes::Fleet;
-use crate::sessions::SessionSource;
+use crate::sessions::{SessionKey, SessionSource};
 use crate::settings::settings;
 use crate::sidebar::{Sidebar, SwitcherEntry, toggle_button};
 use crate::target::AgentConnector;
@@ -18,7 +18,6 @@ use crate::ui::{
     ActiveReviewTheme, IconName, InterfaceSize, Material, PickerItem, SearchPickerHandle, StyledExt, UI_FONT, UiStyles,
     WispMotion, appearance, backdrop, empty_state, picker_closed, search_picker,
 };
-use agent_client_protocol::v2::schema::SessionId;
 use clankerdiff_core::RepoPath;
 use clankerdiff_remote::Remotes;
 use clankerdiff_rouge::ReviewHandle;
@@ -79,7 +78,7 @@ pub struct DesktopApp {
     views: Stored<HashMap<usize, (Scope, ThreadView)>>,
     modal: Signal<Option<Modal>>,
     platform: Stored<Rc<dyn Platform>>,
-    restore: Stored<Option<SessionId>>,
+    restore: Stored<Option<SessionKey>>,
     window: WindowHandle,
     scope: Scope,
 }
@@ -251,7 +250,7 @@ impl DesktopApp {
             let followed = followed.get();
             untrack(|| self.follow_threads(&followed, launched));
         });
-        let selected_session = memo(move || threads.selected().and_then(|thread| thread.session_id()));
+        let selected_session = memo(move || threads.selected().and_then(|thread| thread.session_key()));
         let remembered = Cell::new(false);
         effect(move || {
             let session_id = selected_session.get();
@@ -311,17 +310,15 @@ impl DesktopApp {
         if self.restore.with(Option::is_none) || sessions.is_empty() || self.threads.selected().is_some() {
             return;
         }
-        let Some(session_id) = self.restore.update(Option::take) else {
+        let Some(key) = self.restore.update(Option::take) else {
             return;
         };
-        if let Some(agent) =
-            sessions.iter().find(|session| session.id == session_id).map(|session| session.agent.clone())
-        {
-            self.threads.resume(session_id, agent);
+        if let Some(session) = sessions.iter().find(|session| session.key() == key) {
+            self.threads.resume(session.id.clone(), session.agent.clone());
         }
     }
 
-    fn select_session(self, session_id: &SessionId) {
+    fn select_session(self, session_id: &SessionKey) {
         if let Some(thread) = self.threads.thread_with_session(session_id) {
             self.threads.select(thread);
         }
@@ -338,7 +335,7 @@ impl DesktopApp {
 
     fn notify(self, attention: &Attention) {
         let thread = attention.thread;
-        let Some(session_id) = thread.session_id() else {
+        let Some(session_id) = thread.session_key() else {
             return;
         };
         let body = match attention.event {
@@ -349,7 +346,7 @@ impl DesktopApp {
         };
         let title = self.registry.with(|state| state.title(Some(&session_id), thread.title()));
         let clicked =
-            self.platform.with(|platform| platform.notify(Notification { tag: session_id.0.to_string(), title, body }));
+            self.platform.with(|platform| platform.notify(Notification { tag: session_id.to_string(), title, body }));
         let window = self.window;
         spawn_in(self.scope, async move {
             if clicked.await {

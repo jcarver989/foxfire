@@ -1,10 +1,16 @@
 use crate::agents::AgentProfile;
 use crate::target::{AgentConnector, ConnectError};
-use agent_client_protocol::v2::schema::SessionInfo;
+use agent_client_protocol::v2::schema::{SessionId, SessionInfo};
 use client_core::connection::Connection;
+use serde::{Deserialize, Serialize};
+use std::fmt;
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct SessionKey(String);
 
 pub trait SessionSource: Send + Sync + 'static {
     fn list<'a>(&'a self, agent: &'a AgentProfile) -> ListFuture<'a>;
@@ -15,6 +21,18 @@ pub type ListFuture<'a> = Pin<Box<dyn Future<Output = Result<Vec<SessionInfo>, C
 pub struct AcpSessions {
     connector: Arc<AgentConnector>,
     connections: Mutex<Vec<(AgentProfile, Arc<Connection>)>>,
+}
+
+impl SessionKey {
+    pub fn new(agent: &str, id: &SessionId) -> Self {
+        Self(format!("{agent}:{}", id.0))
+    }
+}
+
+impl fmt::Display for SessionKey {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(&self.0)
+    }
 }
 
 impl AcpSessions {

@@ -3,6 +3,7 @@ use crate::agents::{AgentProfile, Catalogs};
 use crate::clock::Clock;
 use crate::history::git_root;
 use crate::remotes::RemoteSpec;
+use crate::sessions::SessionKey;
 use crate::target::{AgentConnector, SessionTarget};
 use agent_client_protocol::v2::schema::SessionId;
 use rouge::reactive::{Callback, Scope, Signal, Stored, signal, stored};
@@ -75,8 +76,8 @@ impl ThreadManager {
         self.threads().iter().filter_map(Thread::project).collect()
     }
 
-    pub fn thread_with_session(&self, session_id: &SessionId) -> Option<Thread> {
-        self.threads().into_iter().find(|thread| thread.session_id().as_ref() == Some(session_id))
+    pub fn thread_with_session(&self, session_id: &SessionKey) -> Option<Thread> {
+        self.threads().into_iter().find(|thread| thread.session_key().as_ref() == Some(session_id))
     }
 
     pub fn selected(&self) -> Option<Thread> {
@@ -138,7 +139,7 @@ impl ThreadManager {
     }
 
     pub fn resume(&self, session_id: SessionId, agent: AgentProfile) -> Thread {
-        if let Some(thread) = self.thread_with_session(&session_id) {
+        if let Some(thread) = self.thread_with_session(&SessionKey::new(&agent.name, &session_id)) {
             return self.reconnect_and_select(thread);
         }
         self.spawn_thread(SessionTarget::agent(agent.workspace.clone(), agent), Some(session_id))

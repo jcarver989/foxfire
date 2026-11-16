@@ -1,6 +1,6 @@
 use crate::agents::{AgentProfile, Catalogs};
 use crate::registry::Registry;
-use crate::sessions::SessionSource;
+use crate::sessions::{SessionKey, SessionSource};
 use crate::target::ConnectError;
 use crate::tasks::spawn_in;
 use agent_client_protocol::v2::schema::{SessionId, SessionInfo};
@@ -30,6 +30,12 @@ pub struct SavedSession {
     pub agent: AgentProfile,
     pub updated_at: Option<DateTime<Utc>>,
     pub title: String,
+}
+
+impl SavedSession {
+    pub fn key(&self) -> SessionKey {
+        SessionKey::new(&self.agent.name, &self.id)
+    }
 }
 
 impl History {
@@ -145,8 +151,10 @@ fn saved_sessions(
             let listed = listed.inspect_err(|error| tracing::warn!(%error, agent = agent.name, "leaving out an agent"));
             listed.into_iter().flatten().map(move |info| SavedSession::new(info, agent.clone()))
         })
-        .filter(|session| seen.insert(session.id.clone()))
+        .filter(|session| seen.insert(session.key()))
         .collect();
-    sessions.sort_by(|a, b| b.updated_at.cmp(&a.updated_at).then_with(|| b.id.0.cmp(&a.id.0)));
+    sessions.sort_by(|a, b| {
+        b.updated_at.cmp(&a.updated_at).then_with(|| b.id.0.cmp(&a.id.0)).then_with(|| a.agent.name.cmp(&b.agent.name))
+    });
     sessions
 }

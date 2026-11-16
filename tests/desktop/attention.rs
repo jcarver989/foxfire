@@ -16,7 +16,7 @@ fn a_turn_that_finishes_on_an_unselected_thread_is_announced_once_and_stays_unre
 
     assert_eq!(
         harness.platform().notifications(),
-        [notification("alpha-session", "Fix the build", "The agent finished its turn")]
+        [notification("agent:alpha-session", "Fix the build", "The agent finished its turn")]
     );
     assert!(harness.threads().is_unread(alpha));
     let unread = harness.bounds("thread-row-0-unread").expect("alpha shows the unread dot");
@@ -63,7 +63,7 @@ fn a_turn_that_finishes_while_the_window_is_inactive_stays_unread_until_the_wind
 
     assert_eq!(
         harness.platform().notifications(),
-        [notification("alpha-session", "hi", "The agent finished its turn")]
+        [notification("agent:alpha-session", "hi", "The agent finished its turn")]
     );
     assert!(harness.threads().is_unread(alpha));
 
@@ -85,7 +85,7 @@ fn a_question_on_an_unselected_thread_is_announced_with_the_question() {
     alpha.send("pick one".into());
     harness.run_until(|_| alpha.status() == ThreadStatus::NeedsInput);
 
-    assert_eq!(harness.platform().notifications(), [notification("alpha-session", "pick one", "Pick a branch")]);
+    assert_eq!(harness.platform().notifications(), [notification("agent:alpha-session", "pick one", "Pick a branch")]);
 }
 
 #[test]
@@ -94,7 +94,7 @@ fn clicking_a_notification_brings_the_window_back_with_its_thread_selected() {
     harness.deactivate();
     harness.submit(alpha, "hi");
 
-    harness.click_notification("alpha-session");
+    harness.click_notification("agent:alpha-session");
 
     assert!(harness.is_active());
     assert_eq!(harness.selected_thread(), Some(alpha));
@@ -150,9 +150,9 @@ fn a_saved_session_has_no_activity_icon() {
         .project("/alpha")
         .build();
 
-    assert!(harness.bounds("history-row-saved-conversation-icon").is_some());
-    assert!(harness.bounds("history-row-saved-status-dormant").is_none());
-    assert!(harness.bounds("history-row-saved-unread").is_none());
+    assert!(harness.bounds("history-row-agent:saved-conversation-icon").is_some());
+    assert!(harness.bounds("history-row-agent:saved-status-dormant").is_none());
+    assert!(harness.bounds("history-row-agent:saved-unread").is_none());
 }
 
 fn notification(tag: &str, title: &str, body: &str) -> Notification {

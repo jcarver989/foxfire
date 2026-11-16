@@ -4,8 +4,8 @@ use crate::registry::{Collapsed, State};
 use crate::remotes::{
     EXPIRY_WARNING, Fleet, Instance, InstanceState, Lifecycle, RemoteSpec, short_id, time_left, time_left_label,
 };
+use crate::sessions::SessionKey;
 use crate::threads::{Thread, ThreadManager, ThreadRef, ThreadStatus};
-use agent_client_protocol::v2::schema::SessionId;
 use chrono::{DateTime, Duration, Utc};
 use clankerdiff_core::format_age;
 use std::collections::{HashMap, HashSet};
@@ -21,7 +21,7 @@ pub(super) struct Listing<'a> {
     pub(super) threads: ThreadManager,
     pub(super) history: &'a [SavedSession],
     pub(super) fleet: Fleet,
-    pub(super) renaming: Option<&'a SessionId>,
+    pub(super) renaming: Option<&'a SessionKey>,
     pub(super) now: DateTime<Utc>,
 }
 
@@ -55,14 +55,14 @@ pub(super) struct Row {
 
 #[derive(Clone, PartialEq)]
 pub(super) enum RowKind {
-    Local { session_id: Option<SessionId>, age: Option<String>, editing: bool },
+    Local { session_id: Option<SessionKey>, age: Option<String>, editing: bool },
     Cloud { remote: Box<RemoteSpec>, instance_id: Option<String>, subtitle: String, expiring: bool },
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub(crate) enum RowKey {
     Live(usize),
-    Saved(SessionId),
+    Saved(SessionKey),
     Instance(String),
 }
 
@@ -98,7 +98,8 @@ impl Listing<'_> {
                 let saved = self
                     .saved_sessions(root)
                     .filter(|session| {
-                        !live_sessions.contains(&session.id) && !self.state.archived.contains(&session.id)
+                        let key = session.key();
+                        !live_sessions.contains(&key) && !self.state.archived.contains(&key)
                     })
                     .filter(|session| session.updated_at.is_some_and(|updated_at| updated_at >= cutoff))
                     .map(|session| self.saved_row(session));
@@ -130,13 +131,9 @@ impl Listing<'_> {
             .collect()
     }
 
-    pub(super) fn inactive_sessions(&self, root: &Path) -> Vec<SessionId> {
+    pub(super) fn inactive_sessions(&self, root: &Path) -> Vec<SessionKey> {
         let live_sessions = self.live_sessions();
-        self.saved_sessions(root)
-            .map(|session| &session.id)
-            .filter(|session_id| !live_sessions.contains(*session_id))
-            .cloned()
-            .collect()
+        self.saved_sessions(root).map(SavedSession::key).filter(|key| !live_sessions.contains(key)).collect()
     }
 
     pub(super) fn switcher_entries(&self, live_order: &[Thread]) -> Vec<SwitcherEntry> {
@@ -146,19 +143,21 @@ impl Listing<'_> {
                 target.remote_name().map(str::to_owned).or_else(|| thread.project().as_deref().map(project_name));
             SwitcherEntry {
                 key: RowKey::Live(thread.number()),
-                title: self.state.title(thread.session_id().as_ref(), thread.title()),
+                title: self.state.title(thread.session_key().as_ref(), thread.title()),
                 project: project.unwrap_or_default(),
                 thread: ThreadRef::Live(*thread),
             }
         });
         let live_sessions = self.live_sessions();
-        let saved =
-            self.history.iter().filter(|session| !live_sessions.contains(&session.id)).map(|session| SwitcherEntry {
-                key: RowKey::Saved(session.id.clone()),
-                title: self.state.title(Some(&session.id), session.title.clone()),
+        let saved = self.history.iter().filter(|session| !live_sessions.contains(&session.key())).map(|session| {
+            let key = session.key();
+            SwitcherEntry {
+                title: self.state.title(Some(&key), session.title.clone()),
+                key: RowKey::Saved(key),
                 project: project_name(&session.agent.workspace),
                 thread: saved_thread(session),
-            });
+            }
+        });
         live.chain(saved).collect()
     }
 
@@ -174,7 +173,7 @@ impl Listing<'_> {
             let instance_id = target.instance();
             let instance = listed.iter().find(|instance| Some(instance.id.as_str()) == instance_id);
             let key = RowKey::Live(thread.number());
-            let title = self.state.title(thread.session_id().as_ref(), thread.title());
+            let title = self.state.title(thread.session_key().as_ref(), thread.title());
             self.cloud_row(key, Some(*thread), title, remote, instance_id, instance)
         });
         let unattached = listed
@@ -242,22 +241,20 @@ impl Listing<'_> {
     }
 
     fn live_row(&self, thread: Thread) -> Row {
-        let session_id = thread.session_id();
         let key = RowKey::Live(thread.number());
-        self.local_row(key, ThreadRef::Live(thread), session_id, thread.title(), Some(thread.opened_at()))
+        self.local_row(key, ThreadRef::Live(thread), thread.session_key(), thread.title(), Some(thread.opened_at()))
     }
 
     fn saved_row(&self, session: &SavedSession) -> Row {
-        let key = RowKey::Saved(session.id.clone());
-        let session_id = Some(session.id.clone());
-        self.local_row(key, saved_thread(session), session_id, session.title.clone(), session.updated_at)
+        let key = RowKey::Saved(session.key());
+        self.local_row(key, saved_thread(session), Some(session.key()), session.title.clone(), session.updated_at)
     }
 
     fn local_row(
         &self,
         key: RowKey,
         thread: ThreadRef,
-        session_id: Option<SessionId>,
+        session_id: Option<SessionKey>,
         title: String,
         started_at: Option<DateTime<Utc>>,
     ) -> Row {
@@ -294,8 +291,8 @@ impl Listing<'_> {
         self.history.iter().filter(move |session| session.agent.workspace == root)
     }
 
-    fn live_sessions(&self) -> HashSet<SessionId> {
-        self.live().iter().filter_map(Thread::session_id).collect()
+    fn live_sessions(&self) -> HashSet<SessionKey> {
+        self.live().iter().filter_map(Thread::session_key).collect()
     }
 
     fn live(&self) -> Vec<Thread> {
@@ -313,7 +310,7 @@ impl RowKey {
     pub(crate) fn selector(&self) -> String {
         match self {
             Self::Live(number) => format!("thread-row-{number}"),
-            Self::Saved(session_id) => format!("history-row-{}", session_id.0),
+            Self::Saved(session_id) => format!("history-row-{session_id}"),
             Self::Instance(id) => format!("instance-row-{id}"),
         }
     }
