@@ -4,10 +4,9 @@ use crate::app::{
     SWITCHER_KEYS, SelectNextThread, SelectPreviousThread, ShowChat, ShowFiles, TOGGLE_SIDEBAR_KEYS, ToggleSidebar,
     chord,
 };
+use crate::branding::APP_NAME;
 use crate::ui::SizeAction;
 use rouge::core::{Menu, MenuItem};
-
-pub(crate) const APP_NAME: &str = "Aether";
 
 pub(crate) fn all() -> Vec<Menu> {
     let view = Menu::new(

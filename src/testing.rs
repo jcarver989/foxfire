@@ -1,4 +1,4 @@
-use crate::agents::{AgentProfile, Agents, CommandLine, DEFAULT_AGENT, Endpoint, parse_command_line};
+use crate::agents::{AgentProfile, Agents, CommandLine, Endpoint};
 use crate::clock::Clock;
 use crate::history::History;
 use crate::platform::{Notification, PathPrompt, Platform, PlatformFuture};
@@ -9,7 +9,7 @@ use crate::target::{AgentConnector, ConnectError, Transport, TransportFuture, cl
 use crate::threads::{Thread, ThreadManager, ThreadStatus};
 use crate::ui::KINDLED_AFTER;
 use crate::ui::tokens::BASE_SIZE;
-use crate::{ActiveReviewTheme, DesktopApp, DesktopConfig, cli::DEFAULT_AGENT_COMMAND, window_size};
+use crate::{ActiveReviewTheme, DesktopApp, DesktopConfig, window_size};
 use acp_utils::testing::{Channel, FakeAgent, FakeAgentRequests, QueuedTurns};
 use agent_client_protocol::v2::schema::{AbsolutePath, SessionId, SessionInfo};
 use chrono::{DateTime, Utc};
@@ -24,7 +24,7 @@ use rouge::persist::{FileStorage, MemoryStorage, Storage};
 use rouge::reactive::{Entered, ReadSignal, Runtime as Reactive, Signal, set_tokio};
 use rouge_widgets::testing::component_test;
 use std::cell::RefCell;
-use std::collections::{HashMap, VecDeque};
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::fs;
 use std::future;
 use std::io;
@@ -40,6 +40,9 @@ use tokio::task::AbortHandle;
 
 pub const FAKE_AGENT_LOCK_FILE: &str = "agent.lock";
 
+/// The agent a harness passes with `--agent`, unless it's built `without_cli_agent`.
+pub const TEST_AGENT: &str = "agent";
+
 pub struct DesktopHarnessBuilder {
     window_size: Option<(f32, f32)>,
     connector: FakeConnector,
@@ -48,6 +51,9 @@ pub struct DesktopHarnessBuilder {
     state_dir: Option<PathBuf>,
     remotes: Vec<RemoteSpec>,
     now: DateTime<Utc>,
+    cli_agent: Option<CommandLine>,
+    user_agents_file: Option<PathBuf>,
+    platform: FakePlatform,
 }
 
 #[derive(Clone, Default)]
@@ -112,6 +118,9 @@ impl Default for DesktopHarnessBuilder {
             state_dir: None,
             remotes: Vec::new(),
             now: parse_time(DEFAULT_NOW),
+            cli_agent: Some(CommandLine::new(TEST_AGENT)),
+            user_agents_file: None,
+            platform: FakePlatform::default(),
         }
     }
 }
@@ -173,7 +182,7 @@ impl DesktopHarnessBuilder {
         updated_at: &str,
         title: impl Into<Option<&'a str>>,
     ) -> Self {
-        self.agent_session(DEFAULT_AGENT, session_id, cwd, updated_at, title)
+        self.agent_session(TEST_AGENT, session_id, cwd, updated_at, title)
     }
 
     pub fn agent_session<'a>(
@@ -185,6 +194,23 @@ impl DesktopHarnessBuilder {
         title: impl Into<Option<&'a str>>,
     ) -> Self {
         self.sessions.save(agent, saved_session(session_id, cwd.as_ref(), updated_at, title.into()));
+        self
+    }
+
+    /// Starts with only the agents of the user's and projects' files.
+    pub fn without_cli_agent(mut self) -> Self {
+        self.cli_agent = None;
+        self
+    }
+
+    pub fn user_agents_file(mut self, file: impl Into<PathBuf>) -> Self {
+        self.user_agents_file = Some(file.into());
+        self
+    }
+
+    /// Puts `program` on the fake `PATH`.
+    pub fn on_path(self, program: &str) -> Self {
+        self.platform.state.borrow_mut().programs.insert(program.to_owned());
         self
     }
 
@@ -221,15 +247,12 @@ impl DesktopHarnessBuilder {
         let remotes_file = remotes_dir.path().join("remotes.json");
         let file = serde_json::to_string(&RemotesFile { remotes: self.remotes }).expect("the remotes serialize");
         fs::write(&remotes_file, file).expect("the remotes file is written");
-        let platform = FakePlatform::default();
+        let platform = self.platform;
         let remotes = Arc::new(self.connector.remotes().clone());
         let config = DesktopConfig {
             connector: Arc::new(AgentConnector::new(remotes.clone(), Arc::new(self.connector.clone()))),
             clock: Arc::new(FakeClock(self.now)),
-            agents: Agents::new(
-                parse_command_line(DEFAULT_AGENT_COMMAND).expect("the default agent command parses"),
-                None,
-            ),
+            agents: Agents::new(self.cli_agent, self.user_agents_file),
             remotes,
             remotes_file: Some(remotes_file),
             sessions: Arc::new(self.sessions.clone()),
@@ -443,6 +466,10 @@ impl Platform for FakePlatform {
     fn open(&self, target: &str) {
         self.state.borrow_mut().opened.push(target.to_owned());
     }
+
+    fn find_program(&self, program: &str) -> Option<PathBuf> {
+        self.state.borrow().programs.contains(program).then(|| Path::new(FAKE_BIN).join(program))
+    }
 }
 
 impl DesktopHarness {
@@ -465,7 +492,7 @@ impl DesktopHarness {
     pub fn new_thread(&mut self, cwd: impl Into<PathBuf>) -> Thread {
         let cwd = cwd.into();
         let threads = self.threads();
-        let agent = threads.default_agent(&cwd);
+        let agent = threads.default_agent(&cwd).expect("the project has an agent");
         let thread = threads.new_thread(cwd, agent);
         self.advance();
         // A fresh thread's composer is hidden, and so can't be clicked, until its kindling has shown it.
@@ -475,7 +502,8 @@ impl DesktopHarness {
 
     pub fn resume(&self, session_id: &str, cwd: impl AsRef<Path>) -> Thread {
         let threads = self.threads();
-        threads.resume(SessionId::new(session_id), threads.default_agent(cwd.as_ref()))
+        threads
+            .resume(SessionId::new(session_id), threads.default_agent(cwd.as_ref()).expect("the project has an agent"))
     }
 
     pub fn start_thread(&mut self, cwd: impl Into<PathBuf>) -> Thread {
@@ -544,7 +572,7 @@ impl DesktopHarness {
     }
 
     pub fn save_session(&self, session_id: &str, cwd: impl AsRef<Path>, updated_at: &str, title: Option<&str>) {
-        self.sessions.save(DEFAULT_AGENT, saved_session(session_id, cwd.as_ref(), updated_at, title));
+        self.sessions.save(TEST_AGENT, saved_session(session_id, cwd.as_ref(), updated_at, title));
     }
 
     pub fn ui(&mut self) -> &mut TestUi {
@@ -755,6 +783,7 @@ struct FakePlatformState {
     opened: Vec<String>,
     clipboard_text: Option<String>,
     clipboard_media: Option<ClipboardMedia>,
+    programs: HashSet<String>,
 }
 
 impl FakeConnectorState {
@@ -775,6 +804,7 @@ fn saved_session(session_id: &str, cwd: &Path, updated_at: &str, title: Option<&
         .title(title.map(str::to_owned))
 }
 
+const FAKE_BIN: &str = "/fake/bin";
 const DEFAULT_NOW: &str = "2026-01-07T12:00:00Z";
 const POLL: Duration = Duration::from_millis(1);
 

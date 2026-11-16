@@ -1,6 +1,7 @@
 pub mod agents;
 mod app;
 mod artifact_review;
+pub mod branding;
 mod chat;
 pub mod cli;
 pub mod clock;
@@ -87,7 +88,7 @@ pub fn run(cli: Cli) {
         .menus(menus::all())
         .window(options, move || DesktopApp::new(config).view());
     if let Err(error) = app.run() {
-        eprintln!("{}: {error}", menus::APP_NAME);
+        eprintln!("{}: {error}", branding::APP_NAME);
     }
     runtime.shutdown_background();
 }
@@ -103,7 +104,7 @@ pub fn window_size(state: &State) -> WindowSize {
 fn window_options(state: &State) -> WindowOptions {
     let size = window_size(state);
     WindowOptions::default()
-        .title(menus::APP_NAME)
+        .title(branding::APP_NAME)
         .size(size.width, size.height)
         .min_size(MIN_WINDOW_SIZE.width, MIN_WINDOW_SIZE.height)
 }

@@ -1,19 +1,17 @@
 use crate::agents::{CommandLine, parse_command_line};
+use crate::branding::{ABOUT, CLIENT_NAME};
 use clap::Parser;
 
-pub const DEFAULT_AGENT_COMMAND: &str = "aether acp";
-
 #[derive(Parser, Debug, Clone)]
-#[command(name = "aether-desktop")]
-#[command(about = "A native desktop client for running and managing many Aether agent threads")]
+#[command(name = CLIENT_NAME, about = ABOUT)]
 pub struct Cli {
     #[arg(
         long = "agent",
-        help = "Command line that starts the built-in `aether` agent (speaks ACP over stdin/stdout)",
-        default_value = DEFAULT_AGENT_COMMAND,
+        help = "Command line of an ACP agent (speaking over stdin/stdout) to offer first in every project, named \
+                after its program",
         value_parser = parse_agent_command
     )]
-    pub agent: CommandLine,
+    pub agent: Option<CommandLine>,
 }
 
 fn parse_agent_command(command_line: &str) -> Result<CommandLine, String> {

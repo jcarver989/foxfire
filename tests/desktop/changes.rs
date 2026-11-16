@@ -143,6 +143,7 @@ fn the_changes_at_an_agents_diff_endpoint_are_shown_in_place_of_those_it_serves(
         &json!({ "agents": { "aether": { "type": "stdio", "command": "aether", "diff": { "url": diff.url } } } }),
     );
     let (mut harness, thread) = DesktopHarnessBuilder::default()
+        .without_cli_agent()
         .agent(project.path(), replying("aether-session", "reply"))
         .git(project.path(), repository(&["src/main.rs"]))
         .start(project.path());
@@ -159,6 +160,7 @@ fn a_diff_endpoint_that_cannot_be_resolved_shows_why_in_place_of_the_changes() {
         &json!({ "agents": { "aether": { "type": "stdio", "command": "aether", "diff": diff } } }),
     );
     let (mut harness, thread) = DesktopHarnessBuilder::default()
+        .without_cli_agent()
         .agent(project.path(), replying("aether-session", "reply"))
         .git(project.path(), FakeGit::new(project.path()))
         .start(project.path());
@@ -180,6 +182,7 @@ fn a_diff_endpoint_still_resolving_holds_up_the_changes_but_not_the_chat() {
         &json!({ "agents": { "aether": { "type": "stdio", "command": "aether", "diff": diff } } }),
     );
     let (mut harness, thread) = DesktopHarnessBuilder::default()
+        .without_cli_agent()
         .agent(project.path(), replying("aether-session", "hello"))
         .git(project.path(), FakeGit::new(project.path()))
         .start(project.path());

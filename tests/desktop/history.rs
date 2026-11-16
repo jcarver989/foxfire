@@ -1,7 +1,7 @@
 use crate::support::{replying, texts, write_agents_file};
 use acp_utils::testing::FakeAgent;
 use aether_desktop::history::{UNTITLED, git_root};
-use aether_desktop::testing::{DesktopHarness, DesktopHarnessBuilder};
+use aether_desktop::testing::{DesktopHarness, DesktopHarnessBuilder, TEST_AGENT};
 use agent_client_protocol::v2::schema::{AbsolutePath, SessionId};
 use serde_json::json;
 use std::fs;
@@ -64,13 +64,13 @@ fn a_session_two_agents_list_shows_once_and_resumes_with_the_projects_default_ag
     write_agents_file(&root, &json!({ "agents": { "aether-opus": { "type": "stdio", "command": "aether" } } }));
     let harness = DesktopHarnessBuilder::default()
         .agent_session("aether-opus", "shared", &root, "2026-01-01T00:00:00Z", "prompt")
-        .agent_session("aether", "shared", &root, "2026-01-01T00:00:00Z", "prompt")
+        .agent_session(TEST_AGENT, "shared", &root, "2026-01-01T00:00:00Z", "prompt")
         .project(&root)
         .build();
 
     let sessions = harness.history().sessions();
     assert_eq!(sessions.len(), 1);
-    assert_eq!(sessions[0].agent.name, "aether");
+    assert_eq!(sessions[0].agent.name, TEST_AGENT);
 }
 
 #[test]

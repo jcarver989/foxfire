@@ -2,22 +2,41 @@ pub use agent_client_protocol::AcpAgentConfig as CommandLine;
 
 use agent_client_protocol::AcpAgent;
 use rouge::reactive::{Signal, Stored, signal, stored};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
+use serde_json::{Map, Value, json};
 use std::collections::{BTreeMap, HashMap};
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 use std::str::FromStr;
-use utils::fs::{JsonFileError, read_json};
+use utils::fs::{JsonFileError, read_json, write_json_atomic};
 use utils::variables::{VarError, Vars};
 
 pub const AGENTS_FILE: &str = "acp.json";
 
-pub const DEFAULT_AGENT: &str = "aether";
+/// Added to the user's agents file the first time it is found on `PATH`.
+pub const AUTO_ADDED_AGENT: KnownAgent = KnownAgent { name: "aether", command: "aether", args: &["acp"] };
 
+/// ACP agents offered for adding when a project has none.
+pub const KNOWN_AGENTS: &[KnownAgent] = &[
+    AUTO_ADDED_AGENT,
+    KnownAgent { name: "claude-code-acp", command: "claude-code-acp", args: &[] },
+    KnownAgent { name: "gemini", command: "gemini", args: &["--experimental-acp"] },
+    KnownAgent { name: "codex-acp", command: "codex-acp", args: &[] },
+];
+
+/// The agents each project can start threads with: the one passed with `--agent`, then those of the user's file,
+/// then those of the project's own file.
 pub struct Agents {
-    builtin: CommandLine,
+    extra: Option<CommandLine>,
     user_file: Option<PathBuf>,
     catalogs: HashMap<PathBuf, Rc<AgentCatalog>>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct KnownAgent {
+    pub name: &'static str,
+    pub command: &'static str,
+    pub args: &'static [&'static str],
 }
 
 #[derive(Debug)]
@@ -72,6 +91,14 @@ pub enum AgentConfigError {
     HeadersWithoutUrl,
 }
 
+#[derive(Debug, thiserror::Error)]
+pub enum AddAgentError {
+    #[error("there is no home directory to keep the agents file in")]
+    NoUserFile,
+    #[error(transparent)]
+    File(#[from] JsonFileError),
+}
+
 pub fn default_agents_file() -> Option<PathBuf> {
     utils::path::aether_home().map(|home| home.join("desktop").join(AGENTS_FILE))
 }
@@ -81,17 +108,35 @@ pub fn project_agents_file(project: &Path) -> PathBuf {
 }
 
 impl Agents {
-    pub fn new(builtin: CommandLine, user_file: Option<PathBuf>) -> Self {
-        Self { builtin, user_file, catalogs: HashMap::new() }
+    /// `extra` is offered first in every project, under its program's name.
+    pub fn new(extra: Option<CommandLine>, user_file: Option<PathBuf>) -> Self {
+        Self { extra, user_file, catalogs: HashMap::new() }
     }
 
     pub fn catalog(&mut self, project: &Path) -> Rc<AgentCatalog> {
         if let Some(catalog) = self.catalogs.get(project) {
             return catalog.clone();
         }
-        let catalog = Rc::new(read_catalog(&self.builtin, self.user_file.as_deref(), project));
+        let catalog = Rc::new(read_catalog(self.extra.as_ref(), self.user_file.as_deref(), project));
         self.catalogs.insert(project.to_path_buf(), catalog.clone());
         catalog
+    }
+
+    pub fn user_file(&self) -> Option<&Path> {
+        self.user_file.as_deref()
+    }
+
+    /// Writes `agent` into the user's agents file, keeping an entry of the same name the user already has.
+    pub fn add(&mut self, agent: KnownAgent) -> Result<(), AddAgentError> {
+        let file = self.user_file.as_deref().ok_or(AddAgentError::NoUserFile)?;
+        let mut config = read_json::<UserFile>(file)?.unwrap_or_default();
+        if !config.agents.contains_key(agent.name) {
+            let entry = json!({ "type": "stdio", "command": agent.command, "args": agent.args });
+            config.agents.insert(agent.name.to_owned(), entry);
+            write_json_atomic(file, &config)?;
+        }
+        self.reload();
+        Ok(())
     }
 
     pub fn reload(&mut self) {
@@ -119,6 +164,16 @@ impl Catalogs {
         self.revision.get()
     }
 
+    pub fn user_file(&self) -> Option<PathBuf> {
+        self.agents.with(|agents| agents.user_file().map(Path::to_path_buf))
+    }
+
+    pub fn add(&self, agent: KnownAgent) -> Result<(), AddAgentError> {
+        self.agents.update(|agents| agents.add(agent))?;
+        self.revision.update(|revision| *revision += 1);
+        Ok(())
+    }
+
     pub fn reload(&self) {
         self.agents.update(Agents::reload);
         self.revision.update(|revision| *revision += 1);
@@ -134,8 +189,8 @@ impl AgentCatalog {
         self.agents.iter().find(|agent| agent.name == name)
     }
 
-    pub fn default_agent(&self) -> &AgentProfile {
-        &self.agents[0]
+    pub fn default_agent(&self) -> Option<&AgentProfile> {
+        self.agents.first()
     }
 
     pub fn problems(&self) -> &[JsonFileError] {
@@ -185,6 +240,15 @@ struct AcpConfig {
     agents: BTreeMap<String, AgentConfig>,
 }
 
+/// The user's agents file as written back, keeping whatever else it holds.
+#[derive(Default, Serialize, Deserialize)]
+struct UserFile {
+    #[serde(default)]
+    agents: Map<String, Value>,
+    #[serde(flatten)]
+    rest: Map<String, Value>,
+}
+
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct EndpointFields {
@@ -193,9 +257,8 @@ struct EndpointFields {
     endpoint: Option<CommandLine>,
 }
 
-fn read_catalog(builtin: &CommandLine, user_file: Option<&Path>, project: &Path) -> AgentCatalog {
-    let builtin = AgentConfig { transport: AgentTransport::Stdio(builtin.clone()), diff: None };
-    let mut configs = BTreeMap::from([(DEFAULT_AGENT.to_owned(), builtin)]);
+fn read_catalog(extra: Option<&CommandLine>, user_file: Option<&Path>, project: &Path) -> AgentCatalog {
+    let mut configs = BTreeMap::new();
     let mut problems = Vec::new();
     for file in user_file.map(Path::to_path_buf).into_iter().chain([project_agents_file(project)]) {
         match read_json::<AcpConfig>(&file) {
@@ -206,8 +269,13 @@ fn read_catalog(builtin: &CommandLine, user_file: Option<&Path>, project: &Path)
             }
         }
     }
-    let default = configs.remove_entry(DEFAULT_AGENT);
-    let agents = default
+    let extra = extra.map(|line| {
+        let name =
+            line.command().file_name().map_or_else(|| line.command().to_string_lossy(), |name| name.to_string_lossy());
+        configs.remove(name.as_ref());
+        (name.into_owned(), AgentConfig { transport: AgentTransport::Stdio(line.clone()), diff: None })
+    });
+    let agents = extra
         .into_iter()
         .chain(configs)
         .map(|(name, config)| AgentProfile { name, workspace: project.to_path_buf(), config })

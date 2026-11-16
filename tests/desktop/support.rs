@@ -1,6 +1,6 @@
 use acp_utils::testing::{FakeAgent, Question};
 use acp_utils::websocket::WebSocketTransport;
-use aether_desktop::agents::{AgentProfile, Agents, CommandLine, project_agents_file};
+use aether_desktop::agents::{AgentProfile, Agents, project_agents_file};
 use aether_desktop::testing::DesktopHarness;
 use aether_desktop::threads::{Thread, ThreadStatus};
 use agent_client_protocol::v2::schema::{ElicitationSchema, StringPropertySchema};
@@ -135,7 +135,7 @@ pub(crate) fn write_agents_file(root: &Path, config: &serde_json::Value) {
 
 pub(crate) fn define_agent(root: &Path, name: &str, config: &serde_json::Value) -> AgentProfile {
     write_agents_file(root, &json!({ "agents": { name: config } }));
-    Agents::new(CommandLine::new("aether"), None).catalog(root).get(name).cloned().expect("the agent is defined")
+    Agents::new(None, None).catalog(root).get(name).cloned().expect("the agent is defined")
 }
 
 #[allow(clippy::result_large_err, reason = "tungstenite's handshake callback returns its error response unboxed")]

@@ -68,7 +68,7 @@ fn sessions(connector: &FakeConnector) -> AcpSessions {
 }
 
 fn default_agent(project: &str) -> AgentProfile {
-    Agents::new(CommandLine::new("aether"), None).catalog(Path::new(project)).default_agent().clone()
+    Agents::new(Some(CommandLine::new("agent")), None).catalog(Path::new(project)).default_agent().cloned().unwrap()
 }
 
 fn saved(session_id: &str, cwd: &str) -> SessionInfo {

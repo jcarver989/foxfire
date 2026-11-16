@@ -3,15 +3,15 @@ use aether_desktop::cli::Cli;
 use clap::Parser;
 
 #[test]
-fn the_builtin_agent_defaults_to_aether_acp() {
+fn no_agent_is_passed_by_default() {
     let cli = Cli::parse_from(["aether-desktop"]);
-    assert_eq!(cli.agent, CommandLine::new("aether").args(["acp"]));
+    assert_eq!(cli.agent, None);
 }
 
 #[test]
-fn the_builtin_agent_accepts_a_full_command_line() {
+fn the_agent_accepts_a_full_command_line() {
     let cli = Cli::parse_from(["aether-desktop", "--agent", "cargo run -p aether-agent-cli acp"]);
-    assert_eq!(cli.agent, CommandLine::new("cargo").args(["run", "-p", "aether-agent-cli", "acp"]));
+    assert_eq!(cli.agent, Some(CommandLine::new("cargo").args(["run", "-p", "aether-agent-cli", "acp"])));
 }
 
 #[test]

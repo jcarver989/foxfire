@@ -144,8 +144,8 @@ impl ThreadManager {
         self.spawn_thread(SessionTarget::agent(agent.workspace.clone(), agent), Some(session_id))
     }
 
-    pub fn default_agent(&self, cwd: &Path) -> AgentProfile {
-        self.agents.catalog(&git_root(cwd)).default_agent().clone()
+    pub fn default_agent(&self, cwd: &Path) -> Option<AgentProfile> {
+        self.agents.catalog(&git_root(cwd)).default_agent().cloned()
     }
 
     pub fn stop(&self, thread: Thread) {

@@ -1,6 +1,7 @@
 use rouge::platform::open_url;
 #[cfg(not(target_os = "macos"))]
 use rouge::reactive::spawn_tokio;
+use std::env::{self, consts::EXE_SUFFIX};
 use std::future::Future;
 #[cfg(not(all(unix, not(target_os = "macos"))))]
 use std::future::ready;
@@ -17,6 +18,9 @@ pub trait Platform: 'static {
     fn pick_paths(&self, prompt: PathPrompt) -> PlatformFuture<Option<Vec<PathBuf>>>;
 
     fn open(&self, target: &str);
+
+    /// Where `program` would be run from, looking through `PATH`.
+    fn find_program(&self, program: &str) -> Option<PathBuf>;
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -49,6 +53,11 @@ impl Platform for SystemPlatform {
             tracing::warn!(%error, target, "could not open");
         }
     }
+
+    fn find_program(&self, program: &str) -> Option<PathBuf> {
+        let file = format!("{program}{EXE_SUFFIX}");
+        env::split_paths(&env::var_os("PATH")?).map(|dir| dir.join(&file)).find(|path| path.is_file())
+    }
 }
 
 #[cfg(all(unix, not(target_os = "macos")))]
@@ -56,7 +65,7 @@ fn system_notification(notification: &Notification) -> PlatformFuture<bool> {
     let (clicked, response) = oneshot::channel();
     let mut built = notify_rust::Notification::new();
     built
-        .appname(crate::menus::APP_NAME)
+        .appname(crate::branding::APP_NAME)
         .summary(&notification.title)
         .body(&notification.body)
         .action(DEFAULT_ACTION, DEFAULT_ACTION);

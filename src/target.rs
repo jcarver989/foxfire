@@ -284,7 +284,7 @@ impl Transport for ProcessTransport {
 }
 
 pub(crate) fn client_info() -> Implementation {
-    Implementation::new("aether-desktop", env!("CARGO_PKG_VERSION"))
+    Implementation::new(crate::branding::CLIENT_NAME, env!("CARGO_PKG_VERSION"))
 }
 
 const FIRST_RETRY_DELAY: Duration = Duration::from_secs(1);

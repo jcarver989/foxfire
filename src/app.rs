@@ -1,4 +1,4 @@
-use crate::agents::{Agents, Catalogs};
+use crate::agents::{AUTO_ADDED_AGENT, Agents, Catalogs};
 use crate::clock::Clock;
 use crate::file_picker::file_picker;
 use crate::history::{History, SavedSession};
@@ -123,7 +123,7 @@ impl DesktopApp {
                     .update(|state| state.interface_size = (committed != DEFAULT_INTERFACE_SIZE).then_some(committed));
             });
         });
-        let agents = Catalogs::new(agents);
+        let agents = Catalogs::new(auto_add_agent(agents, platform.as_ref(), registry));
         let threads = ThreadManager::new(connector, agents, clock.clone());
         let history = History::new(sessions, registry, agents);
         let fleet = Fleet::new(remotes, remotes_file);
@@ -452,6 +452,22 @@ impl DesktopApp {
 
 pub(crate) fn chord(keys: &str) -> Chord {
     Chord::parse(keys).unwrap_or_else(|error| unreachable!("built-in chord {keys}: {error}"))
+}
+
+fn auto_add_agent(mut agents: Agents, platform: &dyn Platform, registry: Registry) -> Agents {
+    let name = AUTO_ADDED_AGENT.name;
+    if registry.with_untracked(|state| state.auto_added_agents.contains(name))
+        || platform.find_program(AUTO_ADDED_AGENT.command).is_none()
+    {
+        return agents;
+    }
+    match agents.add(AUTO_ADDED_AGENT) {
+        Ok(()) => registry.update(|state| {
+            state.auto_added_agents.insert(name.to_owned());
+        }),
+        Err(error) => tracing::warn!(%error, agent = name, "could not add an agent found on PATH"),
+    }
+    agents
 }
 
 fn no_thread(collapsed: bool) -> impl View {

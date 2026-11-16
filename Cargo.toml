@@ -2,7 +2,7 @@
 name = "aether-desktop"
 version = "0.1.0"
 edition = "2024"
-description = "Native desktop client for running and managing many Aether agent threads"
+description = "Native desktop client for running and managing many ACP agent threads"
 license = "MIT"
 repository = "https://github.com/contextbridge/aether"
 publish = false

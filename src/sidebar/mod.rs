@@ -3,7 +3,7 @@ mod row;
 
 pub(crate) use listing::SwitcherEntry;
 
-use crate::agents::{AgentProfile, Catalogs};
+use crate::agents::{AGENTS_FILE, AgentProfile, Catalogs, KNOWN_AGENTS, KnownAgent};
 use crate::app::{OpenSettings, OpenThreadSwitcher};
 use crate::clock::Clock;
 use crate::history::{History, git_root};
@@ -21,10 +21,12 @@ use agent_client_protocol::v2::schema::SessionId;
 use listing::{Listing, RemoteSection, Row, Section, project_name};
 use rouge::core::{AnyView, Div, Role, Styled, View, div, dynamic, each, scroll, show, text, view, window_size};
 use rouge::reactive::{Callback, Memo, ReadSignal, Scope, Signal, Stored, effect, memo, signal, stored, untrack};
+use serde_json::json;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 use std::sync::Arc;
+use utils::fs::write_json_atomic;
 
 pub const MIN_MAIN_WIDTH: f32 = 320.0;
 
@@ -173,9 +175,30 @@ impl Sidebar {
     fn new_thread_in(self, root: PathBuf) {
         let catalog = self.agents.catalog(&root);
         let last = self.registry.with(|state| state.last_agents.get(&root).cloned());
-        let agent =
-            last.and_then(|name| catalog.get(&name).cloned()).unwrap_or_else(|| catalog.default_agent().clone());
-        self.threads.new_thread(root, agent);
+        let agent = last.and_then(|name| catalog.get(&name)).or_else(|| catalog.default_agent()).cloned();
+        if let Some(agent) = agent {
+            self.threads.new_thread(root, agent);
+        }
+    }
+
+    fn add_agent(self, root: PathBuf, agent: KnownAgent) {
+        match self.agents.add(agent) {
+            Ok(()) => self.new_thread_in(root),
+            Err(error) => tracing::warn!(%error, agent = agent.name, "could not add an agent"),
+        }
+    }
+
+    fn open_agents_file(self) {
+        let Some(file) = self.agents.user_file() else {
+            return;
+        };
+        if !file.exists()
+            && let Err(error) = write_json_atomic(&file, &json!({ "agents": {} }))
+        {
+            tracing::warn!(%error, "could not create the agents file");
+            return;
+        }
+        self.open_path(&file);
     }
 
     fn new_thread_with(self, root: PathBuf, agent: AgentProfile) {
@@ -366,30 +389,49 @@ impl Sidebar {
         let catalog = self.agents.catalog(root);
         let button_id = format!("{id}-new-thread");
         let label = format!("New thread in {name}");
-        if catalog.agents().len() > 1 || !catalog.problems().is_empty() {
-            let agents = catalog.agents().iter().map(|agent| {
-                let (root, agent) = (root.to_path_buf(), agent.clone());
-                let id = format!("new-thread-agent-{}", agent.name);
-                MenuItem::callback(agent.name.clone(), move || self.new_thread_with(root.clone(), agent.clone())).id(id)
-            });
-            let problems = catalog.problems().iter().enumerate().map(|(index, problem)| {
-                let file = problem.path().to_path_buf();
-                MenuItem::callback(problem.to_string(), move || self.open_path(&file))
-                    .id(format!("new-thread-problem-{index}"))
-                    .icon(IconName::CircleX)
-            });
-            let items: Vec<MenuItem> = agents.chain(problems).collect();
-            view! {
-                <context_menu items dropdown><icon_button test_id=button_id icon=IconName::Plus label/></context_menu>
-            }
-            .into_any()
-        } else {
+        if catalog.agents().len() == 1 && catalog.problems().is_empty() {
             let root = root.to_path_buf();
-            view! {
+            return view! {
                 <icon_button test_id=button_id icon=IconName::Plus label on_click={move || self.new_thread_in(root.clone())}/>
             }
-            .into_any()
+            .into_any();
         }
+        let agents = catalog.agents().iter().map(|agent| {
+            let (root, agent) = (root.to_path_buf(), agent.clone());
+            let id = format!("new-thread-agent-{}", agent.name);
+            MenuItem::callback(agent.name.clone(), move || self.new_thread_with(root.clone(), agent.clone())).id(id)
+        });
+        let discovered = catalog.agents().is_empty().then(|| self.discovered_agents(root)).into_iter().flatten();
+        let problems = catalog.problems().iter().enumerate().map(|(index, problem)| {
+            let file = problem.path().to_path_buf();
+            MenuItem::callback(problem.to_string(), move || self.open_path(&file))
+                .id(format!("new-thread-problem-{index}"))
+                .icon(IconName::CircleX)
+        });
+        let items: Vec<MenuItem> = agents.chain(discovered).chain(problems).collect();
+        view! {
+            <context_menu items dropdown><icon_button test_id=button_id icon=IconName::Plus label/></context_menu>
+        }
+        .into_any()
+    }
+
+    /// With no agents to start a thread with, the known ones found on `PATH`, and the file to define others in.
+    fn discovered_agents(self, root: &Path) -> Vec<MenuItem> {
+        let found = KNOWN_AGENTS
+            .iter()
+            .filter(|agent| self.platform.with(|platform| platform.find_program(agent.command).is_some()))
+            .map(|&agent| {
+                let root = root.to_path_buf();
+                MenuItem::callback(format!("Add {}", agent.name), move || self.add_agent(root.clone(), agent))
+                    .id(format!("new-thread-add-{}", agent.name))
+                    .icon(IconName::Plus)
+            });
+        let edit = self.agents.user_file().map(|_| {
+            MenuItem::callback(format!("Define an agent in {AGENTS_FILE}…"), move || self.open_agents_file())
+                .id("new-thread-open-agents-file")
+                .icon(IconName::FileText)
+        });
+        found.chain(edit).collect()
     }
 
     fn remote(self, section: ReadSignal<RemoteSection>) -> impl View {

@@ -25,6 +25,8 @@ pub struct State {
     pub projects: Vec<PathBuf>,
     pub collapsed: HashSet<Collapsed>,
     pub last_agents: HashMap<PathBuf, String>,
+    /// Agents once added to the user's agents file on their own, so removing one keeps it out.
+    pub auto_added_agents: HashSet<String>,
     pub archived: HashSet<SessionId>,
     pub titles: HashMap<SessionId, String>,
     pub window_size: Option<WindowSize>,
