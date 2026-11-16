@@ -18,6 +18,19 @@ fn reduced_motion_shows_the_burning_composer_without_a_clock() {
 }
 
 #[test]
+fn turning_on_reduced_motion_stills_a_burning_fire_and_shows_the_composer() {
+    let mut scene = SceneBuilder::default().build();
+    scene.ui.run(0.2);
+    assert!(scene.ui.is_animating());
+
+    scene.motion.set_reduced(true);
+    scene.ui.run(1.0);
+
+    assert!(!scene.ui.is_animating(), "the preference applies to mounted art");
+    assert_eq!(scene.reveal.get(), 1.0);
+}
+
+#[test]
 fn the_composer_is_hidden_while_the_fire_kindles_and_then_shown() {
     let mut scene = SceneBuilder::default().build();
     scene.ui.run(0.02);
@@ -56,6 +69,7 @@ fn an_unfocused_window_holds_the_fire_still_and_refocusing_keeps_the_composer_sh
 struct Scene {
     ui: TestUi,
     reveal: Motion,
+    motion: WispMotion,
     _entered: Entered,
 }
 
@@ -72,12 +86,12 @@ impl SceneBuilder {
 
     fn build(self) -> Scene {
         let entered = Runtime::new().enter();
-        let (ui, reveal) = component_test().size(900.0, 400.0).build_with(move || {
-            let _ = WispMotion::install(self.reduced);
+        let (ui, (reveal, wisp_motion)) = component_test().size(900.0, 400.0).build_with(move || {
+            let wisp_motion = WispMotion::install(self.reduced);
             let composer = Rect::new(150.0, 160.0, 600.0, 80.0);
             let reveal = motion(1.0);
-            (div().size_full().relative().child(kindling(move || composer, reveal)), reveal)
+            (div().size_full().relative().child(kindling(move || composer, reveal)), (reveal, wisp_motion))
         });
-        Scene { ui, reveal, _entered: entered }
+        Scene { ui, reveal, motion: wisp_motion, _entered: entered }
     }
 }

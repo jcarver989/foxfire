@@ -17,9 +17,9 @@ pub fn kindling(composer: impl Fn() -> Rect + 'static, reveal: Motion) -> Div {
     let region = signal(PaintRegion::default());
     let focused = window_focused();
     let motion = use_context::<WispMotion>();
-    let reduced = motion.is_some_and(WispMotion::reduced);
-    let animated = memo(move || focused.get() && !reduced && region.with(|region| !region.bounds.is_empty()));
-    let veiled = focused.get_untracked() && !reduced;
+    let reduced = move || motion.is_some_and(WispMotion::reduced);
+    let animated = memo(move || focused.get() && !reduced() && region.with(|region| !region.bounds.is_empty()));
+    let veiled = focused.get_untracked() && !untrack(reduced);
     reveal.set(if veiled { HIDDEN } else { 1.0 });
     let started = signal(false);
     let kindled = signal(false);
