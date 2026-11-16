@@ -75,16 +75,14 @@ impl WispState {
         }
     }
 
-    /// One loop of the state's choreography: its length, and how many samples the keyframes take of it.
-    /// Writing is typed, so it holds each sample instead of easing between them.
-    fn choreography(self) -> (f32, u8, bool) {
+    fn choreography(self) -> (f32, u8) {
         match self {
-            Self::Connecting => (8.0 / 7.0, 64, false),
-            Self::Thinking => (2.0, 32, false),
-            Self::Working => (1.0, 64, false),
-            Self::Writing => (f32::from(WRITING_STEPS) / 9.0, WRITING_STEPS, true),
-            Self::Compacting => (1.5, 48, false),
-            Self::Waiting => (1.0, 1, false),
+            Self::Connecting => (8.0 / 7.0, 34),
+            Self::Thinking => (2.0, 60),
+            Self::Working => (1.0, 30),
+            Self::Writing => (f32::from(WRITING_STEPS) / 9.0, WRITING_STEPS),
+            Self::Compacting => (1.5, 45),
+            Self::Waiting => (1.0, 1),
         }
     }
 
@@ -163,14 +161,12 @@ fn still(cell: Div, state: WispState, size: f32, column: u8, row: u8) -> Div {
 }
 
 fn moving(cell: Div, state: WispState, size: f32, column: u8, row: u8) -> Div {
-    let (seconds, samples, held) = state.choreography();
+    let (seconds, steps) = state.choreography();
     let pose = |phase| frame(state, column, row, phase).pose(size, column, row);
-    let keyframes = (0..samples).fold(Keyframes::new(), |keyframes, sample| {
-        let start = f32::from(sample) / f32::from(samples);
-        let keyframes = keyframes.at(start, |_| pose(start));
-        if held { keyframes.at(f32::from(sample + 1) / f32::from(samples) - HOLD, |_| pose(start)) } else { keyframes }
+    let keyframes = (0..steps).fold(Keyframes::new(), |keyframes, step| {
+        let (start, end) = (f32::from(step) / f32::from(steps), f32::from(step + 1) / f32::from(steps));
+        keyframes.at(start, |_| pose(start)).at(end, |_| pose(start))
     });
-    let keyframes = if held { keyframes } else { keyframes.at(1.0, |_| pose(1.0)) };
     cell.animate(keyframes.duration(seconds).repeat())
 }
 
@@ -240,4 +236,3 @@ const UNLIT: f32 = 0.1;
 const FADE_IN_MS: f32 = 160.0;
 const WRITING_STEPS: u8 = 14;
 const TYPED: u8 = 10;
-const HOLD: f32 = 1e-3;

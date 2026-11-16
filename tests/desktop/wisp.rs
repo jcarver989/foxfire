@@ -58,6 +58,19 @@ fn many_running_wisps_animate_on_the_compositor_alone() {
     assert_eq!(stats.content_blurs, 0);
 }
 
+#[test]
+fn a_running_wisp_wakes_the_compositor_at_most_thirty_times_a_second() {
+    for state in
+        [WispState::Connecting, WispState::Thinking, WispState::Working, WispState::Writing, WispState::Compacting]
+    {
+        let mut scene = SceneBuilder::default().state(state).build();
+        scene.ui.run(1.0);
+        scene.ui.draw().unwrap();
+        let frames = scene.ui.compositor_frames(1.0).unwrap();
+        assert!((1..=30).contains(&frames), "{state:?} drew {frames} frames in a second");
+    }
+}
+
 const WISP_SIZE: f32 = 12.0;
 
 struct Scene {
@@ -96,13 +109,13 @@ impl SceneBuilder {
 
     fn build(self) -> Scene {
         let entered = Runtime::new().enter();
-        let (ui, (motion, offset, hidden)) = component_test().size(800.0, 120.0).build_with(move || {
-            let state = self.state;
-            let motion = WispMotion::install(self.reduced);
-            let offset = signal(0.0);
-            let hidden = signal(false);
-            let art =
-                show(
+        let (ui, (motion, offset, hidden)) =
+            component_test().size(800.0, 120.0).refresh_rate(120.0).build_with(move || {
+                let state = self.state;
+                let motion = WispMotion::install(self.reduced);
+                let offset = signal(0.0);
+                let hidden = signal(false);
+                let art = show(
                     move || !hidden.get(),
                     move || {
                         div().absolute().top(16.0).left(move || offset.get()).flex().gap(8.0).children(
@@ -110,8 +123,8 @@ impl SceneBuilder {
                         )
                     },
                 );
-            (div().size_full().relative().overflow_hidden().p(16.0).child(art), (motion, offset, hidden))
-        });
+                (div().size_full().relative().overflow_hidden().p(16.0).child(art), (motion, offset, hidden))
+            });
         Scene { ui, motion, offset, hidden, _entered: entered }
     }
 }
