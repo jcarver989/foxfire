@@ -158,17 +158,14 @@ fn render_segment(
             .workspace
             .git_ref
             .as_deref()
-            .map(|git_ref| vec![Span::styled(git_ref.to_string(), theme.success)])
-            .unwrap_or_default(),
+            .map_or_default(|git_ref| vec![Span::styled(git_ref.to_string(), theme.success)]),
         StatusLineSegmentConfig::Agent => vec![Span::styled(model.agent_name.to_string(), theme.info)],
         StatusLineSegmentConfig::Mode => config
             .current_display_name(&acp::SessionConfigOptionCategory::Mode)
-            .map(|mode| vec![Span::styled(mode, theme.text_secondary)])
-            .unwrap_or_default(),
+            .map_or_default(|mode| vec![Span::styled(mode, theme.text_secondary)]),
         StatusLineSegmentConfig::Model { max_width } => config
             .current_display_name(&acp::SessionConfigOptionCategory::Model)
-            .map(|model| vec![Span::styled(clamp(&model, *max_width), theme.success)])
-            .unwrap_or_default(),
+            .map_or_default(|model| vec![Span::styled(clamp(&model, *max_width), theme.success)]),
         StatusLineSegmentConfig::Reasoning => {
             let levels = config.reasoning_levels();
             if levels.is_empty() {
@@ -180,8 +177,7 @@ fn render_segment(
         }
         StatusLineSegmentConfig::Context => model
             .context_usage
-            .map(|usage| vec![Span::styled(context_bar(usage), context_color(usage, theme))])
-            .unwrap_or_default(),
+            .map_or_default(|usage| vec![Span::styled(context_bar(usage), context_color(usage, theme))]),
         StatusLineSegmentConfig::ServerHealth => {
             let count = model.unhealthy_servers;
             if model.waiting_for_response || count == 0 {
