@@ -2,6 +2,7 @@ use crate::support::{Edges, replying};
 use aether_desktop::sidebar::MIN_MAIN_WIDTH;
 use aether_desktop::testing::{DesktopHarness, DesktopHarnessBuilder};
 use aether_desktop::threads::{Thread, ThreadStatus};
+use aether_desktop::ui::tokens::SCROLLBAR_WIDTH;
 use rouge::core::Point;
 
 #[test]
@@ -71,6 +72,46 @@ fn the_latest_reply_rests_above_the_composer_however_tall_the_composer_grows() {
 
     let tall = rests_above(&mut harness);
     assert!(tall.size.height > short.size.height, "{short:?} {tall:?}");
+}
+
+#[test]
+fn the_scrollbar_has_its_own_full_height_gutter_as_the_window_and_composer_resize() {
+    let (mut harness, _) = long_thread();
+    for (width, height) in [(900.0, 600.0), (640.0, 480.0), (1200.0, 800.0)] {
+        harness.resize(width, height);
+        let transcript = harness.bounds("transcript").unwrap();
+        let rows = harness.bounds("transcript-view").unwrap();
+        let gutter = harness.bounds("transcript-scrollbar").unwrap();
+        let track = harness.bounds("scroll-track-vertical").unwrap();
+        let thumb = harness.bounds("scroll-thumb-vertical").unwrap();
+
+        assert_eq!(gutter.size.width, SCROLLBAR_WIDTH, "the scrollbar reserves space beside the rows");
+        assert_eq!(gutter.right(), transcript.right());
+        assert_eq!(rows.right(), gutter.left(), "the scrollbar never covers the rows");
+        assert_eq!(gutter.top(), transcript.top());
+        assert_eq!(gutter.bottom(), transcript.bottom());
+        assert_eq!(track, gutter, "the track is anchored to its gutter");
+        assert!(thumb.left() >= track.left() && thumb.right() <= track.right(), "{thumb:?} {track:?}");
+        assert!(thumb.top() >= track.top() && thumb.bottom() <= track.bottom(), "{thumb:?} {track:?}");
+    }
+
+    harness.type_text(&"a draft long enough to wrap onto several lines ".repeat(12));
+    let composer = harness.bounds("composer").unwrap();
+    let track = harness.bounds("scroll-track-vertical").unwrap();
+    let header = harness.bounds("view-switch").unwrap();
+    assert!(composer.right() <= track.left(), "the composer leaves the gutter clear");
+    assert!(header.right() <= track.left(), "the header controls leave the gutter clear");
+
+    harness.click_at(Point::new(track.center().x, track.top() + 1.0));
+    assert!(harness.bounds("jump-to-latest").is_some(), "the track is clickable beside the header");
+    let prompt = harness.bounds("prompt-0").unwrap();
+    let heading = harness.bounds("thread-heading").unwrap();
+    assert!(prompt.top() >= heading.bottom(), "clicking the top reveals the first prompt");
+
+    harness.click_at(Point::new(track.center().x, track.bottom() - 1.0));
+    assert!(harness.bounds("jump-to-latest").is_none(), "the track is clickable beside the composer");
+    let thumb = harness.bounds("scroll-thumb-vertical").unwrap();
+    assert_eq!(thumb.bottom(), track.bottom());
 }
 
 #[test]

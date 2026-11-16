@@ -1,4 +1,4 @@
-use crate::support::{Edges, replying};
+use crate::support::{Edges, replying, texts};
 use acp_utils::testing::{
     FakeAgent, FakeAgentRequests, announced, message_chunk, plan, running_state, thought_chunk, tool_call,
 };
@@ -306,6 +306,44 @@ fn a_long_transcript_follows_its_latest_reply_until_scrolled_away() {
     assert!(harness.bounds("jump-to-latest").is_some(), "dragging up stops following");
     harness.drag("scroll-thumb-vertical", Point::new(track.center().x, track.bottom())).unwrap();
     assert!(harness.bounds("jump-to-latest").is_none(), "dragging to the bottom follows again");
+}
+
+#[test]
+fn streaming_respects_the_position_selected_with_the_scrollbar() {
+    let (agent, mut requests) = FakeAgent::new("alpha-session").capture();
+    let (mut harness, thread) = DesktopHarness::alpha(agent);
+    let turn = harness.start_turn(thread, &mut requests, "go");
+    let reply = "A long reply.\n\n".repeat(80);
+    turn.update(message(&reply));
+    harness.run_until(|_| texts(thread).last() == Some(&reply));
+    let track = harness.bounds("scroll-track-vertical").unwrap();
+    let thumb = harness.bounds("scroll-thumb-vertical").unwrap();
+    assert_eq!(thumb.bottom(), track.bottom(), "streaming initially follows the latest text");
+
+    harness.click_at(Point::new(track.center().x, track.top() + 1.0));
+    assert!(harness.bounds("jump-to-latest").is_some());
+    let prompt = harness.bounds("prompt-0").unwrap();
+    turn.update(message("New tail.\n\n"));
+    harness.run_until(|_| texts(thread).last().is_some_and(|text| text.ends_with("New tail.\n\n")));
+    assert_eq!(harness.bounds("prompt-0").unwrap(), prompt, "new text does not move the reader");
+    assert!(harness.bounds("jump-to-latest").is_some());
+
+    harness.click("jump-to-latest").unwrap();
+    turn.update(message("Latest tail.\n\n"));
+    harness.run_until(|_| texts(thread).last().is_some_and(|text| text.ends_with("Latest tail.\n\n")));
+    assert!(harness.bounds("jump-to-latest").is_none());
+    let thumb = harness.bounds("scroll-thumb-vertical").unwrap();
+    assert_eq!(thumb.bottom(), track.bottom(), "jumping back restores following while streaming");
+    turn.end(acp::StopReason::EndTurn);
+    harness.run_until(|_| thread.status() == ThreadStatus::Idle);
+}
+
+#[test]
+fn an_empty_transcript_has_no_scrollbar() {
+    let (mut harness, _) = DesktopHarness::alpha(FakeAgent::new("alpha-session"));
+
+    assert!(harness.bounds("transcript-scrollbar").is_none());
+    assert!(harness.bounds("scroll-track-vertical").is_none());
 }
 
 #[test]

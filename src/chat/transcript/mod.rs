@@ -9,7 +9,7 @@ pub(crate) use message::reconnect_banner;
 use super::attachment::Attachment;
 use crate::platform::Platform;
 use crate::threads::{Thread, ThreadStatus};
-use crate::ui::tokens::{HEADER_HEIGHT, ROW_HEIGHT};
+use crate::ui::tokens::{HEADER_HEIGHT, ROW_HEIGHT, SCROLLBAR_WIDTH};
 use crate::ui::{
     ActiveReviewTheme, Hint, Icon, IconName, Material, MaterialExt, StyledExt, UiStyles, empty_state,
     vertical_scrollbar,
@@ -201,7 +201,7 @@ impl Transcript {
                     </div>
                 </div>
                 <show when={move || scroll.with(|scroll| scroll.content.height > scroll.viewport.height + 0.5)}>
-                    <div test_id="transcript-scrollbar" flex_none h_full pt=HEADER_HEIGHT pb=bottom_inset>
+                    <div test_id="transcript-scrollbar" relative flex_none w=SCROLLBAR_WIDTH h_full>
                         {vertical_scrollbar(list.scroll_state())}
                     </div>
                 </show>
