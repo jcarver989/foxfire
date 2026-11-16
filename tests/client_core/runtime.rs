@@ -6,11 +6,11 @@ use clankerdiff_remote::Invocation;
 use client_core::command::{AgentCommand, Command, CommandResult, GitReviewCommand, ReviewSource};
 use client_core::runtime::{Input, SessionRuntime};
 use client_core::session_model::initial_workspace_status;
+use client_core::testing::TestWorkspace;
 use client_core::testing::{FakeGit, git_diff_agent};
 use std::collections::BTreeMap;
 use std::path::Path;
 use tempfile::TempDir;
-use utils::testing::TestWorkspace;
 
 #[test]
 fn a_closed_agent_connection_fails_commands_and_is_reported_once() -> Result<(), TestError> {

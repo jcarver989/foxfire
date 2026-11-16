@@ -21,10 +21,10 @@ use client_core::elicitation::{Elicitation, ElicitationAnswer};
 use client_core::session_config_view::LocalConfigOption;
 use client_core::session_core::{Effect, ForegroundOperation, SessionCore};
 use client_core::session_model::{SessionSetting, WorkspaceAccess, WorkspaceStatus};
+use client_core::testing::TestWorkspace;
 use client_core::testing::{FakeGit, SessionCoreConfigBuilder};
 use std::path::{Path, PathBuf};
 use tokio::sync::oneshot;
-use utils::testing::TestWorkspace;
 
 #[test]
 fn media_the_agent_cannot_take_gives_the_submission_back() {

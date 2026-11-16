@@ -1,8 +1,8 @@
+use acp_utils::ReasoningEffort;
 use acp_utils::aether::SelectOptionMeta;
 use acp_utils::testing::{model_choice, option_group, select, thought_level_select};
 use agent_client_protocol::v2::schema::{SessionConfigOption, SessionConfigOptionCategory};
 use client_core::session_config_view::{LocalConfigOption, LocalConfigView};
-use utils::ReasoningEffort;
 
 #[test]
 fn control_states_survive_projection_without_default_becoming_a_capability() {

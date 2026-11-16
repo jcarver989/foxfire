@@ -43,13 +43,15 @@ clankerdiff-server = { workspace = true }
 clankerdiff-core = { workspace = true }
 clankerdiff-remote = { workspace = true }
 futures = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tempfile = { workspace = true }
 tokio = { workspace = true, features = ["rt", "macros", "sync", "process", "io-std"] }
 tracing = { workspace = true }
 thiserror = { workspace = true }
 base64 = { workspace = true }
 mime_guess = { workspace = true }
 url = { workspace = true }
-utils = { package = "aether-utils", path = "../utils", version = "0.3.1" }
 
 [dev-dependencies]
 aether-client-core = { path = ".", features = ["testing"] }
@@ -60,4 +62,3 @@ clankerdiff-git = { workspace = true }
 serde_json = { workspace = true }
 tempfile = { workspace = true }
 tokio = { workspace = true, features = ["rt", "rt-multi-thread", "macros", "sync"] }
-utils = { package = "aether-utils", path = "../utils", features = ["testing"], version = "0.3.1" }

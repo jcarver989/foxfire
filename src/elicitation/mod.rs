@@ -4,6 +4,7 @@ pub use form::{
     FieldError, FieldInput, FormError, FormField, FormFieldKind, SelectOption, accept_content, form_fields,
 };
 
+pub use acp_utils::artifact_review::{ArtifactReviewElicitationMeta, ArtifactReviewSubmission};
 use agent_client_protocol::Responder;
 use agent_client_protocol::v2::schema::{
     CancelledPermissionOutcome, CreateElicitationResponse, ElicitationAcceptAction, ElicitationAction,
@@ -12,7 +13,6 @@ use agent_client_protocol::v2::schema::{
 };
 use std::collections::BTreeMap;
 use std::sync::atomic::{AtomicU64, Ordering};
-pub use utils::artifact_review::{ArtifactReviewElicitationMeta, ArtifactReviewSubmission};
 
 #[derive(Debug, Clone)]
 pub enum Elicitation {

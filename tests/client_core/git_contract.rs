@@ -2,8 +2,8 @@ use clankerdiff_client::RemoteErrorCode;
 use clankerdiff_core::{FileStatus, RepoPath, RepositoryAction, StageState};
 use clankerdiff_git::GitRepository;
 use client_core::testing::FakeGit;
+use client_core::testing::TestWorkspace;
 use tempfile::TempDir;
-use utils::testing::TestWorkspace;
 
 #[tokio::test]
 async fn real_and_fake_git_report_the_same_non_repository_errors() {

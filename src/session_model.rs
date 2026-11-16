@@ -1,3 +1,5 @@
+use crate::git::current_ref;
+use crate::path::home_relative_path;
 use crate::session_config_view::{LocalConfigKind, LocalConfigOption, LocalConfigView};
 use crate::session_core::SessionCoreConfig;
 use acp_utils::aether::{AetherCapabilities, McpServerStatus, McpServerStatusEntry};
@@ -40,7 +42,7 @@ pub fn initial_workspace_status(cwd: &Path) -> WorkspaceStatus {
 
 /// What the client can tell about a working directory on this machine by itself.
 pub(crate) fn local_status(cwd: &Path) -> WorkspaceStatus {
-    WorkspaceStatus { display_dir: utils::home_relative_path(cwd), git_ref: utils::git::current_ref(cwd) }
+    WorkspaceStatus { display_dir: home_relative_path(cwd), git_ref: current_ref(cwd) }
 }
 
 impl SessionModel {

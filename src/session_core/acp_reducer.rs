@@ -3,12 +3,12 @@ use crate::elicitation::{Elicitation, ElicitationId, PendingElicitation, Reply, 
 use crate::session_model::SessionSetting;
 use acp_utils::aether::McpNotification;
 use acp_utils::aether::source_mcp_server_name;
+use acp_utils::artifact_review::ArtifactReviewElicitationMeta;
 use acp_utils::client::AcpEvent;
 use acp_utils::conversation::TurnFinished;
 use agent_client_protocol::v2::schema::{
     self as acp, CreateElicitationRequest, CreateElicitationResponse, ElicitationAction, ElicitationMode, SessionUpdate,
 };
-use utils::artifact_review::ArtifactReviewElicitationMeta;
 
 impl SessionCore {
     pub(super) fn on_acp_event(&mut self, event: AcpEvent) {

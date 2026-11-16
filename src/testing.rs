@@ -1,7 +1,9 @@
 mod git_diff_server;
 mod session_config;
+mod workspace;
 use git_diff_server::FakeGitDiffServer;
 pub use session_config::SessionCoreConfigBuilder;
+pub use workspace::TestWorkspace;
 
 use acp_utils::testing::FakeAgent;
 use agent_client_protocol::{Agent, Client, HandleDispatchFrom, NullRun, v2};

@@ -5,9 +5,9 @@ use client_core::composer::attachment::{
     AttachmentKind, AttachmentOutcome, PromptAttachment, build_attachments, classify_attachment,
 };
 use client_core::session_model::WorkspaceAccess;
+use client_core::testing::TestWorkspace;
 use std::path::Path;
 use url::Url;
-use utils::testing::TestWorkspace;
 
 const ONE_MIB: usize = 1024 * 1024;
 const FIVE_MIB: usize = 5 * 1024 * 1024;
