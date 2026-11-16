@@ -39,8 +39,7 @@ impl SessionOptions {
         let open = signal(false);
         let hovered = signal(false);
         let icon = category_icon(option).map(|icon| {
-            let icon_id = format!("{id}-icon-{icon:?}").to_lowercase();
-            view! { <div test_id=icon_id flex>{Icon::new(icon, Role::TextMuted).size(ICON_SIZE_SMALL)}</div> }
+            view! { <div test_id={format!("{id}-icon")} flex>{Icon::new(icon, Role::TextMuted).size(ICON_SIZE_SMALL)}</div> }
         });
         let trigger = view! {
             <div test_id={id.clone()} h=ROW_HEIGHT flex items_center gap=4.0 px=8.0 rounded=Radius::Inner

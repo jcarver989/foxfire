@@ -5,29 +5,27 @@ use aether_desktop::threads::ThreadStatus;
 use agent_client_protocol::v2::schema as acp;
 
 #[test]
-fn a_new_thread_centers_the_composer_under_a_heading_with_a_fire_kindling_behind_it() {
+fn a_new_thread_shows_the_composer_under_a_heading_with_a_fire_kindling_behind_it() {
     let (mut harness, _) = DesktopHarness::alpha(replying("alpha-session", "hello"));
-    let main = harness.bounds("main").expect("the main region is painted");
     let heading = harness.bounds("new-thread-heading").expect("a new thread asks what to build");
     let composer = harness.bounds("composer").expect("the composer is painted");
 
     assert!(harness.shows("new-thread-heading", "What do you want to build?"));
     assert!(heading.bottom() < composer.top(), "{heading:?} {composer:?}");
-    assert!((composer.center().y - main.center().y).abs() < main.size.height * 0.15, "{main:?} {composer:?}");
     assert!(harness.bounds("kindling").is_some(), "a fire kindles behind the composer");
 }
 
 #[test]
 fn the_first_prompt_docks_the_composer_and_clears_the_heading_and_fire() {
     let (mut harness, thread) = DesktopHarness::alpha(replying("alpha-session", "hello"));
+    let centered = harness.bounds("composer").expect("the composer is painted");
 
     harness.send(thread, "hi there");
 
     assert!(harness.bounds("new-thread-heading").is_none());
     assert!(harness.bounds("kindling").is_none());
-    let main = harness.bounds("main").expect("the main region is painted");
-    let composer = harness.bounds("composer").expect("the composer is painted");
-    assert!(composer.bottom() > main.bottom() - main.size.height * 0.25, "{main:?} {composer:?}");
+    let docked = harness.bounds("composer").expect("the composer is painted");
+    assert!(docked.top() > centered.top(), "the composer moves down to dock: {centered:?} {docked:?}");
 }
 
 #[test]

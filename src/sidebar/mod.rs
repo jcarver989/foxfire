@@ -347,13 +347,12 @@ impl Sidebar {
                 let collapsed = collapsed.get();
                 self.agents.revision();
                 untrack(|| {
-                    let (folder, state) =
-                        if collapsed { (IconName::Folder, "closed") } else { (IconName::FolderOpen, "open") };
+                    let folder = if collapsed { IconName::Folder } else { IconName::FolderOpen };
                     let actions_root = root.clone();
                     self.group_header(Header {
                         id: id.clone(),
                         label: name.clone(),
-                        icon: (format!("{id}-folder-{state}"), folder),
+                        icon: (format!("{id}-folder"), folder),
                         group: Collapsed::Project(root.clone()),
                         collapsed,
                         actions: ("Project actions", self.project_actions(&actions_root)),

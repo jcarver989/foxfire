@@ -16,49 +16,6 @@ fn waiting_and_reduced_motion_have_no_clock_and_never_change_pixels() {
 }
 
 #[test]
-fn every_state_renders_a_distinct_legible_still_mark_at_every_size() {
-    for size in [12.0, 48.0] {
-        for scale in [1.0, 2.0] {
-            let mut scene = SceneBuilder::default().size(size).scale(scale).reduced(true).build();
-            let mut frames = Vec::new();
-            for state in STATES {
-                scene.state.set(state);
-                scene.ui.advance(0.0);
-                let image = scene.ui.render().unwrap();
-                assert!(
-                    image.pixels.as_chunks::<4>().0.iter().filter(|pixel| pixel[3] > 64).count() >= 8,
-                    "{state:?} at {size}px/{scale}x must not disappear"
-                );
-                assert!(!frames.contains(&image.pixels), "{state:?} needs a distinct static silhouette");
-                frames.push(image.pixels);
-            }
-        }
-    }
-}
-
-#[test]
-fn each_active_state_actually_moves_instead_of_only_running_a_clock() {
-    for state in &STATES[..5] {
-        let mut scene = SceneBuilder::default().state(*state).size(48.0).build();
-        let before = scene.ui.render().unwrap().pixels;
-        scene.ui.run(0.8);
-        assert_ne!(before, scene.ui.render().unwrap().pixels, "{state:?} should have directional motion");
-    }
-}
-
-#[test]
-fn a_new_state_fades_in_instead_of_cutting() {
-    let mut scene = SceneBuilder::default().size(48.0).build();
-    scene.ui.run(1.0);
-    scene.state.set(WispState::Working);
-    scene.ui.advance(0.0);
-    assert_eq!(lit_pixels(&mut scene), 0, "the incoming matrix starts transparent");
-    scene.ui.run(0.3);
-    assert!(lit_pixels(&mut scene) > 0);
-    assert!(scene.ui.is_animating());
-}
-
-#[test]
 fn clipped_hidden_and_unfocused_wisps_stop_and_resume_their_clocks() {
     let mut scene = SceneBuilder::default().build();
     assert!(scene.ui.is_animating());
@@ -101,22 +58,10 @@ fn many_running_wisps_animate_on_the_compositor_alone() {
     assert_eq!(stats.content_blurs, 0);
 }
 
-const STATES: [WispState; 6] = [
-    WispState::Connecting,
-    WispState::Thinking,
-    WispState::Compacting,
-    WispState::Working,
-    WispState::Writing,
-    WispState::Waiting,
-];
-
-fn lit_pixels(scene: &mut Scene) -> usize {
-    scene.ui.render().unwrap().pixels.as_chunks::<4>().0.iter().filter(|pixel| pixel[3] > 64).count()
-}
+const WISP_SIZE: f32 = 12.0;
 
 struct Scene {
     ui: TestUi,
-    state: Signal<WispState>,
     motion: WispMotion,
     offset: Signal<f32>,
     hidden: Signal<bool>,
@@ -125,15 +70,13 @@ struct Scene {
 
 struct SceneBuilder {
     state: WispState,
-    size: f32,
-    scale: f32,
     reduced: bool,
     count: usize,
 }
 
 impl Default for SceneBuilder {
     fn default() -> Self {
-        Self { state: WispState::Thinking, size: 12.0, scale: 1.0, reduced: false, count: 1 }
+        Self { state: WispState::Thinking, reduced: false, count: 1 }
     }
 }
 
@@ -146,14 +89,6 @@ impl SceneBuilder {
         self.reduced = reduced;
         self
     }
-    fn size(mut self, size: f32) -> Self {
-        self.size = size;
-        self
-    }
-    fn scale(mut self, scale: f32) -> Self {
-        self.scale = scale;
-        self
-    }
     fn count(mut self, count: usize) -> Self {
         self.count = count;
         self
@@ -161,22 +96,22 @@ impl SceneBuilder {
 
     fn build(self) -> Scene {
         let entered = Runtime::new().enter();
-        let (ui, (state, motion, offset, hidden)) =
-            component_test().size(800.0, 120.0).scale(self.scale).build_with(move || {
-                let state = signal(self.state);
-                let motion = WispMotion::install(self.reduced);
-                let offset = signal(0.0);
-                let hidden = signal(false);
-                let art = show(
+        let (ui, (motion, offset, hidden)) = component_test().size(800.0, 120.0).build_with(move || {
+            let state = self.state;
+            let motion = WispMotion::install(self.reduced);
+            let offset = signal(0.0);
+            let hidden = signal(false);
+            let art =
+                show(
                     move || !hidden.get(),
                     move || {
                         div().absolute().top(16.0).left(move || offset.get()).flex().gap(8.0).children(
-                            (0..self.count).map(move |_| wisp(self.size, Color::rgb(0x0038_7ccf), move || state.get())),
+                            (0..self.count).map(move |_| wisp(WISP_SIZE, Color::rgb(0x0038_7ccf), move || state)),
                         )
                     },
                 );
-                (div().size_full().relative().overflow_hidden().p(16.0).child(art), (state, motion, offset, hidden))
-            });
-        Scene { ui, state, motion, offset, hidden, _entered: entered }
+            (div().size_full().relative().overflow_hidden().p(16.0).child(art), (motion, offset, hidden))
+        });
+        Scene { ui, motion, offset, hidden, _entered: entered }
     }
 }

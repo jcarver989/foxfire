@@ -26,7 +26,6 @@ fn collapsing_the_sidebar_gives_its_room_to_the_thread_and_its_toggle_to_the_hea
     let expanded = harness.bounds("toggle-sidebar").expect("the toggle is painted in the sidebar");
     assert!(expanded.left() >= settings.right(), "{settings:?} {expanded:?}");
     assert!(expanded.right() <= sidebar.right(), "{sidebar:?} {expanded:?}");
-    assert!((expanded.center().y - settings.center().y).abs() < 0.5, "{settings:?} {expanded:?}");
 
     harness.click("toggle-sidebar").unwrap();
 

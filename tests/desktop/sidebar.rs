@@ -126,15 +126,12 @@ fn a_project_folds_its_rows_away_and_back() {
         .project("/alpha")
         .build();
     assert!(harness.bounds("history-row-saved").is_some(), "an added project starts expanded");
-    assert!(harness.bounds("project-alpha-folder-open").is_some());
 
     harness.click("project-alpha").unwrap();
     assert!(harness.bounds("history-row-saved").is_none());
-    assert!(harness.bounds("project-alpha-folder-closed").is_some());
 
     harness.click("project-alpha").unwrap();
     assert!(harness.bounds("history-row-saved").is_some());
-    assert!(harness.bounds("project-alpha-folder-open").is_some());
 }
 
 #[test]

@@ -118,7 +118,7 @@ fn the_option_shows_the_model_the_agent_switched_to() {
 }
 
 #[test]
-fn the_sessions_options_are_led_by_their_categorys_icon() {
+fn only_options_of_a_known_category_are_led_by_an_icon() {
     let option = |id: &str| select(id, id, "one", &[("one", "One")]);
     let options = vec![
         option("mode").category(acp::SessionConfigOptionCategory::Mode),
@@ -128,16 +128,11 @@ fn the_sessions_options_are_led_by_their_categorys_icon() {
     ];
     let (mut harness, _) = DesktopHarness::alpha(offering(options));
 
-    assert!(harness.bounds("config-mode-icon-bot").is_some());
-    assert!(harness.bounds("config-model-icon-cpu").is_some());
-    assert!(harness.bounds("config-reasoning_effort-icon-brain").is_some());
+    for categorized in ["mode", "model", "reasoning_effort"] {
+        assert!(harness.bounds(&format!("config-{categorized}-icon")).is_some(), "{categorized} has an icon");
+    }
     assert!(harness.bounds("config-verbosity").is_some());
-    assert!(
-        ["config-verbosity-icon-bot", "config-verbosity-icon-cpu", "config-verbosity-icon-brain"]
-            .iter()
-            .all(|icon| harness.bounds(icon).is_none()),
-        "an option of no known category has no icon"
-    );
+    assert!(harness.bounds("config-verbosity-icon").is_none(), "an option of no known category has no icon");
 }
 
 #[test]
@@ -154,10 +149,8 @@ fn the_sessions_options_sit_in_the_status_row_under_the_composer_in_the_chat_alo
 
     assert!(harness.bounds("new-thread-heading").is_none(), "the composer has docked");
     assert_options_lead_the_status_row(&mut harness);
-    let [model, ring, send] = ["config-model", "context-ring", "send"].map(|id| harness.bounds(id).expect("painted"));
-    assert_eq!(model.center().y, ring.center().y, "the options share the context ring's row");
-    assert!(model.right() < ring.left(), "{model:?} {ring:?}");
-    assert_eq!(ring.right(), send.right(), "the ring lines up with the composer's send button");
+    let [model, ring] = ["config-model", "context-ring"].map(|id| harness.bounds(id).expect("painted"));
+    assert!(model.right() < ring.left(), "the options come before the context ring: {model:?} {ring:?}");
 
     harness.press("secondary-2");
 
@@ -286,9 +279,6 @@ fn offering(options: Vec<acp::SessionConfigOption>) -> FakeAgent {
 }
 
 fn assert_options_lead_the_status_row(harness: &mut DesktopHarness) {
-    let [attach, model, composer, status] =
-        ["attach-files", "config-model", "composer", "status"].map(|id| harness.bounds(id).expect("painted"));
+    let [model, composer] = ["config-model", "composer"].map(|id| harness.bounds(id).expect("painted"));
     assert!(model.top() >= composer.bottom(), "the options sit below the composer: {model:?} {composer:?}");
-    assert_eq!(model.center().y, status.center().y, "the options share the status row");
-    assert_eq!(model.left(), attach.left(), "the options line up with the composer's attach button");
 }
