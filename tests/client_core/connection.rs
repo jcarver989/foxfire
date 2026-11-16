@@ -1,9 +1,9 @@
 use crate::support::{LiveSession, client_info, next_result, run_local};
+use acp_utils::aether::RemoteServerInfo;
 use acp_utils::client::{AcpClientError, AcpEvent};
 use acp_utils::conversation::Conversation;
-use acp_utils::notifications::RemoteServerInfo;
 use acp_utils::testing::{
-    FakeAgent, FakeAgentRequests, idle_notification, running_notification, select, session_preview, texts,
+    FakeAgent, FakeAgentRequests, idle_notification, model_select, running_notification, session_preview, texts,
 };
 use agent_client_protocol::Error;
 use agent_client_protocol::schema::ProtocolVersion;
@@ -283,5 +283,5 @@ async fn connect(capabilities: Option<SessionCapabilities>) -> (SessionCoreConfi
 }
 
 fn model_options() -> Vec<SessionConfigOption> {
-    vec![select("model", "Model", "fast", &[("fast", "Fast")])]
+    vec![model_select("fast", &[("fast", "Fast")])]
 }

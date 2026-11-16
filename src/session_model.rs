@@ -1,11 +1,10 @@
 use crate::session_config_view::{LocalConfigKind, LocalConfigOption, LocalConfigView};
 use crate::session_core::SessionCoreConfig;
-use acp_utils::config_option_id::ConfigOptionId;
-use acp_utils::notifications::{AetherCapabilities, McpServerStatus, McpServerStatusEntry};
+use acp_utils::aether::{AetherCapabilities, McpServerStatus, McpServerStatusEntry};
 use agent_client_protocol::v2::schema as acp;
 use std::path::{Path, PathBuf};
 
-pub use acp_utils::notifications::WorkspaceStatusResponse as WorkspaceStatus;
+pub use acp_utils::aether::WorkspaceStatusResponse as WorkspaceStatus;
 
 pub struct SessionModel {
     agent_name: String,
@@ -35,6 +34,11 @@ pub enum WorkspaceAccess {
 
 pub fn initial_workspace_status(cwd: &Path) -> WorkspaceStatus {
     WorkspaceStatus { display_dir: cwd.display().to_string(), git_ref: None }
+}
+
+/// What the client can tell about a working directory on this machine by itself.
+pub(crate) fn local_status(cwd: &Path) -> WorkspaceStatus {
+    WorkspaceStatus { display_dir: utils::home_relative_path(cwd), git_ref: utils::git::current_ref(cwd) }
 }
 
 impl SessionModel {
@@ -89,22 +93,11 @@ impl SessionModel {
             return Some("ACP agent does not support audio input.".to_string());
         }
 
-        let config = LocalConfigView::new(&self.config_options);
-        let model = config.select(ConfigOptionId::Model)?;
-        let selected_count = model.current_values().count();
-        if selected_count == 0 {
-            return None;
-        }
-        let selected_meta = config.selected_model_metadata();
-
-        if selected_meta.len() != selected_count {
-            return Some("Current model selection is missing prompt capability metadata.".into());
-        }
-
-        if requires_image && selected_meta.iter().any(|meta| !meta.supports_image) {
+        let selected_meta = LocalConfigView::new(&self.config_options).selected_model_metadata();
+        if requires_image && selected_meta.iter().any(|meta| meta.supports_image == Some(false)) {
             return Some("Current model selection does not support image input.".to_string());
         }
-        if requires_audio && selected_meta.iter().any(|meta| !meta.supports_audio) {
+        if requires_audio && selected_meta.iter().any(|meta| meta.supports_audio == Some(false)) {
             return Some("Current model selection does not support audio input.".to_string());
         }
 

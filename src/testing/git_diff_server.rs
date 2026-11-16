@@ -1,5 +1,5 @@
 use super::FakeGit;
-use acp_utils::notifications::{GitDiffClosePayload, GitDiffCommandPayload, GitDiffEventPayload};
+use acp_utils::aether::{GitDiffClosePayload, GitDiffCommandPayload, GitDiffEventPayload};
 use agent_client_protocol::util::MatchDispatchFrom;
 use agent_client_protocol::v2::schema::SessionId;
 use agent_client_protocol::{self as acp, Client, ConnectionTo, Dispatch, HandleDispatchFrom, Handled};

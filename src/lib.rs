@@ -1,3 +1,4 @@
+pub mod aether;
 pub mod command;
 pub mod composer;
 pub mod connection;

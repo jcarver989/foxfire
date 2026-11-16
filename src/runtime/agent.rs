@@ -1,10 +1,10 @@
 use crate::command::{AgentCommand, CommandResult, PromptRejection, Reply};
 use crate::connection::resume_request;
 use crate::session_model::initial_workspace_status;
-use acp_utils::client::{AcpClientError, AcpClientHandle};
-use acp_utils::notifications::{
+use acp_utils::aether::{
     McpRequest, SessionPreviewParams, WorkspaceListParams, WorkspaceMoveParams, WorkspaceStatusPayload,
 };
+use acp_utils::client::{AcpClientError, AcpClientHandle};
 use agent_client_protocol::v2::schema::{
     CancelSessionNotification, ListSessionsRequest, LoginAuthRequest, NewSessionRequest, PromptRequest,
     SetSessionConfigOptionRequest,

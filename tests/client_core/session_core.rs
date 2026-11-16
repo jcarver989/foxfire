@@ -1,12 +1,12 @@
 use crate::support::{LiveSession, deliver, notices, offline, receive, run_local};
-use acp_utils::client::AcpEvent;
-use acp_utils::conversation::NoticeLevel;
-use acp_utils::notifications::{
+use acp_utils::aether::{
     AuthMethodsUpdatedParams, WorkspaceEntry, WorkspaceListResponse, WorkspaceMoveResponse, WorkspaceMoveTarget,
 };
+use acp_utils::client::AcpEvent;
+use acp_utils::conversation::NoticeLevel;
 use acp_utils::testing::{
-    FakeAgent, idle_notification, message_chunk, on_session, running_notification, select, test_connection, texts,
-    user_message,
+    FakeAgent, Question, idle_notification, message_chunk, mode_select, model_select, on_session, running_notification,
+    test_connection, texts, user_message,
 };
 use agent_client_protocol::v2::schema::{
     self as acp, ContentBlock, CreateElicitationRequest, CreateElicitationResponse, ElicitationAction,
@@ -19,13 +19,14 @@ use client_core::command::{AgentCommand, Command, CommandResult, GitReviewComman
 use client_core::composer::attachment::{AttachmentOutcome, PromptAttachment};
 use client_core::composer::file_listing::FileListing;
 use client_core::composer::submission::Submission;
-use client_core::elicitation::ElicitationAnswer;
+use client_core::elicitation::{Elicitation, ElicitationAnswer};
 use client_core::session_config_view::LocalConfigOption;
 use client_core::session_core::{Effect, ForegroundOperation, SessionCore};
-use client_core::session_model::{SessionSetting, WorkspaceAccess};
+use client_core::session_model::{SessionSetting, WorkspaceAccess, WorkspaceStatus};
 use client_core::testing::{FakeGit, SessionCoreConfigBuilder};
 use std::path::{Path, PathBuf};
 use tokio::sync::oneshot;
+use utils::testing::TestWorkspace;
 
 #[test]
 fn media_the_agent_cannot_take_gives_the_submission_back() {
@@ -317,7 +318,7 @@ fn a_resume_result_for_a_resume_no_longer_under_way_is_ignored() {
 
 #[test]
 fn an_agent_config_update_replaces_the_session_selections() {
-    let mode = select("mode", "Mode", "plan", &[("plan", "Plan"), ("code", "Code")]);
+    let mode = mode_select("plan", &[("plan", "Plan"), ("code", "Code")]);
     let mut core = SessionCore::new(SessionCoreConfigBuilder::new().config_options(vec![model("slow"), mode]).build());
     assert_eq!(selections(&core), [("model", "slow"), ("mode", "plan")]);
 
@@ -411,6 +412,72 @@ fn cancelling_the_turn_or_losing_the_connection_withdraws_the_question() {
             assert!(matches!(answer.await.unwrap().action, ElicitationAction::Cancel));
         });
     }
+}
+
+#[test]
+fn a_permission_request_waits_for_the_user_and_sends_the_option_they_chose() {
+    run_local(async {
+        let mut live = asked_permission().await;
+        let Some((id, Elicitation::Permission { title, options, .. })) = live.core.elicitation() else {
+            panic!("the permission request waits for the user");
+        };
+        assert_eq!(title, "Run rm?");
+        let names: Vec<_> = options.iter().map(|option| option.name.as_str()).collect();
+        assert_eq!(names, ["Allow once", "Reject"]);
+
+        live.core.answer_elicitation(id, ElicitationAnswer::Choose("reject".into()));
+        let answer = turn_answer(&mut live).await;
+
+        assert!(answer.contains(r#""optionId":"reject""#), "{answer}");
+        live.shutdown().await;
+    });
+}
+
+#[test]
+fn a_dismissed_permission_request_is_cancelled() {
+    run_local(async {
+        let mut live = asked_permission().await;
+        let (id, _) = live.core.elicitation().unwrap();
+
+        live.core.answer_elicitation(id, ElicitationAnswer::Decline);
+        let answer = turn_answer(&mut live).await;
+
+        assert!(answer.contains("cancelled"), "{answer}");
+        live.shutdown().await;
+    });
+}
+
+#[test]
+fn an_agent_without_the_workspace_extension_has_its_branch_read_from_the_local_checkout() {
+    run_local(async {
+        let repo = TestWorkspace::new().file("README.md", "hi").git_init();
+        repo.commit("first");
+        let (agent, mut requests) = FakeAgent::new("plain").capture();
+        let mut live = LiveSession::connect(agent, repo.root(), None).await.unwrap();
+
+        live.core.refresh_workspace_status();
+        live.run_until(|core| core.session().workspace_status().git_ref.is_some()).await;
+
+        assert_eq!(live.core.session().workspace_status().git_ref.as_deref(), Some("main"));
+        assert!(requests.extensions.try_recv().is_err(), "no Aether extension is asked for");
+        live.shutdown().await;
+    });
+}
+
+#[test]
+fn an_agent_with_the_workspace_extension_reports_the_status_itself() {
+    run_local(async {
+        let served = WorkspaceStatus { display_dir: "~/served".into(), git_ref: Some("served-branch".into()) };
+        let (agent, mut requests) = FakeAgent::new("aether").workspace_status("aether", served.clone()).capture();
+        let mut live = LiveSession::connect(agent, "/workspace", None).await.unwrap();
+
+        live.core.refresh_workspace_status();
+        live.run_until(|core| core.session().workspace_status().git_ref.is_some()).await;
+
+        assert_eq!(live.core.session().workspace_status(), &served);
+        assert_eq!(requests.extensions.try_recv().ok().as_deref(), Some("_aether/workspace_status"));
+        live.shutdown().await;
+    });
 }
 
 #[test]
@@ -615,7 +682,7 @@ fn image() -> ContentBlock {
 }
 
 fn model(current: &str) -> SessionConfigOption {
-    select("model", "Model", current, &[("fast", "Fast"), ("slow", "Slow")])
+    model_select(current, &[("fast", "Fast"), ("slow", "Slow")])
 }
 
 fn selections(core: &SessionCore) -> Vec<(&str, &str)> {
@@ -633,6 +700,23 @@ fn review_source(config: &SessionCoreConfigBuilder) -> Option<ReviewSource> {
         Effect::Dispatch(Command::GitReview(GitReviewCommand::Open(source))) => Some(source),
         _ => None,
     })
+}
+
+async fn asked_permission() -> LiveSession {
+    let options = vec![
+        acp::PermissionOption::new("allow", "Allow once", acp::PermissionOptionKind::AllowOnce),
+        acp::PermissionOption::new("reject", "Reject", acp::PermissionOptionKind::RejectOnce),
+    ];
+    let agent = FakeAgent::new("asking").prompt_asks("Run rm?", Question::Permission(options));
+    let mut live = LiveSession::connect(agent, "/workspace", None).await.unwrap();
+    live.core.submit(Submission::from("clean up"));
+    live.run_until(|core| core.elicitation().is_some()).await;
+    live
+}
+
+async fn turn_answer(live: &mut LiveSession) -> String {
+    live.run_until(|core| core.conversation().turn().is_idle() && texts(core.conversation()).len() == 2).await;
+    texts(live.core.conversation()).pop().unwrap_or_default()
 }
 
 async fn ask(core: &mut SessionCore) -> oneshot::Receiver<CreateElicitationResponse> {

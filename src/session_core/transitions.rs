@@ -1,8 +1,8 @@
 use super::{Effect, ForegroundOperation, SessionCore};
-use crate::command::AgentCommand;
-use crate::session_model::SessionSetting;
+use crate::command::{AgentCommand, Command};
+use crate::session_model::{SessionSetting, WorkspaceAccess};
+use acp_utils::aether::WorkspaceMoveTarget;
 use acp_utils::client::AcpClientError;
-use acp_utils::notifications::WorkspaceMoveTarget;
 use agent_client_protocol::v2::schema::{self as acp, SessionId};
 use std::path::{Path, PathBuf};
 
@@ -134,7 +134,11 @@ impl SessionCore {
     }
 
     pub(super) fn resolve_workspace(&mut self, cwd: PathBuf) {
-        self.dispatch(AgentCommand::FetchWorkspaceStatus { session_id: self.session_id().clone(), cwd });
+        if self.session.capabilities().workspace_status {
+            self.dispatch(AgentCommand::FetchWorkspaceStatus { session_id: self.session_id().clone(), cwd });
+        } else if self.session.workspace_access() == WorkspaceAccess::Local {
+            self.effects.push(Effect::Dispatch(Command::ReadWorkspaceStatus { cwd }));
+        }
     }
 
     fn change_working_dir(&mut self, cwd: PathBuf) {

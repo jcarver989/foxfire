@@ -1,8 +1,8 @@
 use crate::runtime::SessionRuntime;
 use crate::session_core::SessionCoreConfig;
 use crate::session_model::{WorkspaceAccess, initial_workspace_status};
+use acp_utils::aether::{RemoteServerInfo, SessionPreviewParams};
 use acp_utils::client::{AcpClient, AcpClientError, connect_acp_client, initialize_request};
-use acp_utils::notifications::{RemoteServerInfo, SessionPreviewParams};
 use agent_client_protocol::v2::schema::{
     AbsolutePath, Implementation, ListSessionsRequest, NewSessionRequest, NewSessionResponse, ReplayFrom,
     ReplayFromStart, ResumeSessionRequest, SessionId, SessionInfo,
@@ -23,7 +23,7 @@ pub struct Session {
 
 #[derive(Debug, thiserror::Error)]
 pub enum ConnectionError {
-    #[error("Server did not advertise the Aether remote-server contract; connect to `aether server`")]
+    #[error("the agent did not report a working directory of its own, so one must be given to open a session")]
     MissingRemoteContract,
     #[error("{0}")]
     Acp(#[from] AcpClientError),

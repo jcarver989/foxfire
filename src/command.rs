@@ -1,11 +1,11 @@
 use crate::composer::attachment::{AttachmentOutcome, PromptAttachment};
 use crate::session_model::{WorkspaceAccess, WorkspaceStatus};
-use acp_utils::client::AcpClientError;
-use acp_utils::conversation::ConversationId;
-use acp_utils::notifications::{
+use acp_utils::aether::{
     PromptSearchParams, PromptSearchResponse, SessionPreviewResponse, WorkspaceListResponse, WorkspaceMoveResponse,
     WorkspaceMoveTarget,
 };
+use acp_utils::client::AcpClientError;
+use acp_utils::conversation::ConversationId;
 use agent_client_protocol::v2::schema::{
     ContentBlock, ListSessionsResponse, LoginAuthResponse, NewSessionResponse, ResumeSessionResponse,
     SessionConfigOptionValue, SessionId, SessionInfo, SetSessionConfigOptionResponse,
@@ -21,7 +21,14 @@ use tokio::task::JoinError;
 pub enum Command {
     Agent(AgentCommand),
     GitReview(GitReviewCommand),
-    PrepareSubmission { attachments: Vec<PromptAttachment>, access: WorkspaceAccess },
+    PrepareSubmission {
+        attachments: Vec<PromptAttachment>,
+        access: WorkspaceAccess,
+    },
+    /// Reads a local working directory's status for an agent that does not report it.
+    ReadWorkspaceStatus {
+        cwd: PathBuf,
+    },
 }
 
 #[derive(Debug, Clone)]

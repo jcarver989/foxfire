@@ -1,8 +1,8 @@
 use crate::support::{deliver, notices};
-use acp_utils::config_meta::SelectOptionMeta;
+use acp_utils::aether::SelectOptionMeta;
 use acp_utils::conversation::NoticeLevel;
 use acp_utils::testing::{model_choice, model_picker, option_group};
-use agent_client_protocol::v2::schema::{self as acp, ContentBlock};
+use agent_client_protocol::v2::schema::{self as acp, ContentBlock, SessionConfigSelectOption};
 use client_core::command::CommandResult;
 use client_core::composer::attachment::{AttachmentOutcome, PromptAttachment};
 use client_core::composer::submission::Submission;
@@ -11,7 +11,7 @@ use client_core::testing::SessionCoreConfigBuilder;
 use std::path::Path;
 
 #[test]
-fn media_is_sent_only_when_the_agent_and_every_selected_model_take_it() {
+fn media_is_sent_unless_the_agent_or_a_selected_model_says_it_cannot_take_it() {
     let no_image = acp::PromptCapabilities::new().audio(acp::PromptAudioCapabilities::new());
     let no_audio = acp::PromptCapabilities::new().image(acp::PromptImageCapabilities::new());
     let cases = [
@@ -19,7 +19,8 @@ fn media_is_sent_only_when_the_agent_and_every_selected_model_take_it() {
         (no_audio, vec![], audio(), Some("ACP agent does not support audio input.")),
         (media(), models("gpt", &[("gpt", false, false)]), image(), Some(NO_IMAGE)),
         (media(), models("gpt", &[("gpt", true, false)]), audio(), Some(NO_AUDIO)),
-        (media(), models("unknown", &[("known", true, true)]), image(), Some(NO_METADATA)),
+        (media(), models("unknown", &[("known", false, false)]), image(), None),
+        (media(), vec![model_picker("plain", vec![SessionConfigSelectOption::new("plain", "Plain")])], image(), None),
         (media(), grouped("a", &[("a", false, true)]), image(), Some(NO_IMAGE)),
         (media(), grouped("a", &[("a", true, false)]), audio(), Some(NO_AUDIO)),
         (media(), grouped("a,b", &[("a", true, true), ("b", false, false)]), image(), Some(NO_IMAGE)),
@@ -44,7 +45,6 @@ fn media_is_sent_only_when_the_agent_and_every_selected_model_take_it() {
 
 const NO_IMAGE: &str = "Current model selection does not support image input.";
 const NO_AUDIO: &str = "Current model selection does not support audio input.";
-const NO_METADATA: &str = "Current model selection is missing prompt capability metadata.";
 
 fn media() -> acp::PromptCapabilities {
     acp::PromptCapabilities::new().image(acp::PromptImageCapabilities::new()).audio(acp::PromptAudioCapabilities::new())
@@ -72,5 +72,10 @@ fn grouped(current: &str, offered: &[(&str, bool, bool)]) -> Vec<acp::SessionCon
 }
 
 fn model(value: &str, supports_image: bool, supports_audio: bool) -> acp::SessionConfigSelectOption {
-    model_choice(value, value, SelectOptionMeta { supports_image, supports_audio, ..Default::default() })
+    let meta = SelectOptionMeta {
+        supports_image: Some(supports_image),
+        supports_audio: Some(supports_audio),
+        ..Default::default()
+    };
+    model_choice(value, value, meta)
 }

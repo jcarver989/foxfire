@@ -1,5 +1,4 @@
-use acp_utils::config_meta::{ConfigOptionMeta, SelectOptionMeta};
-use acp_utils::config_option_id::ConfigOptionId;
+use acp_utils::aether::{ConfigOptionMeta, SelectOptionMeta};
 use agent_client_protocol::v2::schema::{self as acp, SessionConfigOptionCategory};
 use utils::ReasoningEffort;
 
@@ -120,22 +119,30 @@ impl<'a> LocalConfigView<'a> {
         Self { options }
     }
 
-    pub fn select(&self, id: ConfigOptionId) -> Option<&'a LocalConfigSelect> {
-        self.options.iter().find(|option| option.id == id.as_str()).and_then(LocalConfigOption::select)
+    /// The first select option the agent put in `category`, whatever its id.
+    pub fn option(&self, category: &SessionConfigOptionCategory) -> Option<&'a LocalConfigOption> {
+        self.options.iter().find(|option| option.category.as_ref() == Some(category) && option.select().is_some())
     }
 
-    pub fn current_display_name(&self, id: ConfigOptionId) -> Option<String> {
-        self.select(id)?.selected_names()
+    pub fn select(&self, category: &SessionConfigOptionCategory) -> Option<&'a LocalConfigSelect> {
+        self.option(category).and_then(LocalConfigOption::select)
+    }
+
+    pub fn current_display_name(&self, category: &SessionConfigOptionCategory) -> Option<String> {
+        self.select(category)?.selected_names()
     }
 
     pub fn next_mode(&self) -> Option<(&'a str, &'a str)> {
-        let (option, select) = self.options.iter().find_map(|option| {
-            let select = option.select().filter(|_| option.category == Some(SessionConfigOptionCategory::Mode))?;
-            Some((option, select))
-        })?;
+        let option = self.option(&SessionConfigOptionCategory::Mode)?;
+        let select = option.select()?;
         let current = select.values.iter().position(|value| value.value == select.current_value).unwrap_or(0);
         let next = select.values.get((current + 1) % select.values.len().max(1))?;
         Some((option.id.as_str(), next.value.as_str()))
+    }
+
+    /// The id of the thought level option, which reasoning effort changes are sent to.
+    pub fn thought_level_id(&self) -> Option<&'a str> {
+        self.option(&SessionConfigOptionCategory::ThoughtLevel).map(|option| option.id.as_str())
     }
 
     pub fn next_reasoning_effort(&self) -> Option<(&'a str, &'a str)> {
@@ -144,11 +151,12 @@ impl<'a> LocalConfigView<'a> {
             return None;
         }
         let next = ReasoningEffort::cycle_within(self.reasoning_effort(), &levels);
-        Some((ConfigOptionId::ReasoningEffort.as_str(), ReasoningEffort::config_str(next)))
+        Some((self.thought_level_id()?, ReasoningEffort::config_str(next)))
     }
 
+    /// The thought levels the agent offers that read as reasoning efforts.
     pub fn reasoning_levels(&self) -> Vec<ReasoningEffort> {
-        self.flattened_options(ConfigOptionId::ReasoningEffort)
+        self.flattened_options(&SessionConfigOptionCategory::ThoughtLevel)
             .iter()
             .filter_map(|option| option.value.parse().ok())
             .filter(|effort| *effort != ReasoningEffort::Default)
@@ -156,16 +164,16 @@ impl<'a> LocalConfigView<'a> {
     }
 
     pub fn reasoning_effort(&self) -> Option<ReasoningEffort> {
-        ReasoningEffort::parse(&self.select(ConfigOptionId::ReasoningEffort)?.current_value).unwrap_or(None)
+        ReasoningEffort::parse(&self.select(&SessionConfigOptionCategory::ThoughtLevel)?.current_value).unwrap_or(None)
     }
 
     pub(crate) fn selected_model_metadata(&self) -> Vec<SelectOptionMeta> {
-        self.select(ConfigOptionId::Model)
+        self.select(&SessionConfigOptionCategory::Model)
             .map(|select| select.selected().map(|value| value.meta.clone()).collect())
             .unwrap_or_default()
     }
 
-    fn flattened_options(&self, id: ConfigOptionId) -> &'a [LocalConfigValue] {
-        self.select(id).map_or(&[], |select| &select.values)
+    fn flattened_options(&self, category: &SessionConfigOptionCategory) -> &'a [LocalConfigValue] {
+        self.select(category).map_or(&[], |select| &select.values)
     }
 }

@@ -1,6 +1,6 @@
 use crate::support::deliver;
+use acp_utils::aether::PromptSearchResponse;
 use acp_utils::client::AcpClientError;
-use acp_utils::notifications::PromptSearchResponse;
 use acp_utils::testing::{prompt_search_hit, prompt_search_response};
 use agent_client_protocol::Error;
 use client_core::command::{AgentCommand, Command, CommandResult};

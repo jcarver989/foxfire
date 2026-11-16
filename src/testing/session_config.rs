@@ -1,6 +1,6 @@
 use crate::session_core::SessionCoreConfig;
 use crate::session_model::{WorkspaceAccess, WorkspaceStatus, initial_workspace_status};
-use acp_utils::notifications::{AetherCapabilities, AetherMeta};
+use acp_utils::aether::{AetherCapabilities, AetherMeta};
 use acp_utils::testing::FakeAgent;
 use agent_client_protocol::schema::ProtocolVersion;
 use agent_client_protocol::v2::schema as acp;
@@ -22,7 +22,7 @@ impl Default for SessionCoreConfigBuilder {
             working_dir: PathBuf::from("."),
             workspace_access: WorkspaceAccess::Local,
             workspace_status: None,
-            capabilities: AetherCapabilities::default(),
+            capabilities: AetherCapabilities { workspace_status: true, ..AetherCapabilities::default() },
             prompt_capabilities: acp::PromptCapabilities::new(),
             config_options: Vec::new(),
             auth_methods: Vec::new(),
@@ -80,14 +80,22 @@ impl SessionCoreConfigBuilder {
         self
     }
 
+    /// A session with an agent that speaks only standard ACP.
+    pub fn without_extensions(mut self) -> Self {
+        self.capabilities = AetherCapabilities::default();
+        self
+    }
+
     pub fn git_diff(mut self) -> Self {
         self.capabilities.git_diff = true;
         self
     }
 
+    /// A fake agent that advertises what this session's client was told it supports.
     pub fn agent(&self) -> FakeAgent {
         let config = self.build();
         FakeAgent::default()
+            .capabilities(config.initialize_response.capabilities)
             .workspace_status(&config.session_response.session_id.0, config.workspace_status)
             .new_session_response(config.session_response)
     }

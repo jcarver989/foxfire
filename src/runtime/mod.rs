@@ -3,6 +3,7 @@ mod git_review;
 
 use crate::command::{Command, CommandResult};
 use crate::composer::attachment::build_attachments;
+use crate::session_model::local_status;
 use acp_utils::client::{AcpClientHandle, AcpEvent};
 use agent::Requests;
 use futures::StreamExt;
@@ -52,6 +53,10 @@ impl SessionRuntime {
                 if let Some(superseded) = self.preparing.replace(preparing) {
                     superseded.abort();
                 }
+                None
+            }
+            Command::ReadWorkspaceStatus { cwd } => {
+                self.tasks.spawn_blocking(move || CommandResult::WorkspaceResolved { status: local_status(&cwd), cwd });
                 None
             }
         };

@@ -1,10 +1,10 @@
 use super::{CommandEntry, Effect, ForegroundOperation, SessionCore, TurnEnd};
-use crate::elicitation::{Elicitation, ElicitationId, PendingElicitation, form_fields};
+use crate::elicitation::{Elicitation, ElicitationId, PendingElicitation, Reply, form_fields};
 use crate::session_model::SessionSetting;
+use acp_utils::aether::McpNotification;
+use acp_utils::aether::source_mcp_server_name;
 use acp_utils::client::AcpEvent;
 use acp_utils::conversation::TurnFinished;
-use acp_utils::elicitation::source_mcp_server_name;
-use acp_utils::notifications::McpNotification;
 use agent_client_protocol::v2::schema::{
     self as acp, CreateElicitationRequest, CreateElicitationResponse, ElicitationAction, ElicitationMode, SessionUpdate,
 };
@@ -26,12 +26,14 @@ impl SessionCore {
             }
             AcpEvent::ElicitationRequest { params, responder } => {
                 if let Some(elicitation) = classify(*params) {
-                    self.elicitation = Some(PendingElicitation::new(ElicitationId::next(), elicitation, responder));
-                    self.effects.push(Effect::ElicitationRequested);
+                    self.ask(elicitation, Reply::Elicitation(responder));
                 } else {
                     tracing::warn!("Declining an elicitation whose mode or schema is unsupported");
                     let _ = responder.respond(CreateElicitationResponse::new(ElicitationAction::Decline));
                 }
+            }
+            AcpEvent::PermissionRequest { params, responder } => {
+                self.ask(Elicitation::permission(&params), Reply::Permission(responder));
             }
             AcpEvent::McpNotification(notification) => self.on_mcp_notification(&notification),
             AcpEvent::AuthMethodsUpdated(params) => {
@@ -50,6 +52,11 @@ impl SessionCore {
         if current {
             self.announce_if_settled();
         }
+    }
+
+    fn ask(&mut self, elicitation: Elicitation, reply: Reply) {
+        self.elicitation = Some(PendingElicitation::new(ElicitationId::next(), elicitation, reply));
+        self.effects.push(Effect::ElicitationRequested);
     }
 
     fn on_mcp_notification(&mut self, notification: &McpNotification) {
