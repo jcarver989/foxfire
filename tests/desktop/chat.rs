@@ -4,8 +4,8 @@ use aether_desktop::testing::{DesktopHarness, DesktopHarnessBuilder};
 use aether_desktop::threads::{Thread, ThreadStatus};
 use agent_client_protocol as acp;
 use agent_client_protocol::v2::schema::PromptRequest;
+use client_core::testing::TestWorkspace;
 use std::path::PathBuf;
-use utils::testing::TestWorkspace;
 
 #[test]
 fn enter_or_secondary_enter_sends_the_prompt_and_clears_the_composer_and_shift_enter_does_not() {

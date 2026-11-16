@@ -18,12 +18,14 @@ mod settings;
 pub mod sidebar;
 pub mod target;
 mod tasks;
+mod temp_dir;
 #[cfg(feature = "testing")]
 pub mod testing;
 mod theme;
 mod thread_view;
 pub mod threads;
 pub mod ui;
+pub mod variables;
 
 pub use app::{
     DesktopApp, DesktopConfig, NewCloudThread, NewThread, OpenFile, OpenSettings, OpenThreadSwitcher, SelectNextThread,

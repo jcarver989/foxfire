@@ -1,4 +1,5 @@
 use crate::support::{asked, asking_name, name_form, texts};
+use acp_utils::artifact_review::ArtifactReviewElicitationMeta;
 use acp_utils::testing::{FakeAgent, Question};
 use aether_desktop::testing::DesktopHarness;
 use aether_desktop::threads::{Thread, ThreadStatus};
@@ -7,7 +8,6 @@ use agent_client_protocol::v2::schema::{
     EnumOption, PermissionOption, PermissionOptionKind, StringPropertySchema,
 };
 use std::path::PathBuf;
-use utils::artifact_review::ArtifactReviewElicitationMeta;
 
 #[test]
 fn a_typed_answer_reaches_the_agent_once_every_required_field_is_filled() {

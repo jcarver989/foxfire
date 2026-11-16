@@ -3,8 +3,8 @@ use aether_desktop::testing::{DesktopHarness, DesktopHarnessBuilder};
 use aether_desktop::threads::Thread;
 use clankerdiff_core::{DiffScope, FileStatus, FilesMode, StageState};
 use client_core::testing::FakeGit;
+use client_core::testing::TestWorkspace;
 use serde_json::json;
-use utils::testing::TestWorkspace;
 
 #[test]
 fn the_files_tab_counts_the_files_the_agent_reports_as_they_change() {

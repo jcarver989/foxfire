@@ -1,6 +1,8 @@
 pub use agent_client_protocol::AcpAgentConfig as CommandLine;
 
+use crate::variables::{VarError, Vars};
 use agent_client_protocol::AcpAgent;
+use client_core::fs::{JsonFileError, read_json, write_json_atomic};
 use rouge::reactive::{Signal, Stored, signal, stored};
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value, json};
@@ -8,8 +10,6 @@ use std::collections::{BTreeMap, HashMap};
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 use std::str::FromStr;
-use utils::fs::{JsonFileError, read_json, write_json_atomic};
-use utils::variables::{VarError, Vars};
 
 pub const AGENTS_FILE: &str = "acp.json";
 
@@ -100,7 +100,7 @@ pub enum AddAgentError {
 }
 
 pub fn default_agents_file() -> Option<PathBuf> {
-    utils::path::aether_home().map(|home| home.join("desktop").join(AGENTS_FILE))
+    client_core::path::app_home("AETHER_HOME", ".aether").map(|home| home.join("desktop").join(AGENTS_FILE))
 }
 
 pub fn project_agents_file(project: &Path) -> PathBuf {
@@ -200,7 +200,7 @@ impl AgentCatalog {
 
 impl AgentProfile {
     pub(crate) fn vars(&self) -> Vars {
-        Vars::new().with("WORKSPACE", self.workspace.to_string_lossy())
+        Vars::new(self.workspace.to_string_lossy())
     }
 }
 

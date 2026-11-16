@@ -1,4 +1,5 @@
 use crate::agents::{AgentProfile, AgentTransport, CommandLine, Endpoint, EndpointSource, expand_command_line};
+use crate::variables::VarError;
 use acp_utils::websocket;
 use agent_client_protocol::v2::schema::{Implementation, SessionId};
 use agent_client_protocol::{self as acp, Agent, ByteStreams, Client, ConnectTo};
@@ -22,7 +23,6 @@ use tokio_tungstenite::tungstenite;
 use tokio_tungstenite::tungstenite::client::IntoClientRequest;
 use tokio_tungstenite::tungstenite::http::Request;
 use tokio_util::compat::{TokioAsyncReadCompatExt, TokioAsyncWriteCompatExt};
-use utils::variables::VarError;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SessionTarget {

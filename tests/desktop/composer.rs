@@ -4,7 +4,7 @@ use acp_utils::testing::{FakeAgent, FakeAgentRequests, model_select, select};
 use aether_desktop::testing::{DesktopHarness, DesktopHarnessBuilder};
 use aether_desktop::threads::ThreadStatus;
 use agent_client_protocol::v2::schema as acp;
-use utils::testing::TestWorkspace;
+use client_core::testing::TestWorkspace;
 
 #[test]
 fn up_and_down_walk_the_prompts_sent_before() {

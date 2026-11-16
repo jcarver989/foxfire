@@ -70,9 +70,10 @@ tokio-tungstenite = { workspace = true }
 tokio-util = { workspace = true, features = ["compat"] }
 log = { workspace = true, features = ["release_max_level_info"] }
 mimalloc = { workspace = true }
+regex = { workspace = true }
 tracing = { workspace = true, features = ["release_max_level_info"] }
 tracing-subscriber = { workspace = true }
-utils = { package = "aether-utils", path = "../utils", version = "0.3.1" }
+uuid = { workspace = true }
 
 [target.'cfg(unix)'.dependencies]
 notify-rust = "4.18"
@@ -83,4 +84,3 @@ clankerdiff-symbols = { workspace = true }
 clankerdiff-server = { workspace = true }
 client_core = { package = "aether-client-core", path = "../client-core", features = ["testing"], version = "0.1.0" }
 tempfile = { workspace = true }
-utils = { package = "aether-utils", path = "../utils", features = ["testing"], version = "0.3.1" }

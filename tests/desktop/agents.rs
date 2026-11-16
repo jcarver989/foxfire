@@ -5,11 +5,11 @@ use aether_desktop::agents::{
 };
 use aether_desktop::testing::{DesktopHarness, DesktopHarnessBuilder};
 use aether_desktop::threads::Thread;
+use client_core::fs::JsonFileError;
 use serde_json::json;
 use std::fs;
 use std::path::{Path, PathBuf};
 use tempfile::TempDir;
-use utils::fs::JsonFileError;
 
 #[test]
 fn a_project_offers_the_agents_its_file_defines_in_name_order() {

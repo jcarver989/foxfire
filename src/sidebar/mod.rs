@@ -18,6 +18,7 @@ use crate::ui::{
     Icon, IconName, ListRow, MenuItem, Side, StyledExt, UiStyles, context_menu, dispatch, icon_button, icon_slot,
     list_row, resizable_panel, section_header, tree_row,
 };
+use client_core::fs::write_json_atomic;
 use listing::{Listing, RemoteSection, Row, Section, project_name};
 use rouge::core::{AnyView, Div, Role, Styled, View, div, dynamic, each, scroll, show, text, view, window_size};
 use rouge::reactive::{Callback, Memo, ReadSignal, Scope, Signal, Stored, effect, memo, signal, stored, untrack};
@@ -26,7 +27,6 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 use std::sync::Arc;
-use utils::fs::write_json_atomic;
 
 pub const MIN_MAIN_WIDTH: f32 = 320.0;
 

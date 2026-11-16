@@ -1,6 +1,6 @@
+use crate::temp_dir::TempDir;
 use client_core::composer::attachment::PromptAttachment;
 use std::fs;
-use utils::temp_dir::TempDir;
 
 #[derive(Default)]
 pub(crate) struct PastedImages {
