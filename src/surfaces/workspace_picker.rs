@@ -6,7 +6,7 @@ use crate::view::filterable_list::FilterableList;
 use crate::view::input::{Nav, UiEvent};
 use crate::view::widgets::visible_window;
 use crate::view::wrap::as_u16;
-use acp_utils::notifications::{WorkspaceEntry, WorkspaceMoveTarget};
+use client_core::aether::{WorkspaceEntry, WorkspaceMoveTarget};
 use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::buffer::Buffer;
 use ratatui::layout::{Position, Rect};

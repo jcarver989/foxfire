@@ -16,16 +16,16 @@ use crate::settings::{UiSettings, builtin_review_theme_choices};
 use crate::surfaces::composer::ComposerLayout;
 use crate::theme::Theme;
 use crate::view::generation::Generation;
-use acp_utils::client::{AcpEvent, connect_acp_client};
-use acp_utils::notifications::{
+use acp_utils::aether::{
     ContextClearedParams, PromptSearchParams, SessionPreviewParams, WorkspaceListParams, WorkspaceMoveParams,
 };
+use acp_utils::client::{AcpEvent, connect_acp_client};
 pub use acp_utils::testing::sub_agent_tool_update;
 use acp_utils::testing::{
     Channel, FakeAgent, FakeAgentRequests, announced, idle_state, initialize_request, message_chunk, on_session,
     running_state,
 };
-use agent_client_protocol::v2::schema::{self as acp, CreateElicitationRequest, CreateElicitationResponse, SessionId};
+use agent_client_protocol::v2::schema::{self as acp, CreateElicitationResponse, SessionId};
 use agent_client_protocol::{Error, JsonRpcRequest, JsonRpcResponse, Responder};
 use clankerdiff_core::git_patch_from_texts;
 use clankerdiff_ratatui::ThemeChoice;
@@ -275,18 +275,18 @@ where
         self.world.agent.turns.refuse(error);
     }
 
-    pub fn elicit(&mut self, request: CreateElicitationRequest) -> ElicitationReply {
+    pub fn elicit<T: JsonRpcRequest>(&mut self, request: T) -> ElicitationReply<T::Response> {
         let reply = self.world.agent.turns.ask(request);
         self.settle_tasks();
         ElicitationReply(reply)
     }
 
-    pub fn answer_to(&mut self, mut reply: ElicitationReply) -> CreateElicitationResponse {
+    pub fn answer_to<T>(&mut self, mut reply: ElicitationReply<T>) -> T {
         self.settle_tasks();
         reply.0.try_recv().expect("the question was answered").expect("the answer reached the agent")
     }
 
-    pub fn quit_answering(self, reply: ElicitationReply) -> CreateElicitationResponse {
+    pub fn quit_answering<T>(self, reply: ElicitationReply<T>) -> T {
         let Self { app, world, .. } = self;
         drop(app);
         let ElicitationReply(reply) = reply;
@@ -419,7 +419,7 @@ where
     }
 }
 
-pub struct ElicitationReply(oneshot::Receiver<Result<CreateElicitationResponse, Error>>);
+pub struct ElicitationReply<T = CreateElicitationResponse>(oneshot::Receiver<Result<T, Error>>);
 
 struct World {
     tokio: tokio::runtime::Runtime,
@@ -620,6 +620,7 @@ pub struct TestUiBuilder {
     review_themes: Vec<ThemeChoice>,
     git: FakeGit,
     files: Vec<(PathBuf, Vec<u8>)>,
+    plain_acp: bool,
 }
 
 impl Default for TestUiBuilder {
@@ -634,6 +635,7 @@ impl Default for TestUiBuilder {
             review_themes: Vec::new(),
             git: FakeGit::default(),
             files: Vec::new(),
+            plain_acp: false,
         }
     }
 }
@@ -656,6 +658,12 @@ impl TestUiBuilder {
 
     pub fn agent(mut self, script: impl FnOnce(FakeAgent) -> FakeAgent + 'static) -> Self {
         self.agent.push(Box::new(script));
+        self
+    }
+
+    /// Talks to an agent that speaks only standard ACP, without Aether's extensions.
+    pub fn plain_acp(mut self) -> Self {
+        self.plain_acp = true;
         self
     }
 
@@ -707,7 +715,7 @@ impl TestUiBuilder {
             std::fs::create_dir_all(path.parent().expect("a file has a parent")).expect("the directory is created");
             std::fs::write(path, contents).expect("the file is written");
         }
-        let mut session = self.session.git_diff();
+        let mut session = if self.plain_acp { self.session.without_extensions() } else { self.session.git_diff() };
         if !self.files.is_empty() {
             session = session.working_dir(&root);
         }

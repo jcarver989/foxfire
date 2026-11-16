@@ -317,6 +317,7 @@ impl SettingsOverlay {
             MenuRow::Select(entry) if entry.select.multi_select => SettingsPane::ModelSelector(ModelSelector::new(
                 entry.config_id.clone(),
                 &entry.select,
+                LocalConfigView::new(session.config_options()).thought_level_id().map(str::to_owned),
                 reasoning_effort_of(session.config_options()).as_deref(),
             )),
             MenuRow::Select(entry) => SettingsPane::Picker(SettingsPicker::from_entry(entry)?),

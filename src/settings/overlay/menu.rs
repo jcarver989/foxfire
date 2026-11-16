@@ -3,12 +3,13 @@ use crate::surfaces::modal::frame::MODAL_HORIZONTAL_PADDING;
 use crate::theme::Theme;
 use crate::view::list_view::ListView;
 use crate::view::selection::SelectionState;
-use acp_utils::config_option_id::ConfigOptionId;
-use client_core::session_config_view::LocalConfigOption;
+use agent_client_protocol::v2::schema::SessionConfigOptionCategory;
+use client_core::session_config_view::{LocalConfigOption, LocalConfigView};
 use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
 use ratatui::text::Line;
 use ratatui::widgets::StatefulWidget;
+use std::ops::Not;
 
 pub(super) struct SettingsMenu {
     pub(super) rows: Vec<MenuRow>,
@@ -45,9 +46,12 @@ impl MenuRow {
 
 impl SettingsMenu {
     pub(super) fn from_config_options(options: &[LocalConfigOption]) -> Self {
+        let reasoning_controls = LocalConfigView::new(options).reasoning_levels().is_empty().not();
         let rows: Vec<MenuRow> = options
             .iter()
-            .filter(|option| option.id != ConfigOptionId::ReasoningEffort.as_str())
+            .filter(|option| {
+                !(reasoning_controls && option.category == Some(SessionConfigOptionCategory::ThoughtLevel))
+            })
             .filter_map(|option| menu_entry(option).map(MenuRow::Select))
             .collect();
         let selection = SelectionState::new(rows.len());

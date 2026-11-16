@@ -7,7 +7,9 @@ use crate::{renderer::DrawContext, settings::builtin_review_theme_choices};
 use clankerdiff_ratatui::ReviewCapabilities;
 use clankerdiff_ratatui::markdown::{MarkdownDocument, MarkdownReviewEvent};
 use clankerdiff_ratatui::{InputOutcome, MarkdownReviewState, MarkdownReviewWidget};
-use client_core::elicitation::{ElicitationAnswer, ElicitationId};
+use client_core::elicitation::{
+    ArtifactReviewElicitationMeta, ArtifactReviewSubmission, ElicitationAnswer, ElicitationId,
+};
 use crossterm::event::{Event, KeyCode, KeyEventKind};
 use ratatui::{
     buffer::Buffer,
@@ -15,7 +17,6 @@ use ratatui::{
     widgets::{Clear, Paragraph, StatefulWidget, Widget},
 };
 use std::sync::Arc;
-use utils::artifact_review::{ArtifactReviewElicitationMeta, ArtifactReviewSubmission};
 
 pub struct ArtifactReviewScreen {
     id: ElicitationId,
@@ -77,7 +78,7 @@ impl ArtifactReviewScreen {
     }
 
     fn submit(&self, submission: ArtifactReviewSubmission) -> Vec<UiOutput> {
-        let answer = ElicitationAnswer::accept_strings(submission.fields());
+        let answer = ElicitationAnswer::review(&submission);
         vec![
             UiOutput::AnswerElicitation { id: self.id, answer },
             UiOutput::ArtifactReviewed(match submission {

@@ -19,6 +19,8 @@ mod frame;
 mod git_diff;
 mod host;
 mod perf;
+mod permissions;
+mod plain_acp;
 mod plans;
 mod progress_indicator;
 mod prompt_search;

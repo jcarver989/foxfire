@@ -3,7 +3,7 @@ use crate::view::input::{Nav, UiEvent};
 use crate::view::list_view::ListView;
 use crate::view::selection::SelectionState;
 use crate::view::wrap::truncate_spans;
-use acp_utils::notifications::PromptSearchResult;
+use client_core::aether::PromptSearchResult;
 use client_core::composer::prompt_search::{PromptSearchState, PromptSearchStatus};
 use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;

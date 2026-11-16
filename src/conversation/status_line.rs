@@ -2,7 +2,6 @@ use crate::settings::{ResolvedStatusLineSettings, StatusLineSegmentConfig, Statu
 use crate::theme::Theme;
 use crate::view::reasoning_bar::{reasoning_bar, reasoning_color, slot_bar};
 use crate::view::wrap::{truncate_spans, truncate_to_width};
-use acp_utils::config_option_id::ConfigOptionId;
 use agent_client_protocol::v2::schema as acp;
 use client_core::format::token_count;
 use client_core::session_config_view::{LocalConfigOption, LocalConfigView};
@@ -163,11 +162,11 @@ fn render_segment(
             .unwrap_or_default(),
         StatusLineSegmentConfig::Agent => vec![Span::styled(model.agent_name.to_string(), theme.info)],
         StatusLineSegmentConfig::Mode => config
-            .current_display_name(ConfigOptionId::Mode)
+            .current_display_name(&acp::SessionConfigOptionCategory::Mode)
             .map(|mode| vec![Span::styled(mode, theme.text_secondary)])
             .unwrap_or_default(),
         StatusLineSegmentConfig::Model { max_width } => config
-            .current_display_name(ConfigOptionId::Model)
+            .current_display_name(&acp::SessionConfigOptionCategory::Model)
             .map(|model| vec![Span::styled(clamp(&model, *max_width), theme.success)])
             .unwrap_or_default(),
         StatusLineSegmentConfig::Reasoning => {

@@ -5,8 +5,8 @@ use crate::view::filterable_list::FilterableList;
 use crate::view::input::{Nav, UiEvent};
 use crate::view::wrap::truncate_to_width;
 use acp_utils::client::AcpClientError;
-use acp_utils::notifications::SessionPreviewResponse;
 use agent_client_protocol::v2::schema::{self as acp, SessionId};
+use client_core::aether::SessionPreviewResponse;
 use ratatui::buffer::Buffer;
 use ratatui::layout::{Constraint, Layout, Position, Rect};
 use ratatui::style::Style;
@@ -127,8 +127,8 @@ impl SessionPicker {
                 lines.push(Line::raw(""));
                 for turn in &preview.transcript {
                     let role = match turn.role {
-                        acp_utils::notifications::SessionPreviewRole::User => "user",
-                        acp_utils::notifications::SessionPreviewRole::Assistant => "assistant",
+                        client_core::aether::SessionPreviewRole::User => "user",
+                        client_core::aether::SessionPreviewRole::Assistant => "assistant",
                     };
                     lines.push(Line::from(vec![
                         Span::styled(format!(" {role}: "), theme.accent),

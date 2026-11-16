@@ -7,7 +7,6 @@ use crate::view::input::{Nav, UiEvent};
 use crate::view::reasoning_bar::{reasoning_bar, reasoning_column_width, reasoning_label_width};
 use crate::view::selection::Direction;
 use crate::view::wrap::truncate_to_width;
-use acp_utils::config_option_id::ConfigOptionId;
 use client_core::session_config_view::{LocalConfigSelect, LocalConfigValue};
 use crossterm::event::KeyCode;
 use ratatui::buffer::Buffer;
@@ -22,6 +21,8 @@ use utils::ReasoningEffort;
 /// whichever model is focused.
 pub(super) struct ModelSelector {
     config_id: String,
+    /// Where reasoning effort changes go, when the agent offers a thought level.
+    thought_level_id: Option<String>,
     items: FilterableList<ModelSelectorRow>,
     selected_models: BTreeSet<String>,
     original_models: BTreeSet<String>,
@@ -66,7 +67,12 @@ const CAPABILITY_WIDTH: usize = 11;
 const STATUS_WIDTH: usize = 18;
 
 impl ModelSelector {
-    pub(super) fn new(config_id: String, select: &LocalConfigSelect, current_reasoning_effort: Option<&str>) -> Self {
+    pub(super) fn new(
+        config_id: String,
+        select: &LocalConfigSelect,
+        thought_level_id: Option<String>,
+        current_reasoning_effort: Option<&str>,
+    ) -> Self {
         let selected_models: BTreeSet<String> = select.current_values().map(str::to_owned).collect();
         let reasoning = current_reasoning_effort.and_then(|effort| effort.parse().ok());
 
@@ -85,6 +91,7 @@ impl ModelSelector {
 
         Self {
             config_id,
+            thought_level_id,
             items,
             original_models: selected_models.clone(),
             selected_models,
@@ -182,24 +189,28 @@ impl ModelSelector {
             return Vec::new();
         }
 
+        let models = SettingsChange {
+            config_id: self.config_id.clone(),
+            new_value: self.selected_models.iter().cloned().collect::<Vec<_>>().join(","),
+        };
+        let Some(thought_level_id) = self.thought_level_id.clone() else {
+            return vec![models];
+        };
         let reset_disabled = self.original_reasoning_effort == Some(ReasoningEffort::Disabled)
             && self.reasoning_effort != Some(ReasoningEffort::Disabled);
         let mut changes = Vec::new();
         if reset_disabled {
             changes.push(SettingsChange {
-                config_id: ConfigOptionId::ReasoningEffort.as_str().to_string(),
+                config_id: thought_level_id.clone(),
                 new_value: ReasoningEffort::Default.as_str().to_string(),
             });
         }
-        changes.push(SettingsChange {
-            config_id: self.config_id.clone(),
-            new_value: self.selected_models.iter().cloned().collect::<Vec<_>>().join(","),
-        });
+        changes.push(models);
         if self.reasoning_effort != self.original_reasoning_effort
             && !(reset_disabled && self.reasoning_effort.unwrap_or_default() == ReasoningEffort::Default)
         {
             changes.push(SettingsChange {
-                config_id: ConfigOptionId::ReasoningEffort.as_str().to_string(),
+                config_id: thought_level_id,
                 new_value: ReasoningEffort::config_str(self.reasoning_effort).to_string(),
             });
         }
@@ -267,7 +278,7 @@ impl ModelSelector {
                 } else {
                     String::new()
                 };
-                let capabilities = match (value.meta.supports_image, value.meta.supports_audio) {
+                let capabilities = match (value.meta.supports_image == Some(true), value.meta.supports_audio == Some(true)) {
                     (true, true) => "img  audio",
                     (true, false) => "img",
                     (false, true) => "audio",

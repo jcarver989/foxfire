@@ -199,9 +199,7 @@ fn mouse_owning_surfaces_scroll_their_own_selection() {
     ];
     let build = || {
         TestUiBuilder::new()
-            .session(|session| {
-                session.config_options(vec![select("model", "Model", "a", MODELS)]).workspace_move().prompt_search()
-            })
+            .session(|session| session.config_options(vec![model_select("a", MODELS)]).workspace_move().prompt_search())
             .dimensions(80, 24)
             .build()
     };
@@ -345,7 +343,7 @@ mod event_routing {
             ui
         }
 
-        let mut ui = settings_app(vec![select("model", "Model", "a", MODELS)], vec![], vec![]);
+        let mut ui = settings_app(vec![model_select("a", MODELS)], vec![], vec![]);
         open_settings_row(&mut ui, "Model");
         ui.click_text("Beta");
         assert_sets_config_option(&mut ui, "model", "b");

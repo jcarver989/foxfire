@@ -2,7 +2,7 @@ use crate::theme::Theme;
 use crate::view::filterable_list::FilterableList;
 use crate::view::list_view::ListView;
 use crate::view::selection::SelectionState;
-use acp_utils::notifications::AetherCapabilities;
+use client_core::aether::AetherCapabilities;
 use client_core::composer::attachment::PromptAttachment;
 use client_core::composer::completion_token::Trigger;
 use client_core::composer::file_listing::FileListing;

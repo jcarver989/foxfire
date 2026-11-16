@@ -1,14 +1,15 @@
-pub(crate) use acp_utils::client::AcpEvent;
-pub(crate) use acp_utils::config_meta::SelectOptionMeta;
-pub(crate) use acp_utils::notifications::{
+pub(crate) use acp_utils::aether::SelectOptionMeta;
+pub(crate) use acp_utils::aether::{
     AuthMethodsUpdatedParams, ContextClearedParams, McpNotification, McpRequest, McpServerAuthCapability,
     McpServerStatus, McpServerStatusEntry, PromptSearchParams, PromptSearchResult, SessionPreviewParams,
     WorkspaceEntry, WorkspaceListParams, WorkspaceListResponse, WorkspaceMoveParams, WorkspaceMoveResponse,
     WorkspaceMoveTarget,
 };
+pub(crate) use acp_utils::client::AcpEvent;
 pub(crate) use acp_utils::testing::{
-    FakeAgent, announced, choices, idle_notification, model_choice, model_picker, on_session, option_group, plan,
-    prompt_search_hit, prompt_search_response, running_state, select, session_preview, user_message,
+    FakeAgent, announced, choices, idle_notification, mode_select, model_choice, model_picker, model_select,
+    on_session, option_group, plan, prompt_search_hit, prompt_search_response, running_state, select, session_preview,
+    thought_level_select, user_message,
 };
 pub(crate) use agent_client_protocol::Error;
 pub(crate) use agent_client_protocol::v2::schema::{
@@ -113,7 +114,7 @@ pub(crate) fn url_elicitation(server_name: &str, url: &str, elicitation_id: &str
 
 fn server_meta(server_name: &str) -> acp::Meta {
     acp::Meta::from_iter([(
-        acp_utils::notifications::AETHER_META_NAMESPACE.to_string(),
+        acp_utils::aether::AETHER_META_NAMESPACE.to_string(),
         serde_json::json!({ "mcpServer": server_name }),
     )])
 }
@@ -137,7 +138,7 @@ pub(crate) fn message_texts(app: &TestUi) -> impl Iterator<Item = String> + '_ {
 }
 
 pub(crate) fn sonnet_model() -> acp::SessionConfigOption {
-    select("model", "Model", "claude-sonnet", &[("claude-sonnet", "Claude Sonnet")])
+    model_select("claude-sonnet", &[("claude-sonnet", "Claude Sonnet")])
 }
 
 pub(crate) fn status_ui() -> TestUi {
@@ -158,6 +159,7 @@ pub(crate) fn select_option(id: &str, current_value: &str) -> acp::SessionConfig
 
 pub(crate) fn reasoning_option(current: &str, levels: &[&str]) -> acp::SessionConfigOption {
     acp::SessionConfigOption::select("reasoning_effort", "Reasoning", current.to_string(), plain(levels))
+        .category(acp::SessionConfigOptionCategory::ThoughtLevel)
 }
 
 pub(crate) fn mode_option(current: &str, modes: &[&str]) -> acp::SessionConfigOption {
@@ -313,7 +315,7 @@ pub(crate) fn start_search(ui: &mut TestUi, query: &str) {
 pub(crate) fn answer_search(
     ui: &mut TestUi,
     query: &str,
-    response: Result<acp_utils::notifications::PromptSearchResponse, Error>,
+    response: Result<acp_utils::aether::PromptSearchResponse, Error>,
 ) {
     loop {
         let (request, responder) = ui.held::<Search>();

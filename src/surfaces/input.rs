@@ -1,8 +1,8 @@
 use crate::command::HostCommand;
 use crate::settings::overlay::SettingsChange;
-use acp_utils::notifications::WorkspaceMoveTarget;
 use agent_client_protocol::v2::schema::SessionId;
 use clankerdiff_client::DiffReviewEvent;
+use client_core::aether::WorkspaceMoveTarget;
 use client_core::elicitation::{ElicitationAnswer, ElicitationId};
 use std::path::PathBuf;
 

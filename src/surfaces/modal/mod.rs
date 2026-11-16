@@ -3,7 +3,10 @@ pub(crate) mod frame;
 mod url;
 
 use crate::renderer::DrawContext;
-use client_core::elicitation::{ElicitationAnswer, ElicitationId, FormField};
+use agent_client_protocol::v2::schema::ElicitationContentValue;
+use client_core::elicitation::{
+    ElicitationAnswer, ElicitationId, FieldInput, FormField, FormFieldKind, PermissionChoice, SelectOption,
+};
 use crossterm::event::{KeyEvent, MouseEvent, MouseEventKind};
 use ratatui::buffer::Buffer;
 use ratatui::layout::{Constraint, Position, Rect};
@@ -27,6 +30,8 @@ pub struct ElicitationModal {
 enum ModalKind {
     Form(FormModal),
     Url(UrlModal),
+    /// A permission request asks one question whose answers are the agent's choices.
+    Permission(FormModal),
 }
 
 impl ElicitationModal {
@@ -38,13 +43,31 @@ impl ElicitationModal {
         Self { id, kind: ModalKind::Url(UrlModal::new(source, message, url)) }
     }
 
+    pub fn permission(
+        id: ElicitationId,
+        title: String,
+        description: Option<String>,
+        options: Vec<PermissionChoice>,
+    ) -> Self {
+        let choices = options.into_iter().map(|choice| SelectOption { value: choice.id, title: choice.name }).collect();
+        let field = FormField {
+            name: PERMISSION_FIELD.to_owned(),
+            label: title,
+            description,
+            required: true,
+            kind: FormFieldKind::Single(choices),
+            default_input: FieldInput::Single(0),
+        };
+        Self { id, kind: ModalKind::Permission(FormModal::new("Agent".to_owned(), String::new(), vec![field])) }
+    }
+
     pub fn id(&self) -> ElicitationId {
         self.id
     }
 
     pub fn render_inline(&mut self, area: Rect, buf: &mut Buffer, theme: &Theme) -> Option<Position> {
         match &mut self.kind {
-            ModalKind::Form(form) => form.render(area, buf, theme),
+            ModalKind::Form(form) | ModalKind::Permission(form) => form.render(area, buf, theme),
             ModalKind::Url(url) => {
                 Paragraph::new(Text::from(url.body_lines(theme, area.width))).render(area, buf);
                 None
@@ -56,7 +79,7 @@ impl ElicitationModal {
     /// own pages, so it takes whatever the host can spare.
     pub fn inline_height(&self, theme: &Theme, width: u16) -> u16 {
         match &self.kind {
-            ModalKind::Form(_) => u16::MAX,
+            ModalKind::Form(_) | ModalKind::Permission(_) => u16::MAX,
             ModalKind::Url(url) => as_u16(url.body_lines(theme, width).len()),
         }
     }
@@ -64,7 +87,7 @@ impl ElicitationModal {
     /// The keys this request answers, for a host that draws its own footer.
     pub fn key_hints(&self) -> Vec<KeyHint> {
         match &self.kind {
-            ModalKind::Form(form) => form.hints(),
+            ModalKind::Form(form) | ModalKind::Permission(form) => form.hints(),
             ModalKind::Url(_) => url::HINTS.to_vec(),
         }
     }
@@ -80,12 +103,11 @@ impl ElicitationModal {
             }
             UiEvent::Mouse(MouseEvent { kind: MouseEventKind::Moved, .. }) => None,
             UiEvent::Mouse(mouse) => {
-                if let Some(direction) = scroll_direction(mouse.kind) {
-                    if let ModalKind::Form(form) = &mut self.kind {
-                        form.vertical(direction);
+                if let ModalKind::Form(form) | ModalKind::Permission(form) = &mut self.kind {
+                    match scroll_direction(mouse.kind) {
+                        Some(direction) => drop(form.vertical(direction)),
+                        None => form.click(mouse.column, mouse.row),
                     }
-                } else if let ModalKind::Form(form) = &mut self.kind {
-                    form.click(mouse.column, mouse.row);
                 }
                 None
             }
@@ -96,7 +118,7 @@ impl ElicitationModal {
     pub(crate) fn on_url_opened(&mut self, result: Result<(), String>) -> Option<ElicitationAnswer> {
         match &mut self.kind {
             ModalKind::Url(url) => url.on_opened(result),
-            ModalKind::Form(_) => None,
+            ModalKind::Form(_) | ModalKind::Permission(_) => None,
         }
     }
 
@@ -107,7 +129,7 @@ impl ElicitationModal {
     }
 
     pub(crate) fn needs_mouse_capture(&self) -> bool {
-        matches!(self.kind, ModalKind::Form(_))
+        matches!(self.kind, ModalKind::Form(_) | ModalKind::Permission(_))
     }
 
     pub(crate) fn render(&mut self, area: Rect, buf: &mut Buffer, cx: &mut DrawContext<'_>) -> Option<Position> {
@@ -117,8 +139,8 @@ impl ElicitationModal {
         let width = area.width.min(76).min(area.width.saturating_mul(92) / 100);
         let content_width = width.saturating_sub(MODAL_HORIZONTAL_PADDING * 2);
         let (title, footer, body_rows) = match &self.kind {
-            ModalKind::Form(form) => (
-                "Request",
+            ModalKind::Form(form) | ModalKind::Permission(form) => (
+                if matches!(self.kind, ModalKind::Permission(_)) { "Permission" } else { "Request" },
                 key_hints(&form.hints(), cx.theme),
                 form.content_height(cx.theme, content_width.saturating_sub(SCROLLBAR_WIDTH + 1)),
             ),
@@ -130,7 +152,7 @@ impl ElicitationModal {
             .min(area.height.saturating_mul(70) / 100)
             .clamp(3.min(area.height), area.height);
         let server_name = match &self.kind {
-            ModalKind::Form(form) => form.server_name(),
+            ModalKind::Form(form) | ModalKind::Permission(form) => form.server_name(),
             ModalKind::Url(url) => url.server_name.as_str(),
         };
         let frame =
@@ -146,10 +168,25 @@ impl ElicitationModal {
     fn on_key(&mut self, key: KeyEvent) -> Option<UiOutput> {
         match &mut self.kind {
             ModalKind::Url(url) => url.on_key(self.id, key),
-            ModalKind::Form(form) => form.on_key(key).map(|answer| UiOutput::AnswerElicitation { id: self.id, answer }),
+            ModalKind::Form(form) | ModalKind::Permission(form) => form.on_key(key).map(|answer| self.output(answer)),
         }
     }
+
+    fn output(&self, answer: ElicitationAnswer) -> UiOutput {
+        let answer = match (&self.kind, answer) {
+            (ModalKind::Permission(_), ElicitationAnswer::Accept(Some(mut content))) => {
+                match content.remove(PERMISSION_FIELD) {
+                    Some(ElicitationContentValue::String(option)) => ElicitationAnswer::Choose(option),
+                    _ => ElicitationAnswer::Cancel,
+                }
+            }
+            (_, answer) => answer,
+        };
+        UiOutput::AnswerElicitation { id: self.id, answer }
+    }
 }
+
+const PERMISSION_FIELD: &str = "option";
 
 #[cfg(test)]
 #[allow(clippy::absolute_paths, clippy::similar_names)]

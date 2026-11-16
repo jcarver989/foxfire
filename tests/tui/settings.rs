@@ -1040,8 +1040,8 @@ fn assert_capability_columns_align(text: &str) {
 #[test]
 fn settings_menu_lists_each_option_with_its_current_value() {
     let text = settings_menu_text(vec![
-        select("model", "Model", "claude", &[("gpt-4o", "GPT-4o"), ("claude", "Claude")]),
-        select("mode", "Mode", "code", &[("code", "Code"), ("chat", "Chat")]),
+        model_select("claude", &[("gpt-4o", "GPT-4o"), ("claude", "Claude")]),
+        mode_select("code", &[("code", "Code"), ("chat", "Chat")]),
     ]);
 
     assert!(text.contains("Model: Claude"), "menu should show the current model:\n{text}");
@@ -1052,8 +1052,8 @@ fn settings_menu_lists_each_option_with_its_current_value() {
 fn settings_menu_hides_reasoning_effort() {
     // Reasoning effort is edited from inside the model selector, not as its own row.
     let text = settings_menu_text(vec![
-        select("model", "Model", "gpt-4o", &[("gpt-4o", "GPT-4o")]),
-        select("reasoning_effort", "Reasoning", "high", &[("low", "Low"), ("high", "High")]),
+        model_select("gpt-4o", &[("gpt-4o", "GPT-4o")]),
+        thought_level_select("high", &[("low", "Low"), ("high", "High")]),
     ]);
 
     assert!(text.contains("Model"), "menu should still show model:\n{text}");
@@ -1062,10 +1062,8 @@ fn settings_menu_hides_reasoning_effort() {
 
 #[test]
 fn settings_menu_hides_options_with_no_values() {
-    let text = settings_menu_text(vec![
-        select("model", "Model", "gpt-4o", &[("gpt-4o", "GPT-4o")]),
-        select("empty", "Empty", "", &[]),
-    ]);
+    let text =
+        settings_menu_text(vec![model_select("gpt-4o", &[("gpt-4o", "GPT-4o")]), select("empty", "Empty", "", &[])]);
 
     assert!(text.contains("Model"), "menu should show model:\n{text}");
     assert!(!text.contains("Empty"), "an option offering nothing to pick should be hidden:\n{text}");
@@ -1102,9 +1100,8 @@ fn settings_menu_derives_the_model_label_after_local_changes() {
 
 #[test]
 fn settings_menu_selection_wraps() {
-    let mut ui = TestUiBuilder::new()
-        .session(|session| session.config_options(vec![select("model", "Model", "a", &[("a", "A")])]))
-        .build();
+    let mut ui =
+        TestUiBuilder::new().session(|session| session.config_options(vec![model_select("a", &[("a", "A")])])).build();
     ui.run_command("/settings");
 
     // Rows run Theme, Model, MCP Servers. Up from the first wraps to the last,
@@ -1118,9 +1115,8 @@ fn settings_menu_selection_wraps() {
 
 #[test]
 fn settings_overlay_renders_placeholder_when_the_terminal_is_tiny() {
-    let mut ui = TestUiBuilder::new()
-        .session(|session| session.config_options(vec![select("model", "Model", "a", &[("a", "A")])]))
-        .build();
+    let mut ui =
+        TestUiBuilder::new().session(|session| session.config_options(vec![model_select("a", &[("a", "A")])])).build();
     ui.run_command("/settings");
 
     ui.resize(5, 4);
@@ -1173,7 +1169,7 @@ fn settings_picker_shows_unavailable_options_with_their_reason() {
 #[test]
 fn settings_picker_esc_returns_to_the_menu_without_changing_anything() {
     let mut ui = TestUiBuilder::new()
-        .session(|session| session.config_options(vec![select("model", "Model", "a", &[("a", "A"), ("b", "B")])]))
+        .session(|session| session.config_options(vec![model_select("a", &[("a", "A"), ("b", "B")])]))
         .build();
     open_settings_row(&mut ui, "Model");
     ui.key(key(KeyCode::Down));
@@ -1189,7 +1185,7 @@ fn settings_picker_esc_returns_to_the_menu_without_changing_anything() {
 #[test]
 fn settings_picker_confirming_the_current_value_sends_nothing() {
     let mut ui = TestUiBuilder::new()
-        .session(|session| session.config_options(vec![select("model", "Model", "a", &[("a", "A"), ("b", "B")])]))
+        .session(|session| session.config_options(vec![model_select("a", &[("a", "A"), ("b", "B")])]))
         .build();
     open_settings_row(&mut ui, "Model");
 
@@ -1201,7 +1197,7 @@ fn settings_picker_confirming_the_current_value_sends_nothing() {
 #[test]
 fn settings_picker_confirm_updates_the_menu_immediately() {
     let mut ui = TestUiBuilder::new()
-        .session(|session| session.config_options(vec![select("model", "Model", "a", &[("a", "A"), ("b", "B")])]))
+        .session(|session| session.config_options(vec![model_select("a", &[("a", "A"), ("b", "B")])]))
         .build();
     open_settings_row(&mut ui, "Model");
     ui.key(key(KeyCode::Down));
@@ -1218,7 +1214,7 @@ fn model_selector_shows_capability_tags_and_provider_stripped_names() {
         vec![model_choice(
             "anthropic:opus",
             "Anthropic / Opus",
-            SelectOptionMeta { supports_image: true, ..Default::default() },
+            SelectOptionMeta { supports_image: Some(true), ..Default::default() },
         )],
     );
     let mut ui = model_selector_ui(option);
@@ -1341,14 +1337,14 @@ fn model_selector_shows_reasoning_bar_on_the_focused_row() {
         "Anthropic / Opus",
         SelectOptionMeta {
             reasoning_levels: vec![ReasoningEffort::Low, ReasoningEffort::Medium, ReasoningEffort::High],
-            supports_image: true,
+            supports_image: Some(true),
             ..Default::default()
         },
     );
     let plain = model_choice(
         "deepseek:chat",
         "DeepSeek / Chat",
-        SelectOptionMeta { supports_image: true, ..Default::default() },
+        SelectOptionMeta { supports_image: Some(true), ..Default::default() },
     );
     let option = model_picker("", vec![with_reasoning, plain]);
     let mut ui = model_selector_ui(option);
@@ -1489,14 +1485,13 @@ fn model_selector_toggles_only_what_the_query_left_visible() {
 
 #[test]
 fn config_option_update_keeps_every_option_and_the_theme_row() {
-    let mut ui = TestUiBuilder::new()
-        .session(|session| session.config_options(vec![select("model", "Model", "a", &[("a", "A")])]))
-        .build();
+    let mut ui =
+        TestUiBuilder::new().session(|session| session.config_options(vec![model_select("a", &[("a", "A")])])).build();
     ui.run_command("/settings");
 
     ui.acp_event(config_update(vec![
-        select("model", "Model", "b", &[("a", "A"), ("b", "B")]),
-        select("mode", "Mode", "code", &[("code", "Code")]),
+        model_select("b", &[("a", "A"), ("b", "B")]),
+        mode_select("code", &[("code", "Code")]),
     ]));
 
     let text = overlay_text(&mut ui);

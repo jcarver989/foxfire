@@ -103,6 +103,9 @@ impl App {
             }
             Elicitation::Form { source, message, fields } => ElicitationModal::form(id, source, message, fields),
             Elicitation::Url { source, message, url } => ElicitationModal::url(id, source, message, url),
+            Elicitation::Permission { title, description, options } => {
+                ElicitationModal::permission(id, title, description, options)
+            }
         };
         match self.overlay.as_mut() {
             Some(Overlay::Settings(overlay)) => overlay.show_elicitation(modal),

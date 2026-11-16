@@ -143,7 +143,7 @@ fn status_line_ctrl_c_confirmation_replaces_right_side_until_it_disarms() {
 fn status_line_model_max_width_truncates() {
     let settings = segments(vec![CWD], vec![Segment::Model { max_width: Some(10) }]);
     let mut ui = TestUiBuilder::new().settings(settings).dimensions(120, 15).build();
-    ui.acp_event(config_update(vec![select("model", "Model", "long", &[("long", "Very Long Model Name Indeed")])]));
+    ui.acp_event(config_update(vec![model_select("long", &[("long", "Very Long Model Name Indeed")])]));
 
     ui.assert_viewport_not_contains("Very Long Model Name Indeed");
 }
@@ -261,7 +261,7 @@ fn status_line_zero_width_no_panic() {
 fn status_line_multi_model_comma_separated() {
     let mut ui = status_ui();
     let both = &[("claude-sonnet", "Claude Sonnet"), ("claude-opus", "Claude Opus")];
-    ui.acp_event(config_update(vec![select("model", "Model", "claude-sonnet,claude-opus", both)]));
+    ui.acp_event(config_update(vec![model_select("claude-sonnet,claude-opus", both)]));
 
     ui.assert_viewport_contains("Claude Sonnet, Claude Opus");
 }
@@ -293,7 +293,7 @@ fn status_line_unicode_truncation_uses_display_width() {
 #[test]
 fn status_line_mode_displays_current_mode() {
     let mut ui = status_ui();
-    ui.acp_event(config_update(vec![sonnet_model(), select("mode", "Mode", "code", &[("code", "Code")])]));
+    ui.acp_event(config_update(vec![sonnet_model(), mode_select("code", &[("code", "Code")])]));
 
     ui.assert_viewport_contains("Code");
 }
