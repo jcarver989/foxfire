@@ -13,14 +13,16 @@ pub struct ConfigOptionMeta {
 }
 
 /// Meta for an individual `SessionConfigSelectOption` (e.g. one model choice).
+///
+/// Media support is `None` when the agent did not say, which is not the same as `Some(false)`.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SelectOptionMeta {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub reasoning_levels: Vec<ReasoningEffort>,
-    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
-    pub supports_image: bool,
-    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
-    pub supports_audio: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub supports_image: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub supports_audio: Option<bool>,
 }
 
 impl SelectOptionMeta {
@@ -66,8 +68,8 @@ mod tests {
     fn select_option_meta_roundtrip() {
         let original = SelectOptionMeta {
             reasoning_levels: vec![ReasoningEffort::Low, ReasoningEffort::Medium, ReasoningEffort::High],
-            supports_image: true,
-            supports_audio: false,
+            supports_image: Some(true),
+            supports_audio: Some(false),
         };
         let meta = original.clone().into_meta();
         assert!(meta.is_some());
@@ -97,7 +99,7 @@ mod tests {
     }
 
     #[test]
-    fn false_fields_omitted_from_serialized_output() {
+    fn unset_fields_omitted_from_serialized_output() {
         let meta = ConfigOptionMeta { multi_select: false };
         let value = serde_json::to_value(&meta).unwrap();
         let obj = value.as_object().unwrap();
@@ -116,8 +118,7 @@ mod tests {
         assert!(!SelectOptionMeta::default().supports_reasoning());
         let meta = SelectOptionMeta {
             reasoning_levels: vec![ReasoningEffort::Low, ReasoningEffort::High],
-            supports_image: false,
-            supports_audio: false,
+            ..Default::default()
         };
         assert!(meta.supports_reasoning());
     }

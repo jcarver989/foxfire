@@ -1,13 +1,12 @@
 #![doc = include_str!("../README.md")]
 
-pub mod config_meta;
+pub mod aether;
 pub mod config_option_id;
 pub mod content;
 #[cfg(feature = "client")]
 pub mod conversation;
-#[cfg(not(target_family = "wasm"))]
+#[cfg(feature = "server")]
 pub mod elicitation;
-pub mod notifications;
 
 #[cfg(feature = "websocket")]
 pub mod websocket;

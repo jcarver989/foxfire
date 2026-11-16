@@ -1,6 +1,6 @@
 use acp::v2::schema::{AgentCapabilities, CompactionStatus, LoginAuthRequest};
+use acp_utils::aether::{PromptSearchParams, SessionPreviewParams};
 use acp_utils::client::{AcpClient, AcpClientError, AcpEvent, connect_acp_client};
-use acp_utils::notifications::{PromptSearchParams, SessionPreviewParams};
 use acp_utils::testing::FakeAgent;
 use agent_client_protocol::schema::ProtocolVersion;
 use agent_client_protocol::v2::schema::{
@@ -162,6 +162,7 @@ async fn initialized_client_manages_typed_sessions_and_streams_replay() -> Resul
     LocalSet::new()
         .run_until(async {
             let agent_builder = acp_utils::testing::FakeAgent::default()
+                .aether()
                 .agent_info(Implementation::new("Typed Fake", "1.0"))
                 .replay_message("other", "unrelated")
                 .replay_message("listed", "replayed")
@@ -278,6 +279,37 @@ async fn permission_with_no_options_is_cancelled() {
             assert!(matches!(response.outcome, RequestPermissionOutcome::Cancelled(_)));
             responder.respond(PromptResponse::new("user-message")).unwrap();
             prompt.await.unwrap();
+            client.handle.disconnect().await;
+        })
+        .await;
+}
+
+#[tokio::test]
+async fn permission_waits_for_the_clients_choice() {
+    use acp::v2::schema::{
+        PermissionOption, PermissionOptionKind, RequestPermissionOutcome, RequestPermissionRequest,
+        RequestPermissionResponse, SelectedPermissionOutcome,
+    };
+
+    LocalSet::new()
+        .run_until(async {
+            let (agent, mut requests) = FakeAgent::default().capture();
+            let mut client = agent.build().await.unwrap();
+            let connection = requests.connection.recv().await.unwrap();
+            let options = vec![
+                PermissionOption::new("allow", "Allow once", PermissionOptionKind::AllowOnce),
+                PermissionOption::new("reject", "Reject", PermissionOptionKind::RejectOnce),
+            ];
+            let asked = connection.send_request(RequestPermissionRequest::new("session", "Run rm?", options));
+
+            let Some(AcpEvent::PermissionRequest { params, responder }) = client.event_rx.recv().await else {
+                panic!("the request reaches the client");
+            };
+            assert_eq!(params.title, "Run rm?");
+            let rejected = RequestPermissionOutcome::Selected(SelectedPermissionOutcome::new("reject"));
+            responder.respond(RequestPermissionResponse::new(rejected.clone())).unwrap();
+
+            assert_eq!(asked.block_task().await.unwrap().outcome, rejected);
             client.handle.disconnect().await;
         })
         .await;

@@ -1,24 +1,25 @@
 use super::{idle_notification, initialize_response, running_notification};
-use crate::notifications::{
-    AetherCapabilities, AetherMeta, McpRequest, PromptSearchParams, PromptSearchResponse, SessionPreviewParams,
-    SessionPreviewResponse, WorkspaceListParams, WorkspaceMoveParams, WorkspaceMoveTarget, WorkspaceStatusPayload,
-    WorkspaceStatusResponse,
+use crate::aether::{
+    AetherCapabilities, AetherMeta, McpRequest, PromptSearchParams, PromptSearchResponse, RemoteServerInfo,
+    SessionPreviewParams, SessionPreviewResponse, WorkspaceListParams, WorkspaceMoveParams, WorkspaceMoveTarget,
+    WorkspaceStatusPayload, WorkspaceStatusResponse,
 };
 use agent_client_protocol::util::MatchDispatchFrom;
 use agent_client_protocol::v2::schema::{
     AgentCapabilities, CancelSessionNotification, CloseSessionRequest, CloseSessionResponse, CompactionStatus,
-    CompactionUpdate, CreateElicitationRequest, CreateElicitationResponse, ElicitationFormMode, ElicitationSchema,
-    ElicitationSessionScope, ElicitationUrlMode, Implementation, InitializeRequest, InitializeResponse,
-    ListSessionsRequest, ListSessionsResponse, LoginAuthRequest, LoginAuthResponse, NewSessionRequest,
-    NewSessionResponse, PromptRequest, PromptResponse, ResumeSessionRequest, ResumeSessionResponse, SessionConfigKind,
-    SessionConfigOption, SessionConfigOptionValue, SessionId, SessionInfo, SessionListCursor, SessionUpdate,
-    SetSessionConfigOptionRequest, SetSessionConfigOptionResponse, StopReason, StringPropertySchema,
+    CompactionUpdate, CreateElicitationRequest, ElicitationFormMode, ElicitationSchema, ElicitationSessionScope,
+    ElicitationUrlMode, Implementation, InitializeRequest, InitializeResponse, ListSessionsRequest,
+    ListSessionsResponse, LoginAuthRequest, LoginAuthResponse, NewSessionRequest, NewSessionResponse, PermissionOption,
+    PromptRequest, PromptResponse, RequestPermissionRequest, ResumeSessionRequest, ResumeSessionResponse,
+    SessionConfigKind, SessionConfigOption, SessionConfigOptionValue, SessionId, SessionInfo, SessionListCursor,
+    SessionUpdate, SetSessionConfigOptionRequest, SetSessionConfigOptionResponse, StopReason, StringPropertySchema,
     UpdateSessionNotification,
 };
 use agent_client_protocol::{
     self as acp, Agent, Client, ConnectionTo, Dispatch, HandleDispatchFrom, Handled, JsonRpcRequest, NullRun,
     Responder, v2,
 };
+use serde::Serialize;
 use std::any::{Any, TypeId};
 use std::collections::{HashMap, VecDeque};
 use std::sync::{Arc, Mutex};
@@ -56,6 +57,8 @@ pub struct FakeAgentRequests {
     pub mcp: mpsc::UnboundedReceiver<McpRequest>,
     pub search: mpsc::UnboundedReceiver<PromptSearchParams>,
     pub close_session: mpsc::UnboundedReceiver<CloseSessionRequest>,
+    /// The method of every `_aether/*` request the agent received, advertised or not.
+    pub extensions: mpsc::UnboundedReceiver<String>,
     pub turns: QueuedTurns,
     held: HashMap<TypeId, Box<dyn Any + Send + Sync>>,
 }
@@ -64,6 +67,7 @@ pub enum Question {
     Form(ElicitationSchema),
     Url(String),
     ArtifactReview(ArtifactReviewElicitationMeta),
+    Permission(Vec<PermissionOption>),
 }
 
 pub type HeldRequests<T> = mpsc::UnboundedReceiver<(T, Responder<<T as JsonRpcRequest>::Response>)>;
@@ -101,14 +105,31 @@ impl FakeAgent {
         Self::default().new_session_response(NewSessionResponse::new(session_id))
     }
 
-    pub fn remote_server(mut self, info: &crate::notifications::RemoteServerInfo) -> Self {
+    /// Advertises every Aether extension, as `aether acp` does.
+    pub fn aether(self) -> Self {
+        self.advertise(|capabilities| {
+            *capabilities = AetherCapabilities {
+                prompt_search: true,
+                session_preview: true,
+                workspace_move: true,
+                git_diff: true,
+                workspace_status: true,
+            };
+        })
+    }
+
+    pub fn remote_server(mut self, info: &RemoteServerInfo) -> Self {
         self.initialize.meta = Some(info.to_meta());
         self
     }
 
     pub fn session_preview(mut self, preview: SessionPreviewResponse) -> Self {
         self.previews.push(preview);
-        self
+        self.advertise(|capabilities| capabilities.session_preview = true)
+    }
+
+    pub fn workspace_move(self) -> Self {
+        self.advertise(|capabilities| capabilities.workspace_move = true)
     }
 
     pub fn prompt_history(mut self, prompts: &[&str]) -> Self {
@@ -142,7 +163,7 @@ impl FakeAgent {
 
     pub fn workspace_status(mut self, session_id: &str, status: WorkspaceStatusResponse) -> Self {
         self.workspace_statuses.insert(session_id.to_owned(), status);
-        self
+        self.advertise(|capabilities| capabilities.workspace_status = true)
     }
 
     pub fn new_session_response(mut self, response: NewSessionResponse) -> Self {
@@ -266,10 +287,7 @@ impl QueuedTurns {
         self.0.lock().unwrap().refusal = Some(error);
     }
 
-    pub fn ask(
-        &self,
-        request: CreateElicitationRequest,
-    ) -> oneshot::Receiver<Result<CreateElicitationResponse, acp::Error>> {
+    pub fn ask<T: JsonRpcRequest>(&self, request: T) -> oneshot::Receiver<Result<T::Response, acp::Error>> {
         let (answer, answered) = oneshot::channel();
         let cx = self.0.lock().unwrap().cx.clone().expect("the client connected");
         let connection = cx.clone();
@@ -315,31 +333,48 @@ impl QueuedTurns {
                 }
                 self.end(StopReason::EndTurn);
             }
+            Turn::Elicit { message, question: Question::Permission(options) } => {
+                let (session_id, cx) = self.running_session();
+                let request = RequestPermissionRequest::new(session_id, message.clone(), options.clone());
+                self.echo_answer(&cx, self.ask(request));
+            }
             Turn::Elicit { message, question } => {
-                let (request, cx) = {
-                    let queue = self.0.lock().unwrap();
-                    let running = queue.running.as_ref().expect("a turn runs");
-                    let scope = ElicitationSessionScope::new(running.session_id.clone());
-                    let request = question.request(scope, format!("elicitation-{}", queue.taken), message);
-                    (request, queue.cx.clone().expect("the client connected"))
-                };
-                let answered = self.ask(request);
-                let turns = self.clone();
-                let _ = cx.spawn(async move {
-                    let Ok(answer) = answered.await else {
-                        return Ok(());
-                    };
-                    let echo = match answer {
-                        Ok(response) => serde_json::to_string(&response),
-                        Err(error) => serde_json::to_string(&error),
-                    }
-                    .map_err(acp::Error::into_internal_error)?;
-                    turns.reply(&echo);
-                    turns.end(StopReason::EndTurn);
-                    Ok(())
-                });
+                let (session_id, cx) = self.running_session();
+                let id = format!("elicitation-{}", self.0.lock().unwrap().taken);
+                let request = question.request(ElicitationSessionScope::new(session_id), id, message);
+                self.echo_answer(&cx, self.ask(request));
             }
         }
+    }
+}
+
+impl QueuedTurns {
+    fn running_session(&self) -> (SessionId, ConnectionTo<Client>) {
+        let queue = self.0.lock().unwrap();
+        let running = queue.running.as_ref().expect("a turn runs");
+        (running.session_id.clone(), queue.cx.clone().expect("the client connected"))
+    }
+
+    /// Replies with the client's answer, so a test reads it from the transcript.
+    fn echo_answer<T: Serialize + Send + 'static>(
+        &self,
+        cx: &ConnectionTo<Client>,
+        answered: oneshot::Receiver<Result<T, acp::Error>>,
+    ) {
+        let turns = self.clone();
+        let _ = cx.spawn(async move {
+            let Ok(answer) = answered.await else {
+                return Ok(());
+            };
+            let echo = match answer {
+                Ok(response) => serde_json::to_string(&response),
+                Err(error) => serde_json::to_string(&error),
+            }
+            .map_err(acp::Error::into_internal_error)?;
+            turns.reply(&echo);
+            turns.end(StopReason::EndTurn);
+            Ok(())
+        });
     }
 }
 
@@ -363,25 +398,29 @@ impl HandleDispatchFrom<Client> for FakeAgent {
             })
             .await
             .if_request(async |request: SessionPreviewParams, responder| {
-                self.answer_scripted(request, responder, |request| {
+                let advertised = self.aether_capabilities().session_preview || self.remote_info().is_some();
+                self.answer_extension(advertised, request, responder, |request| {
                     self.previews.iter().find(|preview| preview.session_id == request.session_id).cloned()
                 })
             })
             .await
             .if_request(async |request: PromptSearchParams, responder| {
                 let _ = self.recorder.search.send(request.clone());
-                self.answer_scripted(request, responder, |request| Some(self.search_prompts(request)))
+                let advertised = self.aether_capabilities().prompt_search;
+                self.answer_extension(advertised, request, responder, |request| Some(self.search_prompts(request)))
             })
             .await
             .if_request(async |request: WorkspaceListParams, responder| {
-                self.answer_scripted(request, responder, |_| None)
+                let advertised = self.aether_capabilities().workspace_move;
+                self.answer_extension(advertised, request, responder, |_| None)
             })
             .await
             .if_request(async |request: WorkspaceMoveParams, responder| {
-                if let WorkspaceMoveTarget::Existing { path } = &request.target {
+                let advertised = self.aether_capabilities().workspace_move;
+                if advertised && let WorkspaceMoveTarget::Existing { path } = &request.target {
                     self.session_cwds.insert(request.session_id.clone(), path.clone());
                 }
-                self.answer_scripted(request, responder, |_| None)
+                self.answer_extension(advertised, request, responder, |_| None)
             })
             .await
             .if_request(async |request: ListSessionsRequest, responder| {
@@ -394,7 +433,10 @@ impl HandleDispatchFrom<Client> for FakeAgent {
             })
             .await
             .if_request(async |request: WorkspaceStatusPayload, responder| {
-                self.answer_scripted(request, responder, |request| self.workspace_status_of(&request.session_id))
+                let advertised = self.aether_capabilities().workspace_status;
+                self.answer_extension(advertised, request, responder, |request| {
+                    self.workspace_status_of(&request.session_id)
+                })
             })
             .await
             .if_request(async |request: LoginAuthRequest, responder| {
@@ -442,6 +484,31 @@ impl FakeAgent {
         let session = self.initialize.capabilities.session.take().unwrap_or_default();
         self.initialize.capabilities.session = Some(session.meta(Some(capabilities.to_meta())));
         self
+    }
+
+    fn aether_capabilities(&self) -> AetherCapabilities {
+        AetherCapabilities::of(&self.initialize.capabilities)
+    }
+
+    fn remote_info(&self) -> Option<RemoteServerInfo> {
+        RemoteServerInfo::from_meta(self.initialize.meta.as_ref())
+    }
+
+    /// Answers an `_aether/*` request like `aether acp` when the extension is advertised, and like any other ACP
+    /// agent, which does not know the method, when it is not.
+    fn answer_extension<T: JsonRpcRequest>(
+        &self,
+        advertised: bool,
+        request: T,
+        responder: Responder<T::Response>,
+        scripted: impl FnOnce(&T) -> Option<T::Response>,
+    ) -> Answered<T> {
+        let _ = self.recorder.extensions.send(request.method().to_owned());
+        if !advertised {
+            responder.respond_with_error(acp::Error::method_not_found())?;
+            return Ok(Handled::Yes);
+        }
+        self.answer_scripted(request, responder, scripted)
     }
 
     fn answer_scripted<T: JsonRpcRequest>(
@@ -572,6 +639,7 @@ impl Question {
                 CreateElicitationRequest::new(ElicitationFormMode::new(scope, review_schema()), message)
                     .meta(meta.to_meta())
             }
+            Self::Permission(_) => unreachable!("a permission is asked with session/request_permission"),
         }
     }
 }
@@ -660,6 +728,7 @@ struct Recorder {
     mcp: mpsc::UnboundedSender<McpRequest>,
     search: mpsc::UnboundedSender<PromptSearchParams>,
     close_session: mpsc::UnboundedSender<CloseSessionRequest>,
+    extensions: mpsc::UnboundedSender<String>,
 }
 
 impl Recorder {
@@ -675,6 +744,7 @@ impl Recorder {
         let (mcp, mcp_rx) = mpsc::unbounded_channel();
         let (search, search_rx) = mpsc::unbounded_channel();
         let (close_session, close_session_rx) = mpsc::unbounded_channel();
+        let (extensions, extensions_rx) = mpsc::unbounded_channel();
         let recorder = Self {
             connection,
             initialize,
@@ -687,6 +757,7 @@ impl Recorder {
             mcp,
             search,
             close_session,
+            extensions,
         };
         let requests = FakeAgentRequests {
             connection: connection_rx,
@@ -700,6 +771,7 @@ impl Recorder {
             mcp: mcp_rx,
             search: search_rx,
             close_session: close_session_rx,
+            extensions: extensions_rx,
             turns,
             held: HashMap::new(),
         };

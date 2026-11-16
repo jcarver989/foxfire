@@ -1,13 +1,13 @@
 use super::error::AcpClientError;
 use super::event::AcpEvent;
-use crate::notifications::{AuthMethodsUpdatedParams, ContextClearedParams, GitDiffEventPayload, McpNotification};
+use crate::aether::{AuthMethodsUpdatedParams, ContextClearedParams, GitDiffEventPayload, McpNotification};
 use agent_client_protocol::schema::ProtocolVersion;
 use agent_client_protocol::util::MatchDispatchFrom;
 use agent_client_protocol::v2::schema::{
     AuthMethod, CancelledPermissionOutcome, ClientCapabilities, CreateElicitationRequest, ElicitationCapabilities,
     ElicitationFormCapabilities, ElicitationUrlCapabilities, Implementation, InitializeRequest, InitializeResponse,
-    PermissionOptionId, PermissionOptionKind, PromptCapabilities, RequestPermissionOutcome, RequestPermissionRequest,
-    RequestPermissionResponse, SelectedPermissionOutcome, SessionCapabilities, UpdateSessionNotification,
+    PromptCapabilities, RequestPermissionOutcome, RequestPermissionRequest, RequestPermissionResponse,
+    SessionCapabilities, UpdateSessionNotification,
 };
 use agent_client_protocol::{self as acp, Client, ConnectTo, ConnectionTo, Dispatch, HandleDispatchFrom, Handled, v2};
 use futures::future::select;
@@ -158,13 +158,13 @@ impl HandleDispatchFrom<acp::Agent> for ClientHandlers {
             Ok::<_, acp::Error>(())
         };
         MatchDispatchFrom::new(message, &cx)
-            .if_request(async |request: RequestPermissionRequest, responder| {
-                let outcome = auto_approve_option(&request).map_or_else(
-                    || RequestPermissionOutcome::Cancelled(CancelledPermissionOutcome::new()),
-                    |option| RequestPermissionOutcome::Selected(SelectedPermissionOutcome::new(option)),
-                );
-                let _ = responder.respond(RequestPermissionResponse::new(outcome));
-                Ok(())
+            .if_request(async |params: RequestPermissionRequest, responder| {
+                if params.options.is_empty() {
+                    let cancelled = RequestPermissionOutcome::Cancelled(CancelledPermissionOutcome::new());
+                    let _ = responder.respond(RequestPermissionResponse::new(cancelled));
+                    return Ok(());
+                }
+                emit(AcpEvent::PermissionRequest { params: Box::new(params), responder })
             })
             .await
             .if_request(async |params: CreateElicitationRequest, responder| {
@@ -201,12 +201,4 @@ fn spawn(future: impl Future<Output = ()> + 'static) {
 
 async fn await_response<T>(receiver: oneshot::Receiver<Result<T, AcpClientError>>) -> Result<T, AcpClientError> {
     receiver.await.map_err(|_| AcpClientError::AgentCrashed("ACP task ended before responding".to_string()))?
-}
-
-fn auto_approve_option(req: &RequestPermissionRequest) -> Option<PermissionOptionId> {
-    req.options
-        .iter()
-        .find(|option| matches!(option.kind, PermissionOptionKind::AllowOnce | PermissionOptionKind::AllowAlways))
-        .or_else(|| req.options.first())
-        .map(|option| option.option_id.clone())
 }

@@ -10,8 +10,8 @@ pub use items::{
 pub use tool_calls::{SubAgent, ToolCall, ToolStatus, diff_change_label};
 pub use turn::{TurnFinished, TurnPhase};
 
+use crate::aether::{AetherMeta, SubAgentMeta};
 use crate::client::AcpEvent;
-use crate::notifications::{AetherMeta, SubAgentMeta};
 use agent_client_protocol::{schema::MaybeUndefined, v2::schema as acp};
 use items::MessageRole;
 use std::collections::{HashMap, HashSet};
@@ -70,7 +70,8 @@ impl Conversation {
             AcpEvent::AuthMethodsUpdated(_)
             | AcpEvent::McpNotification(_)
             | AcpEvent::GitDiffEvent(_)
-            | AcpEvent::ElicitationRequest { .. } => {}
+            | AcpEvent::ElicitationRequest { .. }
+            | AcpEvent::PermissionRequest { .. } => {}
         }
         None
     }

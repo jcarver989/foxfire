@@ -1,4 +1,4 @@
-use crate::notifications::AETHER_META_NAMESPACE;
+use crate::aether::AETHER_META_NAMESPACE;
 use agent_client_protocol::v2::schema::{
     self as acp, CompleteElicitationNotification, CreateElicitationRequest, CreateElicitationResponse, Meta, SessionId,
 };
@@ -70,14 +70,6 @@ pub fn build_acp_elicitation_completion_notification(
     CompleteElicitationNotification::new(build_scoped_elicitation_id(session_id, server_name, elicitation_id))
 }
 
-/// The MCP server a converted elicitation originated from, if any.
-pub fn source_mcp_server_name(meta: Option<&Meta>) -> Option<&str> {
-    meta.and_then(|meta| meta.get(AETHER_META_NAMESPACE))
-        .and_then(Value::as_object)
-        .and_then(|source| source.get("mcpServer"))
-        .and_then(Value::as_str)
-}
-
 fn map_mcp_elicitation_schema_to_acp(
     schema: &mcp::ElicitationSchema,
 ) -> Result<acp::ElicitationSchema, ElicitationConversionError> {
@@ -118,6 +110,7 @@ fn build_scoped_elicitation_id(session_id: &SessionId, server_name: &str, elicit
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::aether::source_mcp_server_name;
     use agent_client_protocol::v2::schema::{
         ElicitationAction, ElicitationMode, ElicitationPropertySchema, ElicitationScope,
     };

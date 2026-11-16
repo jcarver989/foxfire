@@ -3,20 +3,20 @@
 mod fake_agent;
 pub use fake_agent::{FakeAgent, FakeAgentRequests, HeldRequests, Question, QueuedTurns};
 
-use crate::config_meta::{ConfigOptionMeta, SelectOptionMeta};
-use crate::notifications::{
+use crate::aether::{
     AetherMeta, AuthMethodsUpdatedParams, GitDiffEventPayload, McpNotification, PromptSearchResponse,
     PromptSearchResult, SessionPreviewResponse, SessionPreviewRole, SessionPreviewTurn, SubAgentMeta,
 };
+use crate::aether::{ConfigOptionMeta, SelectOptionMeta};
 pub use agent_client_protocol::Channel;
 use agent_client_protocol::schema::{IntoOption, ProtocolVersion};
 use agent_client_protocol::v2::schema::{
     CompleteElicitationNotification, ContentBlock, ContentChunk, CreateElicitationRequest, CreateElicitationResponse,
     ElicitationFormMode, ElicitationSchema, ElicitationSessionScope, IdleStateUpdate, Implementation,
     InitializeRequest, InitializeResponse, PlanEntry, PlanId, PlanUpdate, PlanUpdateContent, RunningStateUpdate,
-    SessionConfigOption, SessionConfigSelectGroup, SessionConfigSelectOption, SessionConfigSelectOptions, SessionId,
-    SessionUpdate, StateUpdate, StopReason, SubagentUpdate, ToolCallStatus, ToolCallUpdate, UpdateSessionNotification,
-    UserMessage,
+    SessionConfigOption, SessionConfigOptionCategory, SessionConfigSelectGroup, SessionConfigSelectOption,
+    SessionConfigSelectOptions, SessionId, SessionUpdate, StateUpdate, StopReason, SubagentUpdate, ToolCallStatus,
+    ToolCallUpdate, UpdateSessionNotification, UserMessage,
 };
 use agent_client_protocol::{
     self as acp, Agent, Client, ConnectionTo, HandleConnectionClose, HandleDispatchFrom, NullRun, Responder,
@@ -195,7 +195,21 @@ pub fn choices(values: &[(&str, &str)]) -> Vec<SessionConfigSelectOption> {
 
 pub fn model_picker(current: &str, choices: impl Into<SessionConfigSelectOptions>) -> SessionConfigOption {
     SessionConfigOption::select("model", "Model", current.to_owned(), choices)
+        .category(SessionConfigOptionCategory::Model)
         .meta(ConfigOptionMeta { multi_select: true }.into_meta())
+}
+
+/// A single-select model option, as most agents offer it.
+pub fn model_select(current: &str, values: &[(&str, &str)]) -> SessionConfigOption {
+    select("model", "Model", current, values).category(SessionConfigOptionCategory::Model)
+}
+
+pub fn mode_select(current: &str, values: &[(&str, &str)]) -> SessionConfigOption {
+    select("mode", "Mode", current, values).category(SessionConfigOptionCategory::Mode)
+}
+
+pub fn thought_level_select(current: &str, values: &[(&str, &str)]) -> SessionConfigOption {
+    select("reasoning_effort", "Reasoning", current, values).category(SessionConfigOptionCategory::ThoughtLevel)
 }
 
 pub fn model_choice(value: &str, name: &str, meta: SelectOptionMeta) -> SessionConfigSelectOption {

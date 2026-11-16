@@ -1,4 +1,4 @@
-use acp_utils::notifications::{McpNotification, McpServerStatus, McpServerStatusEntry};
+use acp_utils::aether::{McpNotification, McpServerStatus, McpServerStatusEntry};
 use acp_utils::testing::{
     TestPeer, idle_notification, initialize_request, initialize_response, plan_notification, running_notification,
     test_connection,

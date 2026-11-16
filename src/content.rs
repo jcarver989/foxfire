@@ -1,9 +1,9 @@
 use agent_client_protocol::v2::schema as acp;
-#[cfg(not(target_family = "wasm"))]
+#[cfg(feature = "server")]
 use llm::ContentBlock as LlmContentBlock;
 use std::borrow::Cow;
 
-#[cfg(not(target_family = "wasm"))]
+#[cfg(feature = "server")]
 pub fn map_acp_to_content_blocks(blocks: Vec<acp::ContentBlock>) -> Vec<LlmContentBlock> {
     blocks
         .into_iter()
@@ -20,7 +20,7 @@ pub fn map_acp_to_content_blocks(blocks: Vec<acp::ContentBlock>) -> Vec<LlmConte
         .collect()
 }
 
-#[cfg(not(target_family = "wasm"))]
+#[cfg(feature = "server")]
 pub fn map_user_content_block(block: &LlmContentBlock) -> acp::ContentBlock {
     match block {
         LlmContentBlock::Text { text } => acp::ContentBlock::from(text.clone()),

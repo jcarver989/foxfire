@@ -1,5 +1,9 @@
-//! Typed wire-format types for Aether's custom ACP extension requests and
-//! notifications.
+//! Aether's ACP extensions: the `_aether/*` requests and notifications, and the `_meta` Aether reads and writes
+//! under [`AETHER_META_NAMESPACE`]. Clients use them only once the agent advertises them in [`AetherCapabilities`].
+mod config_meta;
+
+pub use config_meta::*;
+
 use std::path::PathBuf;
 
 use agent_client_protocol::v2::schema::{self as acp, AuthMethod, Meta, SessionId, ToolCallId};
@@ -9,12 +13,21 @@ use clankerdiff_protocol::shared::{DocumentUpdate, Event};
 use schemars::JsonSchema;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 pub use utils::display_meta::{ToolDisplayMeta, ToolResultMeta};
 pub use utils::mcp_status::{McpServerAuthCapability, McpServerStatus, McpServerStatusEntry};
 
 use utils::meta::{from_meta, to_meta};
 
 pub const AETHER_META_NAMESPACE: &str = "contextbridge/aether";
+
+/// The MCP server an elicitation the agent relayed came from, if any.
+pub fn source_mcp_server_name(meta: Option<&Meta>) -> Option<&str> {
+    meta.and_then(|meta| meta.get(AETHER_META_NAMESPACE))
+        .and_then(Value::as_object)
+        .and_then(|source| source.get("mcpServer"))
+        .and_then(Value::as_str)
+}
 
 pub trait AetherMeta: Serialize + DeserializeOwned + Default {
     #[must_use]
@@ -50,7 +63,7 @@ impl RemoteServerInfo {
 }
 
 /// Parameters for `_aether/session_usage` notifications.
-#[cfg(not(target_family = "wasm"))]
+#[cfg(feature = "server")]
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, JsonRpcNotification)]
 #[notification(method = "_aether/session_usage")]
 pub struct SessionUsageParams {
@@ -217,6 +230,8 @@ pub struct AetherCapabilities {
     pub workspace_move: bool,
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub git_diff: bool,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub workspace_status: bool,
 }
 
 impl AetherMeta for AetherCapabilities {}
