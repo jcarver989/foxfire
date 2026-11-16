@@ -18,7 +18,6 @@ Utilities for the [Agent Client Protocol](https://agentclientprotocol.com/) (ACP
 ## Key Types
 
 - **`elicitation`** -- Typed conversion between MCP elicitation and native ACP `elicitation/create` messages
-- **`SessionUsageParams`** -- Token usage tracking notifications
 - **`McpNotification` / `McpRequest`** -- MCP message tunneling over ACP
 - Agent subprocesses -- use upstream `agent_client_protocol::{AcpAgent, AcpAgentConfig, Stdio}`
 - **`AcpClientHandle`** -- Initialized, cloneable client for typed ACP v2 requests

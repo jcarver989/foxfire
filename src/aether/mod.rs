@@ -62,14 +62,6 @@ impl RemoteServerInfo {
     }
 }
 
-/// Parameters for `_aether/session_usage` notifications.
-#[cfg(feature = "server")]
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, JsonRpcNotification)]
-#[notification(method = "_aether/session_usage")]
-pub struct SessionUsageParams {
-    pub usage: llm::SessionUsageEvent,
-}
-
 /// Parameters for `_aether/context_cleared` notifications.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, JsonSchema, JsonRpcNotification)]
 #[notification(method = "_aether/context_cleared")]
