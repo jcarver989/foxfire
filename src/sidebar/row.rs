@@ -3,10 +3,10 @@ use super::listing::{Row, RowKind};
 use crate::remotes::{InstanceState, Lifecycle};
 use crate::threads::ThreadStatus;
 use crate::ui::tokens::{ICON_SIZE, ROW_HEIGHT, Radius, TWO_LINE_ROW_HEIGHT, UNREAD_DOT_SIZE};
-use crate::ui::{
-    Icon, IconName, SelectionState, UiStyles, WispState, hint, icon_button, icon_slot, inline_edit, list_row, wisp,
+use crate::ui::{Icon, IconName, SelectionState, UiStyles, WispState, hint, icon_button, icon_slot, list_row, wisp};
+use rouge::core::{
+    AnyView, Div, Key, MenuItem as WindowMenuItem, Role, Styled, Theme, View, div, editable, text, view,
 };
-use rouge::core::{AnyView, Div, MenuItem as WindowMenuItem, Role, Styled, View, div, text, view};
 use rouge::reactive::{Signal, signal};
 use rouge::widgets::context_menu;
 
@@ -199,13 +199,34 @@ fn rename_editor(sidebar: &Sidebar) -> AnyView {
     let Some(value) = sidebar.sources.rename.with_untracked(|rename| rename.as_ref().map(|rename| rename.value)) else {
         return ().into_any();
     };
-    view! {
-        <div test_id="rename-input" w_full min_w=0.0>
-            <inline_edit value on_commit={move |_: String| sidebar.commit_rename()}
-                         on_cancel={move || sidebar.cancel_rename()}/>
-        </div>
-    }
-    .into_any()
+    let accent = Theme::current().get_untracked().accent;
+    let field = editable(value)
+        .autofocus()
+        .select_all_on_focus()
+        .caret_color(accent)
+        .selection_color(accent.with_alpha(0.3))
+        .w_full()
+        .on_blur(move |_| sidebar.commit_rename())
+        .on_submit(move |_| sidebar.commit_rename());
+    div()
+        .test_id("rename-input")
+        .w_full()
+        .min_w(0.0)
+        .px(4.0)
+        .rounded(Radius::Inner)
+        .border(1.0)
+        .border_color(Role::Accent)
+        .bg(Role::Canvas)
+        .body()
+        .text_color(Role::Text)
+        .on_key_down(move |event| {
+            if event.key == Key::Escape {
+                event.stop_propagation();
+                sidebar.cancel_rename();
+            }
+        })
+        .child(field)
+        .into_any()
 }
 
 fn trailing(selector: &str, age: Option<String>, actions: Vec<AnyView>, selected: bool, hovered: Signal<bool>) -> Div {
