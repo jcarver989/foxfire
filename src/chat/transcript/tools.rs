@@ -377,7 +377,7 @@ fn clip(text: &str) -> (&str, usize) {
         end = newline;
     }
     let rest = &text[end..];
-    (&text[..end], rest.strip_prefix('\n').unwrap_or(rest).lines().count())
+    (&text[..end], rest.trim_prefix('\n').lines().count())
 }
 
 fn show_all(id: String, hidden: usize, on_click: Callback) -> AnyView {

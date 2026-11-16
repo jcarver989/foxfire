@@ -306,7 +306,7 @@ impl Thread {
     fn mutate(&self, change: impl FnOnce(&mut ThreadState)) {
         let effects = self.state.try_update(|state| {
             change(state);
-            let effects = state.core.as_mut().map(SessionCore::take_effects).unwrap_or_default();
+            let effects = state.core.as_mut().map_or_default(SessionCore::take_effects);
             if effects.iter().any(|effect| matches!(effect, Effect::ConnectionClosed)) {
                 state.link = Link::Closed;
             }

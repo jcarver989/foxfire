@@ -403,7 +403,7 @@ impl DesktopApp {
     }
 
     fn toggle_sidebar(self) {
-        self.registry.update(|state| state.sidebar_collapsed = !state.sidebar_collapsed);
+        self.registry.update(|state| state.sidebar_collapsed.toggle());
     }
 
     fn render_modal(self, modal: Modal) -> AnyView {

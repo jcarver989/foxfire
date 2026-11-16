@@ -132,7 +132,7 @@ impl StatusLine {
             restoring_focus.set(true);
             details.set(true);
         };
-        let label = move || doing.get().map(|doing| doing.label(plan.get().as_deref())).unwrap_or_default();
+        let label = move || doing.get().map_or_default(|doing| doing.label(plan.get().as_deref()));
         let last_turn = memo(move || self.last_turn.get().filter(|_| doing.get().is_none()));
         let busy = move || doing.get().is_some();
         let mark = switch(
@@ -208,7 +208,7 @@ impl StatusLine {
                 <div test_id="plan-toggle" flex_none flex items_center gap=8.0 cursor=Cursor::Pointer
                      on_click={move |event| {
                          event.stop_propagation();
-                         open.update(|open| *open = !*open);
+                         open.update(bool::toggle);
                      }}>
                     <div flex_none w=PLAN_BAR_WIDTH h=PLAN_BAR_HEIGHT flex rounded=Radius::Full
                          overflow_hidden bg=Role::BorderSubtle>

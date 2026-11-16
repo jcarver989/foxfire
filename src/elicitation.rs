@@ -68,7 +68,7 @@ impl ElicitationCard {
         let body = match elicitation {
             Elicitation::Url { url, .. } => view! { <div><text small muted>{url.clone()}</text></div> }.into_any(),
             Elicitation::ArtifactReview(meta) => {
-                let path = meta.path.as_ref().map(|path| path.display().to_string()).unwrap_or_default();
+                let path = meta.path.as_ref().map_or_default(|path| path.display().to_string());
                 view! { <div><text small muted>{path}</text></div> }.into_any()
             }
             Elicitation::Form { .. } => {
