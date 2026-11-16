@@ -1,21 +1,18 @@
 use crate::command::{AgentCommand, CommandResult, PromptRejection, Reply};
-use crate::connection::resume_request;
+use crate::connection::{list_sessions, resume_request};
 use crate::session_model::initial_workspace_status;
 use acp_utils::aether::{
     McpRequest, SessionPreviewParams, WorkspaceListParams, WorkspaceMoveParams, WorkspaceStatusPayload,
 };
 use acp_utils::client::{AcpClientError, AcpClientHandle};
 use agent_client_protocol::v2::schema::{
-    CancelSessionNotification, ListSessionsRequest, LoginAuthRequest, NewSessionRequest, PromptRequest,
-    SetSessionConfigOptionRequest,
+    CancelSessionNotification, LoginAuthRequest, NewSessionRequest, PromptRequest, SetSessionConfigOptionRequest,
 };
 use agent_client_protocol::{ErrorCode, JsonRpcRequest};
 use futures::FutureExt;
 use futures::future::BoxFuture;
 use futures::stream::FuturesUnordered;
 
-/// Agent requests are polled in place rather than spawned, so their results come back in the order
-/// the agent answered them instead of the order worker threads happen to finish.
 pub(super) type Requests = FuturesUnordered<BoxFuture<'static, CommandResult>>;
 
 pub(super) fn execute(
@@ -48,7 +45,8 @@ pub(super) fn execute(
             });
         }
         AgentCommand::ListSessions => {
-            submit_request(handle, requests, ListSessionsRequest::new(), CommandResult::SessionsListed);
+            let handle = handle.clone();
+            requests.push(async move { CommandResult::SessionsListed(list_sessions(&handle, None).await) }.boxed());
         }
         AgentCommand::ResumeSession { session_id, cwd } => {
             submit_request(handle, requests, resume_request(session_id.clone(), cwd), move |result| {

@@ -274,7 +274,7 @@ impl SessionCore {
                     self.session.set_workspace_status(status);
                 }
             }
-            CommandResult::SessionsListed(Ok(response)) => self.reply(Reply::SessionsListed(response.sessions)),
+            CommandResult::SessionsListed(Ok(sessions)) => self.reply(Reply::SessionsListed(sessions)),
             CommandResult::SessionsListed(Err(error)) => {
                 self.report_error(&format!("Failed to list sessions: {error}"));
             }

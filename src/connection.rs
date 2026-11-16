@@ -2,7 +2,7 @@ use crate::runtime::SessionRuntime;
 use crate::session_core::SessionCoreConfig;
 use crate::session_model::{WorkspaceAccess, initial_workspace_status};
 use acp_utils::aether::{RemoteServerInfo, SessionPreviewParams};
-use acp_utils::client::{AcpClient, AcpClientError, connect_acp_client, initialize_request};
+use acp_utils::client::{AcpClient, AcpClientError, AcpClientHandle, connect_acp_client, initialize_request};
 use agent_client_protocol::v2::schema::{
     AbsolutePath, Implementation, ListSessionsRequest, NewSessionRequest, NewSessionResponse, ReplayFrom,
     ReplayFromStart, ResumeSessionRequest, SessionId, SessionInfo,
@@ -67,17 +67,7 @@ impl Connection {
     }
 
     pub async fn list_sessions(&self, cwd: &Path) -> Result<Vec<SessionInfo>, ConnectionError> {
-        let mut sessions = Vec::new();
-        let mut cursor = None;
-        loop {
-            let request = ListSessionsRequest::new().cwd(AbsolutePath::new(cwd)).cursor(cursor);
-            let page = self.client.handle.request(request).await?;
-            sessions.extend(page.sessions);
-            cursor = page.next_cursor;
-            if cursor.is_none() {
-                return Ok(sessions);
-            }
-        }
+        Ok(list_sessions(&self.client.handle, Some(cwd)).await?)
     }
 
     fn remote_server(&self) -> Option<RemoteServerInfo> {
@@ -122,6 +112,23 @@ impl Session {
             workspace_access,
         };
         (config, SessionRuntime::new(client.handle, client.event_rx))
+    }
+}
+
+pub(crate) async fn list_sessions(
+    handle: &AcpClientHandle,
+    cwd: Option<&Path>,
+) -> Result<Vec<SessionInfo>, AcpClientError> {
+    let mut sessions = Vec::new();
+    let mut cursor = None;
+    loop {
+        let request = ListSessionsRequest::new().cwd(cwd.map(AbsolutePath::new)).cursor(cursor);
+        let page = handle.request(request).await?;
+        sessions.extend(page.sessions);
+        cursor = page.next_cursor;
+        if cursor.is_none() {
+            return Ok(sessions);
+        }
     }
 }
 

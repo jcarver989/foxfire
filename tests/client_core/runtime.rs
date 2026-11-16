@@ -1,7 +1,7 @@
 use crate::support::{TestError, next_document, next_review_state, run_local};
 use acp_utils::client::{AcpClientError, AcpEvent, connect_acp_client};
 use acp_utils::testing::{Channel, FakeAgent, initialize_request};
-use agent_client_protocol::v2::schema::SessionId;
+use agent_client_protocol::v2::schema::{AbsolutePath, SessionId, SessionInfo};
 use clankerdiff_remote::Invocation;
 use client_core::command::{AgentCommand, Command, CommandResult, GitReviewCommand, ReviewSource};
 use client_core::runtime::{Input, SessionRuntime};
@@ -48,6 +48,25 @@ fn workspace_status_falls_back_to_the_session_path_without_an_agent() -> Result<
             }
         }
         assert!(resolved.contains(&second.path().to_path_buf()));
+        Ok(())
+    })
+}
+
+#[test]
+fn listing_sessions_follows_every_page_across_every_directory() -> Result<(), TestError> {
+    run_local(async {
+        let all = vec![saved("one", "/alpha"), saved("two", "/beta"), saved("three", "/alpha")];
+        let agent = FakeAgent::default().sessions(all.clone()).session_page_size(2);
+        let client = connect_acp_client(agent.serve(), initialize_request()).await?;
+        let mut runtime = SessionRuntime::new(client.handle, client.event_rx);
+
+        runtime.dispatch(Command::Agent(AgentCommand::ListSessions));
+
+        let Input::Result(CommandResult::SessionsListed(listed)) = runtime.next().await else {
+            panic!("expected the listed sessions");
+        };
+        assert_eq!(listed?, all);
+        runtime.shutdown().await;
         Ok(())
     })
 }
@@ -148,6 +167,10 @@ fn an_unavailable_git_review_fails_with_the_reason() -> Result<(), TestError> {
         assert!(state.status().is_some_and(|status| status.contains("no diff here")));
         Ok(())
     })
+}
+
+fn saved(id: &str, cwd: &str) -> SessionInfo {
+    SessionInfo::new(id, AbsolutePath::new(cwd))
 }
 
 async fn disconnected_runtime() -> Result<SessionRuntime, AcpClientError> {
