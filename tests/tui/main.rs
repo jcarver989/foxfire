@@ -1,4 +1,4 @@
-#![allow(clippy::absolute_paths, clippy::manual_contains, clippy::similar_names, clippy::single_char_pattern)]
+#![allow(clippy::manual_contains, clippy::similar_names, clippy::single_char_pattern)]
 
 //! Every integration test for wisp lives in this one binary: separate
 //! test targets each relink the whole crate, which dominates the build.

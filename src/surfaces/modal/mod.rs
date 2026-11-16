@@ -189,7 +189,7 @@ impl ElicitationModal {
 const PERMISSION_FIELD: &str = "option";
 
 #[cfg(test)]
-#[allow(clippy::absolute_paths, clippy::similar_names)]
+#[allow(clippy::similar_names)]
 mod tests {
     use super::*;
     use crate::command::HostCommand;

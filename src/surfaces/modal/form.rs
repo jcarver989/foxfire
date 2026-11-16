@@ -781,7 +781,7 @@ impl Question {
 }
 
 #[cfg(test)]
-#[allow(clippy::absolute_paths, clippy::similar_names)]
+#[allow(clippy::similar_names)]
 mod tests {
     use super::*;
     use crate::testing::{buffer_text, row_containing, row_text};
