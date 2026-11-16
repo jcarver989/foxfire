@@ -178,6 +178,7 @@ impl Composer {
             .on_paste(move |media| self.paste(media))
             .on_submit(move |_| self.submit());
         div()
+            .layer()
             .relative()
             .w_full()
             .min_w(0.0)

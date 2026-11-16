@@ -298,3 +298,21 @@ fn assert_options_lead_the_status_row(harness: &mut DesktopHarness) {
     let [model, composer] = ["config-model", "composer"].map(|id| harness.bounds(id).expect("painted"));
     assert!(model.top() >= composer.bottom(), "the options sit below the composer: {model:?} {composer:?}");
 }
+
+#[test]
+fn a_keystroke_repaints_only_the_composer_and_redraws_a_sliver_of_the_window() {
+    let (mut harness, thread) = DesktopHarness::alpha(replying("alpha-session", "ok"));
+    harness.send(thread, "first");
+    harness.type_text("draft");
+    let ui = harness.ui();
+    ui.draw().unwrap();
+    let before = ui.stats();
+
+    ui.type_text("x");
+    let work = ui.stats() - before;
+    let frame = ui.draw().unwrap();
+
+    assert_eq!(work.relayouts, 0);
+    assert_eq!(work.layer_paints, 1, "only the composer's layer is repainted");
+    assert!(frame.damaged < 50_000, "redrew {} pixels, not a sliver of the 1280×840 window", frame.damaged);
+}
