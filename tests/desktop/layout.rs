@@ -2,7 +2,7 @@ use crate::support::{Edges, replying};
 use aether_desktop::sidebar::MIN_MAIN_WIDTH;
 use aether_desktop::testing::{DesktopHarness, DesktopHarnessBuilder};
 use aether_desktop::threads::{Thread, ThreadStatus};
-use aether_desktop::ui::tokens::SCROLLBAR_WIDTH;
+use aether_desktop::ui::tokens::{CONTENT_MAX_WIDTH, GUTTER, SCROLLBAR_WIDTH};
 use rouge::core::Point;
 
 #[test]
@@ -112,6 +112,28 @@ fn the_scrollbar_has_its_own_full_height_gutter_as_the_window_and_composer_resiz
     assert!(harness.bounds("jump-to-latest").is_none(), "the track is clickable beside the composer");
     let thumb = harness.bounds("scroll-thumb-vertical").unwrap();
     assert_eq!(thumb.bottom(), track.bottom());
+}
+
+#[test]
+fn the_jump_to_latest_button_sits_at_the_right_edge_of_the_content_above_the_composer() {
+    let (mut harness, _) = long_thread();
+    for (width, height) in [(640.0, 480.0), (900.0, 600.0), (1600.0, 900.0)] {
+        harness.resize(width, height);
+        harness.scroll("transcript-view", Point::new(0.0, 200.0)).unwrap();
+
+        let jump = harness.bounds("jump-to-latest").expect("scrolling up shows the jump button");
+        let viewport = harness.bounds("transcript-view").unwrap();
+        let composer = harness.bounds("composer").unwrap();
+        let content_width = (viewport.size.width - 2.0 * GUTTER).min(CONTENT_MAX_WIDTH);
+        let content_right = viewport.center().x + content_width / 2.0;
+        assert!((jump.right() - content_right).abs() < 0.5, "{jump:?} should align with {content_right}");
+        assert!(jump.left() > viewport.center().x, "the button leaves the middle of the text clear");
+        assert!(jump.right() < viewport.right(), "the button leaves a gap before the scrollbar");
+        assert!(jump.bottom() < composer.top(), "the button clears the composer");
+
+        harness.click("jump-to-latest").unwrap();
+        assert!(harness.bounds("jump-to-latest").is_none(), "the right-aligned button still jumps to latest");
+    }
 }
 
 #[test]
