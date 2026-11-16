@@ -120,6 +120,22 @@ fn accept_content_names_the_first_field_standing_in_the_way() {
 }
 
 #[test]
+fn picking_a_checkbox_toggles_only_that_choice() {
+    let mut boolean = FieldInput::Boolean(false);
+    let mut multi = FieldInput::Multi(vec![false, true]);
+
+    for selected in [true, false] {
+        boolean.pick(0);
+        multi.pick(0);
+        assert_eq!(boolean, FieldInput::Boolean(selected));
+        assert_eq!(multi, FieldInput::Multi(vec![selected, true]));
+    }
+
+    multi.pick(2);
+    assert_eq!(multi, FieldInput::Multi(vec![false, true]));
+}
+
+#[test]
 fn display_values_read_back_what_the_user_chose() {
     let urgency =
         StringPropertySchema::new().one_of(vec![EnumOption::new("low", "Low"), EnumOption::new("high", "High")]);

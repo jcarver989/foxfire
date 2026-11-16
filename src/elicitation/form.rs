@@ -121,7 +121,7 @@ impl FormField {
             }
             (FormFieldKind::Boolean, FieldInput::Boolean(value)) => if *value { "Yes" } else { "No" }.to_string(),
             (FormFieldKind::Single(options), FieldInput::Single(selected)) => {
-                options.get(*selected).map(|option| option.title.clone()).unwrap_or_default()
+                options.get(*selected).map_or_default(|option| option.title.clone())
             }
             (FormFieldKind::Multi(options), FieldInput::Multi(selected)) => {
                 checked(options, selected).map(|option| option.title.as_str()).collect::<Vec<_>>().join(", ")
@@ -143,11 +143,11 @@ impl FormFieldKind {
 impl FieldInput {
     pub fn pick(&mut self, option: usize) {
         match self {
-            Self::Boolean(checked) => *checked = !*checked,
+            Self::Boolean(checked) => checked.toggle(),
             Self::Single(chosen) => *chosen = option,
             Self::Multi(checked) => {
                 if let Some(checked) = checked.get_mut(option) {
-                    *checked = !*checked;
+                    checked.toggle();
                 }
             }
             Self::Text(_) => {}
@@ -240,5 +240,5 @@ fn options_from_enum_options(items: &[EnumOption]) -> Vec<SelectOption> {
 }
 
 fn stringified_default<T: std::fmt::Display>(default: Option<T>) -> String {
-    default.map(|value| value.to_string()).unwrap_or_default()
+    default.map_or_default(|value| value.to_string())
 }
