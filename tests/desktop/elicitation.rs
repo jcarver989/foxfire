@@ -4,7 +4,7 @@ use aether_desktop::testing::DesktopHarness;
 use aether_desktop::threads::{Thread, ThreadStatus};
 use agent_client_protocol::v2::schema::{
     BooleanPropertySchema, CreateElicitationRequest, ElicitationFormMode, ElicitationSchema, ElicitationSessionScope,
-    EnumOption, StringPropertySchema,
+    EnumOption, PermissionOption, PermissionOptionKind, StringPropertySchema,
 };
 use std::path::PathBuf;
 use utils::artifact_review::ArtifactReviewElicitationMeta;
@@ -126,6 +126,37 @@ fn cancelling_an_artifact_review_tells_the_agent_and_returns_to_the_chat() {
 
     assert!(answer.contains("cancel"), "{answer}");
     assert!(harness.bounds("transcript").is_some(), "the chat is back");
+}
+
+#[test]
+fn a_permission_request_offers_the_agents_choices_and_sends_the_one_picked() {
+    let (mut harness, thread) = asked(asking_permission());
+    assert!(harness.shows("elicitation-title", "Run rm -rf build?"));
+    assert!(harness.shows("permission-option-0", "Allow once"));
+
+    harness.click("permission-option-1").unwrap();
+    let answer = turn_end(&mut harness, thread);
+
+    assert!(answer.contains(r#""optionId":"reject""#), "{answer}");
+    assert!(harness.bounds("elicitation").is_none(), "an answered request leaves");
+}
+
+#[test]
+fn dismissing_a_permission_request_cancels_it() {
+    let (mut harness, thread) = asked(asking_permission());
+
+    harness.click("elicitation-decline").unwrap();
+    let answer = turn_end(&mut harness, thread);
+
+    assert!(answer.contains("cancelled"), "{answer}");
+}
+
+fn asking_permission() -> FakeAgent {
+    let options = vec![
+        PermissionOption::new("allow", "Allow once", PermissionOptionKind::AllowOnce),
+        PermissionOption::new("reject", "Reject", PermissionOptionKind::RejectOnce),
+    ];
+    FakeAgent::new("alpha-session").prompt_asks("Run rm -rf build?", Question::Permission(options))
 }
 
 fn name_question() -> CreateElicitationRequest {

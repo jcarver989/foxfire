@@ -9,14 +9,13 @@ use clankerdiff_client::{ClientError, ClientState, LookupReply};
 use client_core::command::Reply;
 use client_core::composer::file_listing::{FileListing, RepoFiles};
 use client_core::composer::submission::Submission;
-use client_core::elicitation::{Elicitation, ElicitationId};
+use client_core::elicitation::{ArtifactReviewElicitationMeta, Elicitation, ElicitationId};
 use client_core::session_core::{Effect, SessionCore};
 use rouge::reactive::{Callback, Scope, Signal, Stored, batch, signal, stored};
 use std::fmt::{Debug, Formatter, Result as FmtResult};
 use std::hash::{Hash, Hasher};
 use std::path::PathBuf;
 use std::sync::Arc;
-use utils::artifact_review::ArtifactReviewElicitationMeta;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ThreadEvent {

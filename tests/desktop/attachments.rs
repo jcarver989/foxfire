@@ -1,5 +1,5 @@
 use crate::support::texts;
-use acp_utils::notifications::RemoteServerInfo;
+use acp_utils::aether::RemoteServerInfo;
 use acp_utils::testing::{FakeAgent, FakeAgentRequests};
 use aether_desktop::testing::{DesktopHarness, DesktopHarnessBuilder};
 use aether_desktop::threads::Thread;

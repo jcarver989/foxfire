@@ -65,7 +65,6 @@ impl ElicitationCard {
     }
 
     fn card(self, elicitation: &Elicitation) -> AnyView {
-        let (primary_id, primary_label) = primary(elicitation);
         let body = match elicitation {
             Elicitation::Url { url, .. } => view! { <div><text small muted>{url.clone()}</text></div> }.into_any(),
             Elicitation::ArtifactReview(meta) => {
@@ -83,17 +82,52 @@ impl ElicitationCard {
                 })
                 .into_any()
             }
+            Elicitation::Permission { description, .. } => {
+                let description =
+                    description.clone().map(|description| view! { <text small muted>{description}</text> });
+                view! { <div>{description}</div> }.into_any()
+            }
         };
         view! {
             <div test_id="elicitation" mt=8.0 p=16.0 flex col gap=16.0 material=Material::Glass border=px(1.0) border_color=Role::Accent>
-                <text title primary>{elicitation.question()}</text>
+                <div test_id="elicitation-title"><text title primary>{elicitation.question()}</text></div>
                 {body}
-                <div flex justify_end gap=8.0>
-                    <button test_id=primary_id label=primary_label variant=ButtonVariant::Primary
-                            on_click={move || self.primary_action()}/>
-                    <button test_id="elicitation-decline" label="Decline" variant=ButtonVariant::Secondary
-                            on_click={move || self.answer(ElicitationAnswer::Decline)}/>
+                {self.actions(elicitation)}
+            </div>
+        }
+        .into_any()
+    }
+
+    fn actions(self, elicitation: &Elicitation) -> AnyView {
+        let decline = |label: &'static str| {
+            view! {
+                <button test_id="elicitation-decline" label variant=ButtonVariant::Secondary
+                        on_click={move || self.answer(ElicitationAnswer::Decline)}/>
+            }
+        };
+        if let Elicitation::Permission { options, .. } = elicitation {
+            let choices = options.iter().enumerate().map(|(index, choice)| {
+                let variant = if choice.allows() { ButtonVariant::Primary } else { ButtonVariant::Secondary };
+                let id = choice.id.clone();
+                view! {
+                    <button test_id={format!("permission-option-{index}")} label={choice.name.clone()} variant=variant
+                            on_click={move || self.answer(ElicitationAnswer::Choose(id.clone()))}/>
+                }
+            });
+            return view! {
+                <div flex justify_end flex_wrap gap=8.0>
+                    {..choices.collect::<Vec<_>>()}
+                    {decline("Dismiss")}
                 </div>
+            }
+            .into_any();
+        }
+        let (primary_id, primary_label) = primary(elicitation);
+        view! {
+            <div flex justify_end gap=8.0>
+                <button test_id=primary_id label=primary_label variant=ButtonVariant::Primary
+                        on_click={move || self.primary_action()}/>
+                {decline("Decline")}
             </div>
         }
         .into_any()
@@ -183,7 +217,7 @@ impl ElicitationCard {
                 self.answer(ElicitationAnswer::Accept(None));
             }
             Some((_, Elicitation::ArtifactReview(_))) => self.on_open_review.call(),
-            None => {}
+            Some((_, Elicitation::Permission { .. })) | None => {}
         }
     }
 
@@ -234,5 +268,6 @@ fn primary(elicitation: &Elicitation) -> (&'static str, &'static str) {
         Elicitation::Form { .. } => ("elicitation-submit", "Submit"),
         Elicitation::Url { .. } => ("elicitation-open-url", "Open link"),
         Elicitation::ArtifactReview(_) => ("elicitation-open-review", "Open review"),
+        Elicitation::Permission { .. } => unreachable!("a permission request offers the agent's own choices"),
     }
 }

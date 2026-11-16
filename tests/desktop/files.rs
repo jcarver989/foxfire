@@ -1,5 +1,5 @@
 use crate::support::{files_mode, replying, texts};
-use acp_utils::notifications::RemoteServerInfo;
+use acp_utils::aether::RemoteServerInfo;
 use acp_utils::testing::FakeAgent;
 use aether_desktop::testing::{DesktopHarness, DesktopHarnessBuilder, static_remote};
 use aether_desktop::threads::Thread;

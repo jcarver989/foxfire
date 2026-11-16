@@ -1,6 +1,6 @@
 use crate::support::Edges;
 use crate::support::{replying, texts};
-use acp_utils::testing::{FakeAgent, FakeAgentRequests, select};
+use acp_utils::testing::{FakeAgent, FakeAgentRequests, model_select, select};
 use aether_desktop::testing::{DesktopHarness, DesktopHarnessBuilder};
 use aether_desktop::threads::ThreadStatus;
 use agent_client_protocol::v2::schema as acp;
@@ -278,7 +278,7 @@ fn advertising_commands() -> FakeAgent {
 fn agent_with_models(names: &[&str], current: &str) -> (FakeAgent, FakeAgentRequests) {
     let values: Vec<_> = names.iter().map(|name| format!("model-{name}")).collect();
     let values: Vec<_> = values.iter().map(String::as_str).zip(names.iter().copied()).collect();
-    offering(vec![select("model", "Model", &format!("model-{current}"), &values)]).capture()
+    offering(vec![model_select(&format!("model-{current}"), &values)]).capture()
 }
 
 fn offering(options: Vec<acp::SessionConfigOption>) -> FakeAgent {

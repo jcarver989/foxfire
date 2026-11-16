@@ -79,7 +79,7 @@ pub enum ConnectError {
     Remote(#[from] RemoteError),
     #[error("{remote} serves no agent")]
     NoAgent { remote: String },
-    #[error("{remote}'s agent needs an `acp.cwd` to work in, since it is not an Aether server that picks its own")]
+    #[error("{remote}'s agent needs an `acp.cwd` to work in, since it does not report one of its own")]
     NoCwd { remote: String },
     #[error("the thread's instance has not been launched")]
     NotLaunched,

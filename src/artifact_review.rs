@@ -4,12 +4,13 @@ use crate::ui::ActiveReviewTheme;
 use clankerdiff_core::ReviewCapabilities;
 use clankerdiff_markdown::{MarkdownDocument, MarkdownReviewDecision, MarkdownReviewEvent, MarkdownReviewSubmission};
 use clankerdiff_rouge::{MarkdownController, MarkdownHandle, MarkdownOutput, markdown_review_view};
-use client_core::elicitation::{ElicitationAnswer, ElicitationId};
+use client_core::elicitation::{
+    ArtifactReviewElicitationMeta, ArtifactReviewSubmission, ElicitationAnswer, ElicitationId,
+};
 use rouge::core::{Styled, View, WindowHandle, div, dynamic, view, window_handle};
 use rouge::reactive::{Callback, Scope, Signal, Stored, effect, memo, signal, spawn, stored, untrack};
 use std::rc::Rc;
 use std::sync::Arc;
-use utils::artifact_review::{ArtifactReviewElicitationMeta, ArtifactReviewSubmission};
 
 #[derive(Clone, Copy)]
 pub(crate) struct ArtifactReview {
@@ -97,7 +98,7 @@ impl ArtifactReview {
     fn on_output(self, id: ElicitationId, output: MarkdownOutput) {
         let reply = match output {
             MarkdownOutput::Event(MarkdownReviewEvent::Submit(submission)) => {
-                ElicitationAnswer::accept_strings(answer(&submission).fields())
+                ElicitationAnswer::review(&answer(&submission))
             }
             MarkdownOutput::Event(MarkdownReviewEvent::CopyFormatted(text)) => {
                 return self.window.copy_text(text);

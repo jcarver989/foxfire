@@ -15,6 +15,7 @@ mod launch;
 mod layout;
 mod navigation;
 mod new_thread;
+mod plain_acp;
 mod registry;
 mod remotes;
 mod sessions;

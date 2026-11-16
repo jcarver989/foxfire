@@ -1,5 +1,5 @@
 use crate::support::{define_agent, serve_websocket, serve_websocket_refusing};
-use acp_utils::notifications::RemoteServerInfo;
+use acp_utils::aether::RemoteServerInfo;
 use acp_utils::testing::FakeAgent;
 use acp_utils::websocket;
 use aether_desktop::agents::AgentProfile;
