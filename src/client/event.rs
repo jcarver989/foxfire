@@ -1,15 +1,15 @@
-use crate::aether::{AuthMethodsUpdatedParams, ContextClearedParams, GitDiffEventPayload, McpNotification};
+use crate::aether::{ContextClearedParams, GitDiffEventPayload, McpNotification};
 use agent_client_protocol::Responder;
 use agent_client_protocol::v2::schema::{
-    CreateElicitationRequest, CreateElicitationResponse, ElicitationScope, RequestPermissionRequest,
-    RequestPermissionResponse, SessionId, UpdateSessionNotification,
+    AuthStatusUpdateNotification, CreateElicitationRequest, CreateElicitationResponse, ElicitationScope,
+    RequestPermissionRequest, RequestPermissionResponse, SessionId, UpdateSessionNotification,
 };
 
 /// Events forwarded from the ACP connection to the main event loop.
 pub enum AcpEvent {
     SessionUpdate(Box<UpdateSessionNotification>),
     ContextCleared(ContextClearedParams),
-    AuthMethodsUpdated(AuthMethodsUpdatedParams),
+    AuthStatusUpdated(AuthStatusUpdateNotification),
     McpNotification(McpNotification),
     GitDiffEvent(GitDiffEventPayload),
     ElicitationRequest { params: Box<CreateElicitationRequest>, responder: Responder<CreateElicitationResponse> },
@@ -28,7 +28,7 @@ impl AcpEvent {
                 ElicitationScope::Session(scope) => Some(&scope.session_id),
                 _ => None,
             },
-            Self::AuthMethodsUpdated(_) | Self::McpNotification(_) | Self::ConnectionClosed => None,
+            Self::AuthStatusUpdated(_) | Self::McpNotification(_) | Self::ConnectionClosed => None,
         }
     }
 }

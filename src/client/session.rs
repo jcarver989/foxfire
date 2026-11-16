@@ -1,13 +1,13 @@
 use super::error::AcpClientError;
 use super::event::AcpEvent;
-use crate::aether::{AuthMethodsUpdatedParams, ContextClearedParams, GitDiffEventPayload, McpNotification};
+use crate::aether::{ContextClearedParams, GitDiffEventPayload, McpNotification};
 use agent_client_protocol::schema::ProtocolVersion;
 use agent_client_protocol::util::MatchDispatchFrom;
 use agent_client_protocol::v2::schema::{
-    AuthMethod, CancelledPermissionOutcome, ClientCapabilities, CreateElicitationRequest, ElicitationCapabilities,
-    ElicitationFormCapabilities, ElicitationUrlCapabilities, Implementation, InitializeRequest, InitializeResponse,
-    PromptCapabilities, RequestPermissionOutcome, RequestPermissionRequest, RequestPermissionResponse,
-    SessionCapabilities, UpdateSessionNotification,
+    AuthMethod, AuthStatusUpdateNotification, CancelledPermissionOutcome, ClientCapabilities, CreateElicitationRequest,
+    ElicitationCapabilities, ElicitationFormCapabilities, ElicitationUrlCapabilities, Implementation,
+    InitializeRequest, InitializeResponse, PromptCapabilities, RequestPermissionOutcome, RequestPermissionRequest,
+    RequestPermissionResponse, SessionCapabilities, UpdateSessionNotification,
 };
 use agent_client_protocol::{self as acp, Client, ConnectTo, ConnectionTo, Dispatch, HandleDispatchFrom, Handled, v2};
 use futures::future::select;
@@ -179,7 +179,7 @@ impl HandleDispatchFrom<acp::Agent> for ClientHandlers {
             .await
             .if_notification(async |params: McpNotification| emit(AcpEvent::McpNotification(params)))
             .await
-            .if_notification(async |params: AuthMethodsUpdatedParams| emit(AcpEvent::AuthMethodsUpdated(params)))
+            .if_notification(async |params: AuthStatusUpdateNotification| emit(AcpEvent::AuthStatusUpdated(params)))
             .await
             .done()
     }

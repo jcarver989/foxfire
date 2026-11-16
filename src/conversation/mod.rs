@@ -67,7 +67,7 @@ impl Conversation {
             AcpEvent::SessionUpdate(notification) => return self.apply_update(&notification.update),
             AcpEvent::ContextCleared(_) => self.clear(),
             AcpEvent::ConnectionClosed => self.unconfirm(),
-            AcpEvent::AuthMethodsUpdated(_)
+            AcpEvent::AuthStatusUpdated(_)
             | AcpEvent::McpNotification(_)
             | AcpEvent::GitDiffEvent(_)
             | AcpEvent::ElicitationRequest { .. }

@@ -6,14 +6,14 @@ use crate::aether::{
 };
 use agent_client_protocol::util::MatchDispatchFrom;
 use agent_client_protocol::v2::schema::{
-    AgentCapabilities, CancelSessionNotification, CloseSessionRequest, CloseSessionResponse, CompactionStatus,
-    CompactionUpdate, CreateElicitationRequest, ElicitationFormMode, ElicitationSchema, ElicitationSessionScope,
-    ElicitationUrlMode, Implementation, InitializeRequest, InitializeResponse, ListSessionsRequest,
-    ListSessionsResponse, LoginAuthRequest, LoginAuthResponse, NewSessionRequest, NewSessionResponse, PermissionOption,
-    PromptRequest, PromptResponse, RequestPermissionRequest, ResumeSessionRequest, ResumeSessionResponse,
-    SessionConfigKind, SessionConfigOption, SessionConfigOptionValue, SessionId, SessionInfo, SessionListCursor,
-    SessionUpdate, SetSessionConfigOptionRequest, SetSessionConfigOptionResponse, StopReason, StringPropertySchema,
-    UpdateSessionNotification,
+    AgentAuthCapabilities, AgentCapabilities, AuthStatusCapabilities, AuthStatusRequest, AuthStatusResponse,
+    CancelSessionNotification, CloseSessionRequest, CloseSessionResponse, CompactionStatus, CompactionUpdate,
+    CreateElicitationRequest, ElicitationFormMode, ElicitationSchema, ElicitationSessionScope, ElicitationUrlMode,
+    Implementation, InitializeRequest, InitializeResponse, ListSessionsRequest, ListSessionsResponse, LoginAuthRequest,
+    LoginAuthResponse, NewSessionRequest, NewSessionResponse, PermissionOption, PromptRequest, PromptResponse,
+    RequestPermissionRequest, ResumeSessionRequest, ResumeSessionResponse, SessionConfigKind, SessionConfigOption,
+    SessionConfigOptionValue, SessionId, SessionInfo, SessionListCursor, SessionUpdate, SetSessionConfigOptionRequest,
+    SetSessionConfigOptionResponse, StopReason, StringPropertySchema, UpdateSessionNotification,
 };
 use agent_client_protocol::{
     self as acp, Agent, Client, ConnectionTo, Dispatch, HandleDispatchFrom, Handled, JsonRpcRequest, NullRun,
@@ -34,6 +34,7 @@ pub struct FakeAgent {
     previews: Vec<SessionPreviewResponse>,
     prompt_history: Vec<String>,
     login_method: Option<String>,
+    auth_status: Option<AuthStatusResponse>,
     config_options: Vec<SessionConfigOption>,
     workspace_statuses: HashMap<String, WorkspaceStatusResponse>,
     session_cwds: HashMap<String, std::path::PathBuf>,
@@ -87,6 +88,7 @@ impl Default for FakeAgent {
             previews: Vec::new(),
             prompt_history: Vec::new(),
             login_method: None,
+            auth_status: None,
             config_options: Vec::new(),
             workspace_statuses: HashMap::new(),
             session_cwds: HashMap::new(),
@@ -151,6 +153,11 @@ impl FakeAgent {
     }
     pub fn login_method(mut self, method: &str) -> Self {
         self.login_method = Some(method.into());
+        self
+    }
+    pub fn auth_status(mut self, status: AuthStatusResponse) -> Self {
+        self.initialize.capabilities.auth = Some(AgentAuthCapabilities::new().status(AuthStatusCapabilities::new()));
+        self.auth_status = Some(status);
         self
     }
     pub fn hold<T: JsonRpcRequest>(mut self) -> Self {
@@ -437,6 +444,10 @@ impl HandleDispatchFrom<Client> for FakeAgent {
                 self.answer_extension(advertised, request, responder, |request| {
                     self.workspace_status_of(&request.session_id)
                 })
+            })
+            .await
+            .if_request(async |request: AuthStatusRequest, responder| {
+                self.answer_scripted(request, responder, |_| self.auth_status.clone())
             })
             .await
             .if_request(async |request: LoginAuthRequest, responder| {

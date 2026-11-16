@@ -4,19 +4,19 @@ mod fake_agent;
 pub use fake_agent::{FakeAgent, FakeAgentRequests, HeldRequests, Question, QueuedTurns};
 
 use crate::aether::{
-    AetherMeta, AuthMethodsUpdatedParams, GitDiffEventPayload, McpNotification, PromptSearchResponse,
-    PromptSearchResult, SessionPreviewResponse, SessionPreviewRole, SessionPreviewTurn, SubAgentMeta,
+    AetherMeta, GitDiffEventPayload, McpNotification, PromptSearchResponse, PromptSearchResult, SessionPreviewResponse,
+    SessionPreviewRole, SessionPreviewTurn, SubAgentMeta,
 };
 use crate::aether::{ConfigOptionMeta, SelectOptionMeta};
 pub use agent_client_protocol::Channel;
 use agent_client_protocol::schema::{IntoOption, ProtocolVersion};
 use agent_client_protocol::v2::schema::{
-    CompleteElicitationNotification, ContentBlock, ContentChunk, CreateElicitationRequest, CreateElicitationResponse,
-    ElicitationFormMode, ElicitationSchema, ElicitationSessionScope, IdleStateUpdate, Implementation,
-    InitializeRequest, InitializeResponse, PlanEntry, PlanId, PlanUpdate, PlanUpdateContent, RunningStateUpdate,
-    SessionConfigOption, SessionConfigOptionCategory, SessionConfigSelectGroup, SessionConfigSelectOption,
-    SessionConfigSelectOptions, SessionId, SessionUpdate, StateUpdate, StopReason, SubagentUpdate, ToolCallStatus,
-    ToolCallUpdate, UpdateSessionNotification, UserMessage,
+    AuthStatusUpdateNotification, CompleteElicitationNotification, ContentBlock, ContentChunk,
+    CreateElicitationRequest, CreateElicitationResponse, ElicitationFormMode, ElicitationSchema,
+    ElicitationSessionScope, IdleStateUpdate, Implementation, InitializeRequest, InitializeResponse, PlanEntry, PlanId,
+    PlanUpdate, PlanUpdateContent, RunningStateUpdate, SessionConfigOption, SessionConfigOptionCategory,
+    SessionConfigSelectGroup, SessionConfigSelectOption, SessionConfigSelectOptions, SessionId, SessionUpdate,
+    StateUpdate, StopReason, SubagentUpdate, ToolCallStatus, ToolCallUpdate, UpdateSessionNotification, UserMessage,
 };
 use agent_client_protocol::{
     self as acp, Agent, Client, ConnectionTo, HandleConnectionClose, HandleDispatchFrom, NullRun, Responder,
@@ -31,7 +31,7 @@ pub struct TestPeer {
     session_notifications: mpsc::UnboundedReceiver<UpdateSessionNotification>,
     mcp_notifications: mpsc::UnboundedReceiver<McpNotification>,
     git_diff_notifications: mpsc::UnboundedReceiver<GitDiffEventPayload>,
-    auth_methods_updates: mpsc::UnboundedReceiver<AuthMethodsUpdatedParams>,
+    auth_status_updates: mpsc::UnboundedReceiver<AuthStatusUpdateNotification>,
     elicitation_requests: mpsc::UnboundedReceiver<CreateElicitationRequest>,
     elicitation_completions: mpsc::UnboundedReceiver<CompleteElicitationNotification>,
     elicitation_responses: Arc<Mutex<VecDeque<CreateElicitationResponse>>>,
@@ -43,7 +43,7 @@ impl TestPeer {
         let (session_tx, session_notifications) = mpsc::unbounded_channel();
         let (mcp_tx, mcp_notifications) = mpsc::unbounded_channel();
         let (git_diff_tx, git_diff_notifications) = mpsc::unbounded_channel();
-        let (auth_tx, auth_methods_updates) = mpsc::unbounded_channel();
+        let (auth_tx, auth_status_updates) = mpsc::unbounded_channel();
         let (elicitation_tx, elicitation_requests) = mpsc::unbounded_channel();
         let (completion_tx, elicitation_completions) = mpsc::unbounded_channel();
         let elicitation_responses = Arc::new(Mutex::new(VecDeque::new()));
@@ -66,7 +66,7 @@ impl TestPeer {
                 acp::on_receive_notification!(),
             )
             .on_receive_notification(
-                async move |n: AuthMethodsUpdatedParams, _cx| forward(&auth_tx, n),
+                async move |n: AuthStatusUpdateNotification, _cx| forward(&auth_tx, n),
                 acp::on_receive_notification!(),
             )
             .on_receive_notification(
@@ -99,7 +99,7 @@ impl TestPeer {
             session_notifications,
             mcp_notifications,
             git_diff_notifications,
-            auth_methods_updates,
+            auth_status_updates,
             elicitation_requests,
             elicitation_completions,
             elicitation_responses,
@@ -120,8 +120,8 @@ impl TestPeer {
         self.git_diff_notifications.recv().await.expect("peer channel closed")
     }
 
-    pub async fn next_auth_methods_update(&mut self) -> AuthMethodsUpdatedParams {
-        self.auth_methods_updates.recv().await.expect("peer channel closed")
+    pub async fn next_auth_status_update(&mut self) -> AuthStatusUpdateNotification {
+        self.auth_status_updates.recv().await.expect("peer channel closed")
     }
 
     pub async fn next_elicitation_request(&mut self) -> CreateElicitationRequest {

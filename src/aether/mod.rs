@@ -6,7 +6,7 @@ pub use config_meta::*;
 
 use std::path::PathBuf;
 
-use agent_client_protocol::v2::schema::{self as acp, AuthMethod, Meta, SessionId, ToolCallId};
+use agent_client_protocol::v2::schema::{self as acp, Meta, SessionId, ToolCallId};
 use agent_client_protocol::{JsonRpcNotification, JsonRpcRequest, JsonRpcResponse};
 use clankerdiff_protocol::client::ClientCommand;
 use clankerdiff_protocol::shared::{DocumentUpdate, Event};
@@ -68,14 +68,6 @@ impl RemoteServerInfo {
 #[serde(rename_all = "camelCase")]
 pub struct ContextClearedParams {
     pub session_id: SessionId,
-}
-
-/// Parameters for `_aether/auth_methods_updated` notifications.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, JsonSchema, JsonRpcNotification)]
-#[notification(method = "_aether/auth_methods_updated")]
-#[serde(rename_all = "camelCase")]
-pub struct AuthMethodsUpdatedParams {
-    pub auth_methods: Vec<AuthMethod>,
 }
 
 /// Parameters for the `_aether/prompt_search` request.
