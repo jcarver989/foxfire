@@ -49,3 +49,7 @@ tui agent="aether acp":
 # Run the desktop app against an ACP agent
 desktop agent="aether acp":
     cargo run -p foxfire-desktop -- --agent '{{agent}}'
+
+# Run the desktop app in release mode against an ACP agent
+desktop-release agent="aether acp":
+    cargo run --release -p foxfire-desktop -- --agent '{{agent}}'
