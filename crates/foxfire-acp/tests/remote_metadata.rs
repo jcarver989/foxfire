@@ -1,5 +1,5 @@
-use acp_utils::aether::{AETHER_META_NAMESPACE, RemoteServerInfo};
 use agent_client_protocol::v2::schema::Meta;
+use foxfire_acp::aether::{AETHER_META_NAMESPACE, RemoteServerInfo};
 use serde_json::json;
 
 #[test]

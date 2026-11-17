@@ -1,7 +1,4 @@
 use acp::v2::schema::{AgentCapabilities, CompactionStatus, LoginAuthRequest};
-use acp_utils::aether::{PromptSearchParams, SessionPreviewParams};
-use acp_utils::client::{AcpClient, AcpClientError, AcpEvent, connect_acp_client};
-use acp_utils::testing::FakeAgent;
 use agent_client_protocol::schema::ProtocolVersion;
 use agent_client_protocol::v2::schema::{
     CancelSessionNotification, CloseSessionRequest, ContentBlock, ContentChunk, Implementation, ListSessionsRequest,
@@ -10,6 +7,9 @@ use agent_client_protocol::v2::schema::{
     SetSessionConfigOptionResponse, StopReason, TextContent, UpdateSessionNotification,
 };
 use agent_client_protocol::{self as acp, Channel, Client, ConnectTo};
+use foxfire_acp::aether::{PromptSearchParams, SessionPreviewParams};
+use foxfire_acp::client::{AcpClient, AcpClientError, AcpEvent, connect_acp_client};
+use foxfire_acp::testing::FakeAgent;
 use std::path::PathBuf;
 use tokio::sync::mpsc::error::TryRecvError;
 use tokio::task::{LocalSet, spawn_local};
@@ -69,13 +69,13 @@ async fn prompt_completion_follows_session_updates_on_the_event_stream() {
                 request.session_id.clone(),
                 SessionUpdate::AgentMessageChunk(ContentChunk::new(ContentBlock::from("final answer"), "answer")),
             )).unwrap();
-            cx.send_notification(acp_utils::testing::idle_notification(request.session_id, Some(StopReason::EndTurn))).unwrap();
+            cx.send_notification(foxfire_acp::testing::idle_notification(request.session_id, Some(StopReason::EndTurn))).unwrap();
             responder.respond(PromptResponse::new("user-message")).unwrap();
             prompt.await.expect("prompt succeeds");
 
             assert!(matches!(client.event_rx.recv().await, Some(AcpEvent::SessionUpdate(_))));
             assert!(matches!(client.event_rx.recv().await, Some(AcpEvent::SessionUpdate(notification))
-                if notification.update == acp_utils::testing::idle_notification("session", Some(StopReason::EndTurn)).update));
+                if notification.update == foxfire_acp::testing::idle_notification("session", Some(StopReason::EndTurn)).update));
             client.handle.disconnect().await;
             assert!(matches!(client.event_rx.recv().await, Some(AcpEvent::ConnectionClosed)));
         })
@@ -117,7 +117,7 @@ async fn new_session_preserves_startup_updates_before_live_updates() {
 async fn replay_updates_precede_the_resume_response() -> Result<(), TestError> {
     LocalSet::new()
         .run_until(async {
-            let mut client = acp_utils::testing::FakeAgent::default()
+            let mut client = foxfire_acp::testing::FakeAgent::default()
                 .replay_message("saved", "snapshot")
                 .compaction("saved", "compaction", CompactionStatus::Completed)
                 .live_message("saved", "live")
@@ -146,7 +146,7 @@ async fn replay_updates_precede_the_resume_response() -> Result<(), TestError> {
             assert_eq!(notification.as_ref(), &message("saved", "snapshot"));
             assert!(matches!(&compaction.update, SessionUpdate::CompactionUpdate(update)
                 if update.status == CompactionStatus::Completed));
-            assert_eq!(idle.as_ref(), &acp_utils::testing::idle_notification("saved", None));
+            assert_eq!(idle.as_ref(), &foxfire_acp::testing::idle_notification("saved", None));
             let Some(AcpEvent::SessionUpdate(notification)) = client.event_rx.recv().await else {
                 return Err(TestError::Unexpected("expected live update after snapshot"));
             };
@@ -161,14 +161,14 @@ async fn replay_updates_precede_the_resume_response() -> Result<(), TestError> {
 async fn initialized_client_manages_typed_sessions_and_streams_replay() -> Result<(), TestError> {
     LocalSet::new()
         .run_until(async {
-            let agent_builder = acp_utils::testing::FakeAgent::default()
+            let agent_builder = foxfire_acp::testing::FakeAgent::default()
                 .aether()
                 .agent_info(Implementation::new("Typed Fake", "1.0"))
                 .replay_message("other", "unrelated")
                 .replay_message("listed", "replayed")
                 .new_session_response(NewSessionResponse::new("created"))
                 .sessions(vec![SessionInfo::new("listed", "/tmp/project")])
-                .session_preview(acp_utils::testing::session_preview("listed", "/tmp/project"))
+                .session_preview(foxfire_acp::testing::session_preview("listed", "/tmp/project"))
                 .agent();
             let mut client = connect_test_agent(agent_builder).await?;
             assert_eq!(client.agent_name(), "Typed Fake");
@@ -215,7 +215,7 @@ async fn initialized_client_manages_typed_sessions_and_streams_replay() -> Resul
 async fn initialization_without_capabilities_exposes_none() -> Result<(), TestError> {
     LocalSet::new()
         .run_until(async {
-            let client = acp_utils::testing::FakeAgent::default().build().await?;
+            let client = foxfire_acp::testing::FakeAgent::default().build().await?;
             assert!(client.prompt_capabilities().is_none());
             assert!(client.session_capabilities().is_none());
             client.handle.disconnect().await;
@@ -229,7 +229,7 @@ async fn v2_initialization_accessors_expose_agent_metadata() -> Result<(), TestE
     use acp::v2::schema::{PromptCapabilities, SessionCapabilities};
     LocalSet::new()
         .run_until(async {
-            let client = acp_utils::testing::FakeAgent::default()
+            let client = foxfire_acp::testing::FakeAgent::default()
                 .agent_info(Implementation::new("agent", "1").title("Display Name"))
                 .capabilities(
                     AgentCapabilities::new().session(SessionCapabilities::new().prompt(PromptCapabilities::new())),
@@ -251,7 +251,7 @@ async fn v2_initialization_accessors_expose_agent_metadata() -> Result<(), TestE
 async fn login_accepts_supported_methods_and_rejects_unknown_methods() -> Result<(), TestError> {
     LocalSet::new()
         .run_until(async {
-            let client = acp_utils::testing::FakeAgent::default().login_method("login").build().await?;
+            let client = foxfire_acp::testing::FakeAgent::default().login_method("login").build().await?;
             assert!(client.handle.request(LoginAuthRequest::new("unknown")).await.is_err());
             client.handle.request(LoginAuthRequest::new("login")).await?;
             client.handle.disconnect().await;
@@ -342,7 +342,7 @@ async fn requests_are_sent_in_call_order_without_polling_their_responses() {
 #[test]
 fn client_handles_are_send_sync_and_clone() {
     fn assert_traits<T: Send + Sync + Clone>() {}
-    assert_traits::<acp_utils::client::AcpClientHandle>();
+    assert_traits::<foxfire_acp::client::AcpClientHandle>();
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -360,7 +360,7 @@ async fn connect_test_agent(agent: impl ConnectTo<Client> + 'static) -> Result<A
     spawn_local(async move {
         let _ = agent.connect_to(agent_transport).await;
     });
-    Ok(connect_acp_client(client_transport, acp_utils::testing::initialize_request()).await?)
+    Ok(connect_acp_client(client_transport, foxfire_acp::testing::initialize_request()).await?)
 }
 
 fn message(session_id: &str, text: &str) -> UpdateSessionNotification {

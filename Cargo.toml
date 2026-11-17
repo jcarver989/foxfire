@@ -7,6 +7,20 @@ edition = "2024"
 license = "MIT"
 rust-version = "1.100"
 
+[workspace.dependencies]
+agent-client-protocol = { version = "=5.0.0", features = ["unstable_auth_status", "unstable_protocol_v2", "unstable_session_set_title", "unstable_subagents"] }
+clankerdiff-protocol = { path = "../diff/crates/diff/protocol" }
+futures = "0.3.32"
+schemars = { version = "1.2.1", features = ["derive"] }
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0.150"
+thiserror = "2.0"
+tokio = "1.52.3"
+tokio-tungstenite = { version = "0.30.0", features = ["rustls-tls-webpki-roots"] }
+tokio-util = "0.7.18"
+tracing = "0.1.44"
+wasm-bindgen-futures = "0.4.78"
+
 [workspace.lints.rust]
 unsafe_code = "deny"
 unreachable_pub = "warn"

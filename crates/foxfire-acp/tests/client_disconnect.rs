@@ -2,9 +2,9 @@ use acp::v2::schema::{
     CreateElicitationRequest, ElicitationFormMode, ElicitationSchema, ElicitationSessionScope, InitializeRequest,
     PromptRequest,
 };
-use acp_utils::client::{AcpClientError, AcpEvent, connect_acp_client};
-use acp_utils::testing::{FakeAgent, initialize_request};
 use agent_client_protocol::{self as acp, Agent, Channel};
+use foxfire_acp::client::{AcpClientError, AcpEvent, connect_acp_client};
+use foxfire_acp::testing::{FakeAgent, initialize_request};
 use tokio::sync::mpsc::unbounded_channel;
 use tokio::task::{LocalSet, spawn_local};
 

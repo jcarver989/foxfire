@@ -1,14 +1,14 @@
-use acp_utils::aether::ContextClearedParams;
-use acp_utils::client::AcpEvent;
-use acp_utils::conversation::{
+use agent_client_protocol::{schema::MaybeUndefined, v2::schema as acp};
+use foxfire_acp::aether::ContextClearedParams;
+use foxfire_acp::client::AcpEvent;
+use foxfire_acp::conversation::{
     Activity, Conversation, ConversationContent, ItemState, Notice, NoticeLevel, SubAgent, ToolCall, ToolStatus,
     TurnFinished, TurnPhase,
 };
-use acp_utils::testing::{
+use foxfire_acp::testing::{
     self, announced, idle_notification, idle_state, message_chunk, on_session, plan_notification, running_notification,
     running_state, sub_agent_tool_update,
 };
-use agent_client_protocol::{schema::MaybeUndefined, v2::schema as acp};
 use serde_json::json;
 use std::collections::BTreeMap;
 

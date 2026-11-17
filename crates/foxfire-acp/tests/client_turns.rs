@@ -2,9 +2,9 @@ use acp::v2::schema::{
     CloseSessionRequest, ListSessionsRequest, PromptRequest, PromptResponse, ReplayFrom, ReplayFromStart,
     ResumeSessionRequest, ResumeSessionResponse, SessionId, UpdateSessionNotification,
 };
-use acp_utils::client::{AcpClient, AcpClientError, AcpEvent};
-use acp_utils::testing::{FakeAgent, FakeAgentRequests, running_notification};
 use agent_client_protocol::{self as acp, Client, ConnectionTo, Responder};
+use foxfire_acp::client::{AcpClient, AcpClientError, AcpEvent};
+use foxfire_acp::testing::{FakeAgent, FakeAgentRequests, running_notification};
 use tokio::task::{LocalSet, spawn_local};
 
 #[tokio::test]

@@ -1,14 +1,14 @@
-use acp_utils::aether::{McpNotification, McpServerStatus, McpServerStatusEntry};
-use acp_utils::testing::{
-    TestPeer, idle_notification, initialize_request, initialize_response, plan_notification, running_notification,
-    test_connection,
-};
 use agent_client_protocol::schema::ProtocolVersion;
 use agent_client_protocol::v2::schema::{
     ContentBlock, ContentChunk, InitializeRequest, PlanEntry, PlanEntryPriority, PlanEntryStatus, SessionUpdate,
     StopReason, TextContent, UpdateSessionNotification,
 };
 use agent_client_protocol::{self as acp, Agent, ByteStreams, Channel, Client};
+use foxfire_acp::aether::{McpNotification, McpServerStatus, McpServerStatusEntry};
+use foxfire_acp::testing::{
+    TestPeer, idle_notification, initialize_request, initialize_response, plan_notification, running_notification,
+    test_connection,
+};
 use serde_json::json;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::sync::oneshot;

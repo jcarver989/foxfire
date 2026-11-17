@@ -41,3 +41,7 @@ framer:
 framer-check:
     cargo run --quiet --locked --manifest-path .framer/Cargo.toml -- --check
 # framer:end rust-monorepo
+
+# Lint foxfire-acp for wasm32, which the browser client builds for
+wasm-check:
+    CARGO_BUILD_WARNINGS=deny cargo clippy -p foxfire-acp --target wasm32-unknown-unknown

@@ -1,7 +1,7 @@
-use acp_utils::aether::RemoteServerInfo;
-use acp_utils::testing::{FakeAgent, Question, initialize_response};
-use acp_utils::websocket::WebSocketTransport;
 use agent_client_protocol::v2::schema::{ElicitationSchema, NewSessionResponse};
+use foxfire_acp::aether::RemoteServerInfo;
+use foxfire_acp::testing::{FakeAgent, Question, initialize_response};
+use foxfire_acp::websocket::WebSocketTransport;
 use futures::{SinkExt, StreamExt};
 use serde_json::json;
 use std::error::Error;

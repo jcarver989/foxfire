@@ -1,4 +1,4 @@
-# aether-acp-utils
+# foxfire-acp
 
 Utilities for the [Agent Client Protocol](https://agentclientprotocol.com/) (ACP): Aether's protocol extensions and the client that UIs use to talk to agents. The crate depends on no Aether agent crates, so ACP clients can use it on their own; with `default-features = false` it is only the serde wire types, so Aether's agent crates depend on it without pulling in ACP.
 
@@ -38,7 +38,7 @@ Utilities for the [Agent Client Protocol](https://agentclientprotocol.com/) (ACP
 
 Enable the `websocket` feature to use `websocket::WebSocketTransport<S>` with an already-established WebSocket connection.
 
-`examples/fake_agent_server.rs` serves the `testing` crate's fake agent over this transport, choosing a scenario by request path. `just fake-agent` runs it on `aether server`'s port, and `just wasm-test` runs the browser client's tests against it.
+`examples/fake_agent_server.rs` serves the `testing` crate's fake agent over this transport, choosing a scenario by request path. Run it on `aether server`'s port with `cargo run -p foxfire-acp --features testing,websocket --example fake_agent_server`.
 
 
 ## License

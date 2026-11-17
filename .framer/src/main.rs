@@ -1,9 +1,19 @@
 use framer::Project;
-use framer_presets::{Rust, RustMonorepo};
+use framer_presets::{Ci, CompilingJob, Rust, RustMonorepo, Rustfmt};
 use std::process::ExitCode;
 
 fn main() -> ExitCode {
     let mut project = Project::new();
-    project.apply(RustMonorepo::new().rust(Rust::new("1.100")));
+    project.apply(
+        RustMonorepo::new()
+            .rust(Rust::new("1.100").targets(["wasm32-unknown-unknown"]))
+            .rustfmt(
+                Rustfmt::new()
+                    .set("max_width", 120)
+                    .set("newline_style", "Unix")
+                    .set("use_small_heuristics", "Max"),
+            )
+            .ci(Ci::new().compiling_job(CompilingJob::new("wasm", "WASM", "wasm-check"))),
+    );
     project.synth()
 }

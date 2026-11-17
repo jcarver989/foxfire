@@ -1,20 +1,12 @@
 [package]
-name = "aether-acp-utils"
-version = "0.5.19"
-edition = "2024"
-description = "Agent Client Protocol (ACP) utilities for the Aether AI agent framework"
-license = "MIT"
-repository = "https://github.com/contextbridge/aether"
-readme = "README.md"
+name = "foxfire-acp"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Agent Client Protocol (ACP) client utilities and Aether protocol extensions"
 keywords = ["acp", "aether", "agent", "protocol"]
 categories = ["api-bindings", "asynchronous"]
-
-[package.metadata.dist]
-dist = false
-
-[lib]
-name = "acp_utils"
-path = "src/lib.rs"
 
 [package.metadata.docs.rs]
 all-features = true
@@ -52,7 +44,7 @@ agent-client-protocol = { workspace = true, features = ["wasm_js"], optional = t
 wasm-bindgen-futures = { workspace = true }
 
 [dev-dependencies]
-aether-acp-utils = { path = ".", features = ["testing"] }
+foxfire-acp = { path = ".", features = ["testing"] }
 tokio = { workspace = true, features = ["full", "test-util"] }
 tokio-util = { workspace = true, features = ["compat"] }
 serde_json = { workspace = true }

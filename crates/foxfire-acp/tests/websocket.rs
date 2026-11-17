@@ -1,8 +1,5 @@
 #![cfg(feature = "websocket")]
 
-use acp_utils::client::{AcpEvent, connect_acp_client};
-use acp_utils::testing::{idle_notification, initialize_request, initialize_response, running_notification};
-use acp_utils::websocket::WebSocketTransport;
 use agent_client_protocol::schema::ProtocolVersion;
 use agent_client_protocol::v2::schema::{
     ContentBlock, ContentChunk, CreateElicitationRequest, CreateElicitationResponse, ElicitationAction,
@@ -11,6 +8,9 @@ use agent_client_protocol::v2::schema::{
     UpdateSessionNotification,
 };
 use agent_client_protocol::{self as acp, Agent, Client, HandleDispatchFrom, NullRun, v2};
+use foxfire_acp::client::{AcpEvent, connect_acp_client};
+use foxfire_acp::testing::{idle_notification, initialize_request, initialize_response, running_notification};
+use foxfire_acp::websocket::WebSocketTransport;
 use futures::{FutureExt, SinkExt, StreamExt};
 use std::time::Duration;
 use tokio::io::{DuplexStream, duplex};
@@ -160,7 +160,7 @@ async fn final_response_is_not_lost_when_close_is_already_buffered() -> Result<(
 
 #[tokio::test]
 async fn final_turn_and_replay_events_are_delivered_before_buffered_close() -> Result<(), TestError> {
-    use acp_utils::client::AcpEvent;
+    use foxfire_acp::client::AcpEvent;
 
     LocalSet::new()
         .run_until(async {
@@ -328,7 +328,7 @@ impl SocketPairBuilder {
 
     async fn build_closing_agent(
         mut self,
-    ) -> Result<(acp_utils::client::AcpClient, tokio::task::JoinHandle<Result<(), TestError>>), TestError> {
+    ) -> Result<(foxfire_acp::client::AcpClient, tokio::task::JoinHandle<Result<(), TestError>>), TestError> {
         use serde_json::json;
 
         let before = std::mem::take(&mut self.before_response);
@@ -371,7 +371,7 @@ impl SocketPairBuilder {
 #[derive(Debug, thiserror::Error)]
 enum TestError {
     #[error(transparent)]
-    Client(#[from] acp_utils::client::AcpClientError),
+    Client(#[from] foxfire_acp::client::AcpClientError),
     #[error(transparent)]
     Acp(#[from] acp::Error),
     #[error(transparent)]
