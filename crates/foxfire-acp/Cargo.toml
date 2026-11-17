@@ -1,0 +1,58 @@
+[package]
+name = "aether-acp-utils"
+version = "0.5.19"
+edition = "2024"
+description = "Agent Client Protocol (ACP) utilities for the Aether AI agent framework"
+license = "MIT"
+repository = "https://github.com/contextbridge/aether"
+readme = "README.md"
+keywords = ["acp", "aether", "agent", "protocol"]
+categories = ["api-bindings", "asynchronous"]
+
+[package.metadata.dist]
+dist = false
+
+[lib]
+name = "acp_utils"
+path = "src/lib.rs"
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+
+[lints]
+workspace = true
+
+[features]
+default = ["client"]
+protocol = ["dep:agent-client-protocol", "dep:clankerdiff-protocol"]
+client = ["protocol", "dep:futures", "dep:tokio", "dep:tokio-util", "dep:tracing"]
+testing = ["client"]
+websocket = ["client", "dep:tokio-tungstenite"]
+
+[[example]]
+name = "fake_agent_server"
+required-features = ["testing", "websocket"]
+
+[dependencies]
+agent-client-protocol = { workspace = true, features = ["schemars"], optional = true }
+clankerdiff-protocol = { workspace = true, optional = true }
+futures = { workspace = true, optional = true }
+tokio-util = { workspace = true, optional = true }
+schemars = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tokio = { workspace = true, features = ["rt", "macros", "sync", "io-util", "time"], optional = true }
+tracing = { workspace = true, optional = true }
+thiserror = { workspace = true }
+tokio-tungstenite = { workspace = true, optional = true }
+
+[target.'cfg(target_family = "wasm")'.dependencies]
+agent-client-protocol = { workspace = true, features = ["wasm_js"], optional = true }
+wasm-bindgen-futures = { workspace = true }
+
+[dev-dependencies]
+aether-acp-utils = { path = ".", features = ["testing"] }
+tokio = { workspace = true, features = ["full", "test-util"] }
+tokio-util = { workspace = true, features = ["compat"] }
+serde_json = { workspace = true }
