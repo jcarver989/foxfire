@@ -4,7 +4,7 @@ use crate::theme::Theme;
 use crate::view::list_view::ListView;
 use crate::view::selection::SelectionState;
 use agent_client_protocol::v2::schema::SessionConfigOptionCategory;
-use client_core::session_config_view::{LocalConfigOption, LocalConfigView};
+use foxfire_core::session_config_view::{LocalConfigOption, LocalConfigView};
 use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
 use ratatui::text::Line;

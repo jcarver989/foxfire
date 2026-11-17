@@ -3,9 +3,9 @@ use crate::command::HostCommand;
 use crate::settings::overlay::{SettingsChange, SettingsMenuEntry};
 use crate::settings::{ThemeSettings, UiSettings};
 use crate::theme::{Theme, ThemeApplicationError};
-use acp_utils::config_option_id::THEME_CONFIG_ID;
 use clankerdiff_ratatui::theme::ReviewTheme;
-use client_core::session_config_view::{LocalConfigSelect, LocalConfigValue};
+use foxfire_acp::config_option_id::THEME_CONFIG_ID;
+use foxfire_core::session_config_view::{LocalConfigSelect, LocalConfigValue};
 
 impl App {
     /// Themes are loaded and persisted by the host. Only one change runs

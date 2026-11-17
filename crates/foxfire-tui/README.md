@@ -7,7 +7,7 @@ Wisp launches an ACP-compatible agent as a subprocess, streams markdown response
 ## Quick start
 
 ```bash
-cargo install aether-wisp
+cargo install foxfire-tui
 wisp                       # launches the default agent ("aether acp")
 wisp --agent "my-agent"    # launches a custom ACP agent
 ```
@@ -74,7 +74,7 @@ Use `RUST_LOG` to configure verbosity.
 Build the API documentation with:
 
 ```bash
-cargo doc -p aether-wisp --open
+cargo doc -p foxfire-tui --open
 ```
 
 The primary public entry points are:

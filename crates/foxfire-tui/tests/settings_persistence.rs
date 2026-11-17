@@ -1,6 +1,6 @@
+use foxfire_tui::settings::{UiSettings, load_or_create_settings, save_settings};
 use std::path::Path;
 use std::process::Command;
-use wisp::settings::{UiSettings, load_or_create_settings, save_settings};
 
 #[test]
 fn missing_settings_are_created_with_defaults() {

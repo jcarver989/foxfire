@@ -1,4 +1,4 @@
-use client_core::connection::ConnectionError;
+use foxfire_core::connection::ConnectionError;
 use thiserror::Error;
 
 /// Fatal errors that can terminate the TUI.

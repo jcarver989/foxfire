@@ -5,7 +5,7 @@ use crate::theme::Theme;
 use crate::view::input::{Nav, UiEvent};
 use crate::view::list_view::ListView;
 use crate::view::selection::SelectionState;
-use client_core::aether::{McpServerStatus, McpServerStatusEntry};
+use foxfire_core::aether::{McpServerStatus, McpServerStatusEntry};
 use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
 use ratatui::style::Style;

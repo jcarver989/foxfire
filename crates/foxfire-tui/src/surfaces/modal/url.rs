@@ -1,5 +1,5 @@
-use client_core::elicitation::{ElicitationAnswer, ElicitationId};
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+use foxfire_core::elicitation::{ElicitationAnswer, ElicitationId};
 use ratatui::style::Modifier;
 use ratatui::text::Line;
 

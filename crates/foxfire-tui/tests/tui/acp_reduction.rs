@@ -1,5 +1,5 @@
 use super::support::*;
-use acp_utils::testing::{idle_notification, running_notification};
+use foxfire_acp::testing::{idle_notification, running_notification};
 
 #[test]
 fn user_ack_and_idle_preserve_one_foreground_turn() {

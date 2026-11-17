@@ -91,5 +91,5 @@ fn queued_texts(ui: &TestUi) -> Vec<&str> {
 }
 
 fn transcript(ui: &TestUi) -> Vec<String> {
-    acp_utils::testing::texts(ui.app().core().conversation())
+    foxfire_acp::testing::texts(ui.app().core().conversation())
 }

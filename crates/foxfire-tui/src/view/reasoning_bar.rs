@@ -1,5 +1,5 @@
 use crate::theme::Theme;
-use acp_utils::ReasoningEffort;
+use foxfire_acp::ReasoningEffort;
 use ratatui::style::Color;
 
 /// Renders a compact reasoning effort bar labeled with the current effort.

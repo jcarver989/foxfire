@@ -2,7 +2,7 @@ use super::{Composer, ComposerLayout};
 use crate::theme::Theme;
 use crate::view::widgets::render_rows;
 use crate::view::wrap::{fit_prefix, wrap_text_char};
-use client_core::composer::attachment::{AttachmentKind, classify_attachment};
+use foxfire_core::composer::attachment::{AttachmentKind, classify_attachment};
 use ratatui::buffer::Buffer;
 use ratatui::layout::{Position, Rect};
 use ratatui::text::{Line, Span};

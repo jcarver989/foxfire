@@ -26,7 +26,7 @@ use crate::app::App;
 use crate::error::RenderError;
 use crate::theme::Theme;
 use crate::view::generation::Generation;
-use acp_utils::conversation::{ConversationId, ConversationItemId};
+use foxfire_acp::conversation::{ConversationId, ConversationItemId};
 use frame::draw_frame;
 use ratatui::Terminal;
 use ratatui::backend::Backend;

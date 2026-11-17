@@ -4,10 +4,10 @@ mod url;
 
 use crate::renderer::DrawContext;
 use agent_client_protocol::v2::schema::ElicitationContentValue;
-use client_core::elicitation::{
+use crossterm::event::{KeyEvent, MouseEvent, MouseEventKind};
+use foxfire_core::elicitation::{
     ElicitationAnswer, ElicitationId, FieldInput, FormField, FormFieldKind, PermissionChoice, SelectOption,
 };
-use crossterm::event::{KeyEvent, MouseEvent, MouseEventKind};
 use ratatui::buffer::Buffer;
 use ratatui::layout::{Constraint, Position, Rect};
 use ratatui::text::Text;
@@ -302,7 +302,7 @@ mod tests {
     }
 
     fn form_modal(schema: &ElicitationSchema) -> ElicitationModal {
-        let fields = client_core::elicitation::form_fields(schema).unwrap();
+        let fields = foxfire_core::elicitation::form_fields(schema).unwrap();
         ElicitationModal::form(ElicitationId::next(), "Agent".into(), String::new(), fields)
     }
 

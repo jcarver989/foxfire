@@ -1,9 +1,9 @@
 use clankerdiff_client::{ClientState, DiffReviewEvent};
 use clankerdiff_core::{RepoPath, RepositoryAction};
+use foxfire_tui::screens::git_diff::GitDiffScreen;
+use foxfire_tui::surfaces::input::UiOutput;
 use std::sync::Arc;
 use unicode_width::UnicodeWidthStr;
-use wisp::screens::git_diff::GitDiffScreen;
-use wisp::surfaces::input::UiOutput;
 
 use super::support::*;
 
@@ -594,7 +594,7 @@ fn failed_review_theme_selection_restores_installed_colors() {
     assert_ne!(ui.backend().buffer()[(0, 0)].bg, original);
     let settings = take_applied_theme(&mut ui);
     assert_ne!(settings.theme.selection_id(), "builtin:sage");
-    ui.deliver_host_result(HostCommandResult::ThemeApplied(Err(wisp::theme::ThemeApplicationError::Save(
+    ui.deliver_host_result(HostCommandResult::ThemeApplied(Err(foxfire_tui::theme::ThemeApplicationError::Save(
         std::io::Error::other("save failed"),
     ))));
     ui.draw();

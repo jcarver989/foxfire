@@ -5,9 +5,9 @@ use crate::settings::overlay::ProviderLoginStatus;
 use crate::surfaces::modal::ElicitationModal;
 use crate::surfaces::session_picker::SessionPicker;
 use crate::surfaces::workspace_picker::WorkspacePicker;
-use client_core::command::Reply;
-use client_core::elicitation::Elicitation;
-use client_core::session_core::{Effect, SessionCore};
+use foxfire_core::command::Reply;
+use foxfire_core::elicitation::Elicitation;
+use foxfire_core::session_core::{Effect, SessionCore};
 
 impl App {
     pub(super) fn update_core<T>(&mut self, change: impl FnOnce(&mut SessionCore) -> T) -> T {

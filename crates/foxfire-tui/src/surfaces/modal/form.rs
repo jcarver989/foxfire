@@ -1,8 +1,8 @@
 use agent_client_protocol::v2::schema::ElicitationContentValue;
-use client_core::elicitation::{
+use crossterm::event::{KeyCode, KeyEvent};
+use foxfire_core::elicitation::{
     ElicitationAnswer, FieldError, FieldInput, FormError, FormField, SelectOption, accept_content,
 };
-use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::buffer::Buffer;
 use ratatui::layout::{Position, Rect};
 use ratatui::style::{Modifier, Style};
@@ -789,8 +789,8 @@ mod tests {
         BooleanPropertySchema, ElicitationPropertySchema, ElicitationSchema, EnumOption, MultiSelectPropertySchema,
         StringPropertySchema,
     };
-    use client_core::elicitation::form_fields;
     use crossterm::event::KeyModifiers;
+    use foxfire_core::elicitation::form_fields;
     use serde_json::Value;
 
     const WIDTH: u16 = 64;

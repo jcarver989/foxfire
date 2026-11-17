@@ -7,11 +7,11 @@ use crate::surfaces::dropped_files::parse_dropped_file_paths;
 use crate::surfaces::input::{UiOutput, one};
 use crate::surfaces::picker::{Builtin, SlashCommand};
 use crate::view::input::UiEvent;
-use acp_utils::config_option_id::THEME_CONFIG_ID;
-use client_core::composer::attachment::classify_paths;
-use client_core::session_config_view::LocalConfigView;
-use client_core::session_core::SessionCore;
 use crossterm::event::{Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers, MouseEvent, MouseEventKind};
+use foxfire_acp::config_option_id::THEME_CONFIG_ID;
+use foxfire_core::composer::attachment::classify_paths;
+use foxfire_core::session_config_view::LocalConfigView;
+use foxfire_core::session_core::SessionCore;
 use std::time::{Duration, Instant};
 
 pub(super) const CTRL_C_CONFIRM_WINDOW: Duration = Duration::from_secs(1);

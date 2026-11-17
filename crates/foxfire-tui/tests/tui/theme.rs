@@ -1,8 +1,8 @@
 use super::support::*;
 use clankerdiff_ratatui::theme::{ReviewTheme, Rgba, SelectionState as ThemeSelectionState, ThemeError};
 use clankerdiff_ratatui::{RatatuiUiTheme, composite_color, layered_style};
+use foxfire_tui::view::{list_view::ListView, selection::SelectionState};
 use ratatui::{layout::Rect, text::Line, widgets::StatefulWidget};
-use wisp::view::{list_view::ListView, selection::SelectionState};
 
 #[test]
 fn sage_retains_semantic_status_and_text_roles() -> Result<(), ThemeError> {

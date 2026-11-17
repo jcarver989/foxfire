@@ -2,11 +2,11 @@ use crate::theme::Theme;
 use crate::view::filterable_list::FilterableList;
 use crate::view::list_view::ListView;
 use crate::view::selection::SelectionState;
-use client_core::aether::AetherCapabilities;
-use client_core::composer::attachment::PromptAttachment;
-use client_core::composer::completion_token::Trigger;
-use client_core::composer::file_listing::FileListing;
-use client_core::session_core::CommandEntry;
+use foxfire_core::aether::AetherCapabilities;
+use foxfire_core::composer::attachment::PromptAttachment;
+use foxfire_core::composer::completion_token::Trigger;
+use foxfire_core::composer::file_listing::FileListing;
+use foxfire_core::session_core::CommandEntry;
 use ratatui::text::Line;
 use ratatui::widgets::{Block, Borders};
 

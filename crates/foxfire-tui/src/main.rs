@@ -1,9 +1,9 @@
 use clap::Parser;
+use foxfire_tui::cli::Cli;
+use foxfire_tui::run_tui;
+use foxfire_tui::settings::load_or_create_settings;
 use std::process::ExitCode;
 use tokio::runtime::Runtime;
-use wisp::cli::Cli;
-use wisp::run_tui;
-use wisp::settings::load_or_create_settings;
 
 fn main() -> ExitCode {
     if let Some(code) = clankerdiff_lspd::run_if_requested() {

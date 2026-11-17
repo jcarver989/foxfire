@@ -1,11 +1,11 @@
 use crate::settings::UiSettings;
 use crate::theme::{Theme, ThemeApplicationError};
-use client_core::elicitation::ElicitationId;
+use foxfire_core::elicitation::ElicitationId;
 use tokio::task::JoinError;
 
 #[derive(Debug, Clone)]
 pub enum Command {
-    Core(client_core::command::Command),
+    Core(foxfire_core::command::Command),
     Host(HostCommand),
 }
 
@@ -40,8 +40,8 @@ pub enum HostCommandResult {
     TaskFailed(JoinError),
 }
 
-impl From<client_core::command::Command> for Command {
-    fn from(command: client_core::command::Command) -> Self {
+impl From<foxfire_core::command::Command> for Command {
+    fn from(command: foxfire_core::command::Command) -> Self {
         Self::Core(command)
     }
 }

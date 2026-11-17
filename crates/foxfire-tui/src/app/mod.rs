@@ -10,9 +10,9 @@ use crate::settings::{
 use crate::surfaces::composer::Composer;
 use crate::theme::Theme;
 use crate::view::generation::Generation;
-use acp_utils::conversation::Activity;
 use agent_client_protocol::v2::schema::PlanEntry;
-use client_core::session_core::{ForegroundOperation, SessionCore, SessionCoreConfig};
+use foxfire_acp::conversation::Activity;
+use foxfire_core::session_core::{ForegroundOperation, SessionCore, SessionCoreConfig};
 use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
 use std::collections::VecDeque;

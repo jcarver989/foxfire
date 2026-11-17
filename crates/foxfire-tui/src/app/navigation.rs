@@ -8,8 +8,8 @@ use crate::settings::overlay::{SettingsChange, SettingsOverlay};
 use crate::surfaces::modal::ElicitationModal;
 use crate::surfaces::session_picker::SessionPicker;
 use crate::surfaces::workspace_picker::WorkspacePicker;
-use client_core::elicitation::{ElicitationAnswer, ElicitationId};
-use client_core::session_core::SessionCore;
+use foxfire_core::elicitation::{ElicitationAnswer, ElicitationId};
+use foxfire_core::session_core::SessionCore;
 use ratatui::buffer::Buffer;
 use ratatui::layout::{Position, Rect};
 

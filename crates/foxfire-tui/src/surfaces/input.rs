@@ -2,8 +2,8 @@ use crate::command::HostCommand;
 use crate::settings::overlay::SettingsChange;
 use agent_client_protocol::v2::schema::SessionId;
 use clankerdiff_client::DiffReviewEvent;
-use client_core::aether::WorkspaceMoveTarget;
-use client_core::elicitation::{ElicitationAnswer, ElicitationId};
+use foxfire_core::aether::WorkspaceMoveTarget;
+use foxfire_core::elicitation::{ElicitationAnswer, ElicitationId};
 use std::path::PathBuf;
 
 /// What a surface asks of the app. Every overlay, route and pane reports

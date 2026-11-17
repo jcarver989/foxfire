@@ -1,8 +1,8 @@
 use super::support::*;
-use acp_utils::ReasoningEffort;
+use foxfire_acp::ReasoningEffort;
+use foxfire_tui::settings::KeyAction;
+use foxfire_tui::theme::{ThemeApplicationError, ThemeLoadError};
 use std::collections::BTreeMap;
-use wisp::settings::KeyAction;
-use wisp::theme::{ThemeApplicationError, ThemeLoadError};
 
 fn server_status_entry(name: &str, status: McpServerStatus) -> McpServerStatusEntry {
     McpServerStatusEntry::new(name, status)
@@ -780,9 +780,9 @@ fn settings_menu_has_a_single_theme_row_after_themes_load() {
 
 #[test]
 fn invalid_startup_theme_is_visible_without_overwriting_the_selection() {
-    let settings = wisp::settings::UiSettings {
-        theme: wisp::settings::ThemeSettings::File { file: "../invalid.json".into() },
-        ..wisp::settings::UiSettings::default()
+    let settings = foxfire_tui::settings::UiSettings {
+        theme: foxfire_tui::settings::ThemeSettings::File { file: "../invalid.json".into() },
+        ..foxfire_tui::settings::UiSettings::default()
     };
     let mut ui = TestUiBuilder::new().settings(settings).dimensions(120, 15).build();
     ui.assert_viewport_contains("Could not load selected theme");
@@ -813,7 +813,7 @@ fn failed_queued_theme_retains_the_last_successful_selection() {
 fn malformed_theme_file_selections_are_rejected_during_deserialization() {
     for file in ["../escape.json", "/absolute.json", "old.tmTheme", "", "nested/file.json"] {
         let value = serde_json::json!({ "source": "file", "file": file });
-        assert!(serde_json::from_value::<wisp::settings::ThemeSettings>(value).is_err(), "accepted {file:?}");
+        assert!(serde_json::from_value::<foxfire_tui::settings::ThemeSettings>(value).is_err(), "accepted {file:?}");
     }
 }
 
@@ -1069,7 +1069,7 @@ fn settings_menu_derives_the_model_label_after_local_changes() {
     let area = ratatui::layout::Rect::new(0, 0, 80, 20);
 
     for (value, label) in [("sonnet,haiku", "Sonnet, Haiku"), ("haiku", "Haiku")] {
-        overlay.apply_change(&wisp::settings::overlay::SettingsChange {
+        overlay.apply_change(&foxfire_tui::settings::overlay::SettingsChange {
             config_id: "model".into(),
             new_value: value.into(),
         });

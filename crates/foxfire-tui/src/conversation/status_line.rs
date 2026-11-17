@@ -2,11 +2,11 @@ use crate::settings::{ResolvedStatusLineSettings, StatusLineSegmentConfig, Statu
 use crate::theme::Theme;
 use crate::view::reasoning_bar::{reasoning_bar, reasoning_color, slot_bar};
 use crate::view::wrap::{truncate_spans, truncate_to_width};
-use acp_utils::ReasoningEffort;
 use agent_client_protocol::v2::schema as acp;
-use client_core::format::token_count;
-use client_core::session_config_view::{LocalConfigOption, LocalConfigView};
-use client_core::session_model::WorkspaceStatus;
+use foxfire_acp::ReasoningEffort;
+use foxfire_core::format::token_count;
+use foxfire_core::session_config_view::{LocalConfigOption, LocalConfigView};
+use foxfire_core::session_model::WorkspaceStatus;
 use ratatui::buffer::Buffer;
 use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::style::{Color, Style};

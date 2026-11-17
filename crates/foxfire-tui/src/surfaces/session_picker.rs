@@ -4,9 +4,9 @@ use crate::theme::Theme;
 use crate::view::filterable_list::FilterableList;
 use crate::view::input::{Nav, UiEvent};
 use crate::view::wrap::truncate_to_width;
-use acp_utils::client::AcpClientError;
 use agent_client_protocol::v2::schema::{self as acp, SessionId};
-use client_core::aether::SessionPreviewResponse;
+use foxfire_acp::client::AcpClientError;
+use foxfire_core::aether::SessionPreviewResponse;
 use ratatui::buffer::Buffer;
 use ratatui::layout::{Constraint, Layout, Position, Rect};
 use ratatui::style::Style;
@@ -127,8 +127,8 @@ impl SessionPicker {
                 lines.push(Line::raw(""));
                 for turn in &preview.transcript {
                     let role = match turn.role {
-                        client_core::aether::SessionPreviewRole::User => "user",
-                        client_core::aether::SessionPreviewRole::Assistant => "assistant",
+                        foxfire_core::aether::SessionPreviewRole::User => "user",
+                        foxfire_core::aether::SessionPreviewRole::Assistant => "assistant",
                     };
                     lines.push(Line::from(vec![
                         Span::styled(format!(" {role}: "), theme.accent),

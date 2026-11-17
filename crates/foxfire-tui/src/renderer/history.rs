@@ -1,8 +1,8 @@
 use crate::app::App;
 use crate::error::RenderError;
 use crate::view::wrap::{as_u16, wrap_line};
-use acp_utils::conversation::{ConversationContent, ConversationId, ConversationItem, ItemState};
 use clankerdiff_ratatui::MarkdownCommitError;
+use foxfire_acp::conversation::{ConversationContent, ConversationId, ConversationItem, ItemState};
 use ratatui::Terminal;
 use ratatui::backend::Backend;
 use ratatui::text::{Line, Text};

@@ -1,11 +1,11 @@
+use foxfire_tui::testing::buffer_text;
+use foxfire_tui::theme::Theme;
+use foxfire_tui::view::list_view::ListView;
+use foxfire_tui::view::selection::SelectionState;
 use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
 use ratatui::text::Line;
 use ratatui::widgets::StatefulWidget;
-use wisp::testing::buffer_text;
-use wisp::theme::Theme;
-use wisp::view::list_view::ListView;
-use wisp::view::selection::SelectionState;
 
 #[test]
 fn list_view_is_stateful_without_embedding_selection() {

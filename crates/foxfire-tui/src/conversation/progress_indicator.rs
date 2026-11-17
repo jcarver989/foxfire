@@ -1,6 +1,6 @@
 use crate::theme::Theme;
 use crate::view::wrap::tail_to_width;
-use acp_utils::conversation::{Activity, Conversation, ConversationContent};
+use foxfire_acp::conversation::{Activity, Conversation, ConversationContent};
 use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
 use ratatui::style::{Color, Modifier};

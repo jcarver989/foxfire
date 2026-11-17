@@ -7,10 +7,10 @@ use crate::{renderer::DrawContext, settings::builtin_review_theme_choices};
 use clankerdiff_ratatui::ReviewCapabilities;
 use clankerdiff_ratatui::markdown::{MarkdownDocument, MarkdownReviewEvent};
 use clankerdiff_ratatui::{InputOutcome, MarkdownReviewState, MarkdownReviewWidget};
-use client_core::elicitation::{
+use crossterm::event::{Event, KeyCode, KeyEventKind};
+use foxfire_core::elicitation::{
     ArtifactReviewElicitationMeta, ArtifactReviewSubmission, ElicitationAnswer, ElicitationId,
 };
-use crossterm::event::{Event, KeyCode, KeyEventKind};
 use ratatui::{
     buffer::Buffer,
     layout::{Constraint, Position, Rect},

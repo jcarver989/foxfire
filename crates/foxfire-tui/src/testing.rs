@@ -16,23 +16,23 @@ use crate::settings::{UiSettings, builtin_review_theme_choices};
 use crate::surfaces::composer::ComposerLayout;
 use crate::theme::Theme;
 use crate::view::generation::Generation;
-use acp_utils::aether::{
-    ContextClearedParams, PromptSearchParams, SessionPreviewParams, WorkspaceListParams, WorkspaceMoveParams,
-};
-use acp_utils::client::{AcpEvent, connect_acp_client};
-pub use acp_utils::testing::sub_agent_tool_update;
-use acp_utils::testing::{
-    Channel, FakeAgent, FakeAgentRequests, announced, idle_state, initialize_request, message_chunk, on_session,
-    running_state,
-};
 use agent_client_protocol::v2::schema::{self as acp, CreateElicitationResponse, SessionId};
 use agent_client_protocol::{Error, JsonRpcRequest, JsonRpcResponse, Responder};
 use clankerdiff_core::git_patch_from_texts;
 use clankerdiff_ratatui::ThemeChoice;
-use client_core::runtime::{Input, SessionRuntime};
-use client_core::session_core::ForegroundOperation;
-use client_core::testing::{FakeGit, SessionCoreConfigBuilder, git_diff_agent};
 use crossterm::event::{Event, KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEvent, MouseEventKind};
+use foxfire_acp::aether::{
+    ContextClearedParams, PromptSearchParams, SessionPreviewParams, WorkspaceListParams, WorkspaceMoveParams,
+};
+use foxfire_acp::client::{AcpEvent, connect_acp_client};
+pub use foxfire_acp::testing::sub_agent_tool_update;
+use foxfire_acp::testing::{
+    Channel, FakeAgent, FakeAgentRequests, announced, idle_state, initialize_request, message_chunk, on_session,
+    running_state,
+};
+use foxfire_core::runtime::{Input, SessionRuntime};
+use foxfire_core::session_core::ForegroundOperation;
+use foxfire_core::testing::{FakeGit, SessionCoreConfigBuilder, git_diff_agent};
 use futures::FutureExt;
 use ratatui::backend::{Backend, ClearType, TestBackend, WindowSize};
 use ratatui::buffer::{Buffer, Cell};
@@ -848,7 +848,7 @@ pub fn thought_chunk(text: &str) -> AcpEvent {
 }
 
 pub fn thought_chunk_with_id(message_id: &str, text: &str) -> AcpEvent {
-    session_update(acp_utils::testing::thought_chunk(message_id, text))
+    session_update(foxfire_acp::testing::thought_chunk(message_id, text))
 }
 
 pub fn text_diff(path: &str, old: &str, new: &str) -> acp::Diff {

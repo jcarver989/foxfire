@@ -1,4 +1,4 @@
-use wisp::conversation::progress_indicator::SPINNER_FRAMES;
+use foxfire_tui::conversation::progress_indicator::SPINNER_FRAMES;
 
 use super::support::*;
 
@@ -37,7 +37,7 @@ fn native_idle_clears_responding_state() {
     ui.assert_viewport_contains("Responding…");
 
     ui.acp_event(session_update(
-        acp_utils::testing::idle_notification("test-session", Some(acp::StopReason::EndTurn)).update,
+        foxfire_acp::testing::idle_notification("test-session", Some(acp::StopReason::EndTurn)).update,
     ));
 
     assert!(!ui.app().core().waiting_for_response());

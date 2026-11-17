@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::rc::Rc;
 
 use crate::view::generation::Generation;
-use acp_utils::conversation::{ConversationItemId, Revision};
+use foxfire_acp::conversation::{ConversationItemId, Revision};
 use ratatui::text::Line;
 
 /// The inputs a sealed item's rendering depends on, besides its content.

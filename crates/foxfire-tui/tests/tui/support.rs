@@ -1,15 +1,3 @@
-pub(crate) use acp_utils::aether::SelectOptionMeta;
-pub(crate) use acp_utils::aether::{
-    ContextClearedParams, McpNotification, McpRequest, McpServerAuthCapability, McpServerStatus, McpServerStatusEntry,
-    PromptSearchParams, PromptSearchResult, SessionPreviewParams, WorkspaceEntry, WorkspaceListParams,
-    WorkspaceListResponse, WorkspaceMoveParams, WorkspaceMoveResponse, WorkspaceMoveTarget,
-};
-pub(crate) use acp_utils::client::AcpEvent;
-pub(crate) use acp_utils::testing::{
-    FakeAgent, announced, choices, idle_notification, mode_select, model_choice, model_picker, model_select,
-    on_session, option_group, plan, prompt_search_hit, prompt_search_response, running_state, select, session_preview,
-    thought_level_select, user_message,
-};
 pub(crate) use agent_client_protocol::Error;
 pub(crate) use agent_client_protocol::v2::schema::{
     self as acp, BooleanPropertySchema, CreateElicitationRequest, CreateElicitationResponse, ElicitationAction,
@@ -17,13 +5,33 @@ pub(crate) use agent_client_protocol::v2::schema::{
     StringPropertySchema,
 };
 use clankerdiff_core::RepoPath;
-use client_core::composer::file_listing::{FileListing, RepoFiles};
-pub(crate) use client_core::session_core::CommandEntry;
+pub(crate) use foxfire_acp::aether::SelectOptionMeta;
+pub(crate) use foxfire_acp::aether::{
+    ContextClearedParams, McpNotification, McpRequest, McpServerAuthCapability, McpServerStatus, McpServerStatusEntry,
+    PromptSearchParams, PromptSearchResult, SessionPreviewParams, WorkspaceEntry, WorkspaceListParams,
+    WorkspaceListResponse, WorkspaceMoveParams, WorkspaceMoveResponse, WorkspaceMoveTarget,
+};
+pub(crate) use foxfire_acp::client::AcpEvent;
+pub(crate) use foxfire_acp::testing::{
+    FakeAgent, announced, choices, idle_notification, mode_select, model_choice, model_picker, model_select,
+    on_session, option_group, plan, prompt_search_hit, prompt_search_response, running_state, select, session_preview,
+    thought_level_select, user_message,
+};
+use foxfire_core::composer::file_listing::{FileListing, RepoFiles};
+pub(crate) use foxfire_core::session_core::CommandEntry;
 
-pub(crate) use acp_utils::artifact_review::ArtifactReviewElicitationMeta;
-pub(crate) use client_core::session_core::{ForegroundOperation, SessionCore};
-pub(crate) use client_core::testing::{FakeGit, SessionCoreConfigBuilder};
 pub(crate) use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+pub(crate) use foxfire_acp::artifact_review::ArtifactReviewElicitationMeta;
+pub(crate) use foxfire_core::session_core::{ForegroundOperation, SessionCore};
+pub(crate) use foxfire_core::testing::{FakeGit, SessionCoreConfigBuilder};
+pub(crate) use foxfire_tui::command::HostCommandResult;
+pub(crate) use foxfire_tui::testing::ElicitationReply;
+pub(crate) use foxfire_tui::testing::{
+    BackendEvent, InstrumentedBackend, TestUi, TestUiBuilder, assert_buffer_eq, buffer_text, compaction_update,
+    context_cleared, has_cell, line_text, numbered_lines, render_surface, row_cells, row_containing, row_text,
+    rows_with_background, session_update, sub_agent_finished, sub_agent_started, sub_agent_tool_update, text_chunk,
+    text_chunk_with_id, text_diff, thought_chunk, thought_chunk_with_id, tool_completed, tool_status,
+};
 pub(crate) use ratatui::buffer::{Buffer, Cell};
 pub(crate) use ratatui::layout::Position;
 pub(crate) use ratatui::style::{Color, Modifier};
@@ -33,27 +41,19 @@ pub(crate) use std::io::Write as IoWrite;
 pub(crate) use std::path::{Path, PathBuf};
 pub(crate) use std::time::{Duration, Instant};
 pub(crate) use unicode_width::UnicodeWidthStr;
-pub(crate) use wisp::command::HostCommandResult;
-pub(crate) use wisp::testing::ElicitationReply;
-pub(crate) use wisp::testing::{
-    BackendEvent, InstrumentedBackend, TestUi, TestUiBuilder, assert_buffer_eq, buffer_text, compaction_update,
-    context_cleared, has_cell, line_text, numbered_lines, render_surface, row_cells, row_containing, row_text,
-    rows_with_background, session_update, sub_agent_finished, sub_agent_started, sub_agent_tool_update, text_chunk,
-    text_chunk_with_id, text_diff, thought_chunk, thought_chunk_with_id, tool_completed, tool_status,
-};
 
-pub(crate) use acp_utils::conversation::{ConversationContent, ConversationItem, ItemState, ToolCall, ToolStatus};
 use clankerdiff_client::{ClientState, ConnectionState};
 use clankerdiff_ratatui::diff::{DiffDocument, FileDiff};
 pub(crate) use clankerdiff_ratatui::diff::{FileStatus, StageState};
-use wisp::screens::git_diff::GitDiffScreen;
-pub(crate) use wisp::settings::overlay::SettingsOverlay;
-pub(crate) use wisp::settings::{StatusLineSegmentConfig, UiSettings};
-pub(crate) use wisp::surfaces::composer::Composer;
-pub(crate) use wisp::surfaces::picker::SlashCommand;
-pub(crate) use wisp::theme::Theme;
-pub(crate) use wisp::view::input::UiEvent;
-pub(crate) use wisp::view::syntax::highlight;
+pub(crate) use foxfire_acp::conversation::{ConversationContent, ConversationItem, ItemState, ToolCall, ToolStatus};
+use foxfire_tui::screens::git_diff::GitDiffScreen;
+pub(crate) use foxfire_tui::settings::overlay::SettingsOverlay;
+pub(crate) use foxfire_tui::settings::{StatusLineSegmentConfig, UiSettings};
+pub(crate) use foxfire_tui::surfaces::composer::Composer;
+pub(crate) use foxfire_tui::surfaces::picker::SlashCommand;
+pub(crate) use foxfire_tui::theme::Theme;
+pub(crate) use foxfire_tui::view::input::UiEvent;
+pub(crate) use foxfire_tui::view::syntax::highlight;
 
 pub(crate) type Step = fn(&mut TestUi);
 
@@ -113,7 +113,7 @@ pub(crate) fn url_elicitation(server_name: &str, url: &str, elicitation_id: &str
 
 fn server_meta(server_name: &str) -> acp::Meta {
     acp::Meta::from_iter([(
-        acp_utils::aether::AETHER_META_NAMESPACE.to_string(),
+        foxfire_acp::aether::AETHER_META_NAMESPACE.to_string(),
         serde_json::json!({ "mcpServer": server_name }),
     )])
 }
@@ -314,7 +314,7 @@ pub(crate) fn start_search(ui: &mut TestUi, query: &str) {
 pub(crate) fn answer_search(
     ui: &mut TestUi,
     query: &str,
-    response: Result<acp_utils::aether::PromptSearchResponse, Error>,
+    response: Result<foxfire_acp::aether::PromptSearchResponse, Error>,
 ) {
     loop {
         let (request, responder) = ui.held::<Search>();

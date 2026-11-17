@@ -1,7 +1,7 @@
 use clankerdiff_ratatui::composite_color;
 use clankerdiff_ratatui::theme::{ReviewTheme, Rgba, ThemeError};
-use client_core::session_model::WorkspaceStatus;
-use wisp::settings::{StatusLineSegmentConfig as Segment, StatusLineSettings, StatusLineStyle};
+use foxfire_core::session_model::WorkspaceStatus;
+use foxfire_tui::settings::{StatusLineSegmentConfig as Segment, StatusLineSettings, StatusLineStyle};
 
 use super::support::*;
 
@@ -16,8 +16,10 @@ fn every_builtin_renders_distinct_status_roles() -> Result<(), ThemeError> {
     for descriptor in ReviewTheme::catalog() {
         let review = ReviewTheme::builtin(&descriptor.id)?;
         let palette = review.ui;
-        let settings =
-            UiSettings { theme: wisp::settings::ThemeSettings::Builtin { id: descriptor.id }, ..Default::default() };
+        let settings = UiSettings {
+            theme: foxfire_tui::settings::ThemeSettings::Builtin { id: descriptor.id },
+            ..Default::default()
+        };
         let mut ui = TestUiBuilder::new().settings(settings).dimensions(180, 20).build();
         ui.acp_event(config_update(vec![
             sonnet_model(),

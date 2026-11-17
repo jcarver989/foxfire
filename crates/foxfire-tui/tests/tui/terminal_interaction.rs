@@ -1,7 +1,7 @@
 use super::support::*;
-use acp_utils::ReasoningEffort;
 use crossterm::event::{MouseButton, MouseEvent, MouseEventKind};
-use wisp::error::AppError;
+use foxfire_acp::ReasoningEffort;
+use foxfire_tui::error::AppError;
 
 const MODELS: &[(&str, &str)] = &[("a", "Alpha"), ("b", "Beta")];
 

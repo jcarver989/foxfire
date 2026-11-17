@@ -1,6 +1,6 @@
 use crate::command::HostCommandResult;
-use client_core::runtime::Input;
 use crossterm::event::Event;
+use foxfire_core::runtime::Input;
 use std::time::Instant;
 
 pub enum Message {

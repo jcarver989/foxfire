@@ -1,5 +1,5 @@
-use acp_utils::conversation::is_plan_entry_finished;
 use agent_client_protocol::v2::schema::{self as acp};
+use foxfire_acp::conversation::is_plan_entry_finished;
 use std::collections::{HashMap, HashSet};
 use std::time::{Duration, Instant};
 

@@ -16,7 +16,7 @@ pub mod view;
 
 use agent_client_protocol::v2::schema::{Implementation, SessionId};
 use agent_client_protocol::{AcpAgent, Client, ConnectTo};
-use client_core::connection::{Connection, Session};
+use foxfire_core::connection::{Connection, Session};
 
 use app::{App, AppConfig};
 use error::AppError;

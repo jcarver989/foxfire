@@ -3,8 +3,8 @@ use std::rc::Rc;
 use crate::app::App;
 use crate::conversation::item_view::{ContentKind, content_kind, item_lines, kind_before};
 use crate::view::wrap::as_u16;
-use acp_utils::conversation::{ConversationContent, ConversationItem};
 use clankerdiff_ratatui::MarkdownStreamError;
+use foxfire_acp::conversation::{ConversationContent, ConversationItem};
 use ratatui::text::Line;
 
 use super::Renderer;

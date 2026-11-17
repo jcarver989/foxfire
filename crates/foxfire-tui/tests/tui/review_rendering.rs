@@ -1,9 +1,9 @@
 use super::support::{Buffer, Cell, Color, Modifier, Position, git_diff_screen, plan_meta, render_surface};
 use clankerdiff_ratatui::diff::FileDiff;
-use client_core::elicitation::ElicitationId;
+use foxfire_core::elicitation::ElicitationId;
+use foxfire_tui::renderer::DrawContext;
+use foxfire_tui::screens::artifact_review::ArtifactReviewScreen;
 use ratatui::layout::Rect;
-use wisp::renderer::DrawContext;
-use wisp::screens::artifact_review::ArtifactReviewScreen;
 
 #[test]
 fn git_review_clears_underlying_content_only_inside_its_viewport() {
@@ -27,7 +27,7 @@ fn artifact_review_clears_underlying_content_only_inside_its_viewport() {
             assert_opaque_viewport(Rect::new(3, y, 120, 24), |area, buffer, cx| {
                 screen.render(area, buffer, cx);
             });
-            screen.on_ui_event(&wisp::view::input::UiEvent::Key(crossterm::event::KeyCode::Char('r').into()));
+            screen.on_ui_event(&foxfire_tui::view::input::UiEvent::Key(crossterm::event::KeyCode::Char('r').into()));
             assert_opaque_viewport(Rect::new(3, y, 120, 24), |area, buffer, cx| {
                 assert_eq!(screen.render(area, buffer, cx), None);
             });

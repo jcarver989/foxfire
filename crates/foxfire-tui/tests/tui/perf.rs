@@ -263,7 +263,7 @@ fn assert_matches_one_shot_at_every_chunk(message: &str, stream: impl Fn(&str) -
 }
 
 #[test]
-#[ignore = "benchmark: run with `cargo nextest run -p aether-wisp --features testing perf -- --ignored --nocapture`"]
+#[ignore = "benchmark: run with `cargo nextest run -p foxfire-tui --features testing perf -- --ignored --nocapture`"]
 fn rendering_work_breakdown() {
     println!();
     println!(

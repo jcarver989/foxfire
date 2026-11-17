@@ -1,5 +1,5 @@
 use crate::theme::Theme;
-use client_core::session_core::QueuedPrompt;
+use foxfire_core::session_core::QueuedPrompt;
 use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
 use ratatui::style::Style;

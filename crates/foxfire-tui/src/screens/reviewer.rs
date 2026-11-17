@@ -1,9 +1,9 @@
 use crate::settings::overlay::SettingsChange;
 use crate::surfaces::input::UiOutput;
 use crate::view::input::UiEvent;
-use acp_utils::config_option_id::THEME_CONFIG_ID;
 use clankerdiff_ratatui::theme::ThemeId;
 use crossterm::event::Event;
+use foxfire_acp::config_option_id::THEME_CONFIG_ID;
 
 pub(super) fn crossterm_event(event: &UiEvent) -> Event {
     match event {

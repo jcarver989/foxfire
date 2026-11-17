@@ -1,8 +1,8 @@
-use acp_utils::testing::FakeAgent;
 use agent_client_protocol::v2::schema::PromptRequest;
-use client_core::testing::SessionCoreConfigBuilder;
-use wisp::error::AppError;
-use wisp::testing::TestUiBuilder;
+use foxfire_acp::testing::FakeAgent;
+use foxfire_core::testing::SessionCoreConfigBuilder;
+use foxfire_tui::error::AppError;
+use foxfire_tui::testing::TestUiBuilder;
 
 #[test]
 fn remote_connection_loss_exits_with_error_without_resending() {

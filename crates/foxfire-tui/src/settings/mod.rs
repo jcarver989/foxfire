@@ -10,8 +10,8 @@ pub(crate) use settings_model::SettingsModel;
 pub(crate) use themes::{builtin_review_theme_choices, review_theme_choices};
 pub use themes::{list_theme_files, load_theme_file};
 
-use client_core::fs::{JsonFileError, read_json, write_json_atomic};
-use client_core::path::app_home;
+use foxfire_core::fs::{JsonFileError, read_json, write_json_atomic};
+use foxfire_core::path::app_home;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};

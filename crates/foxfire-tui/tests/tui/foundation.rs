@@ -34,7 +34,7 @@ fn command_picker_filters_and_applies_selected_command() {
     composer.insert_str("sea");
     composer.refresh_overlay_query();
 
-    assert_eq!(composer.completion().map(wisp::surfaces::picker::CompletionOverlay::query), Some("sea"));
+    assert_eq!(composer.completion().map(foxfire_tui::surfaces::picker::CompletionOverlay::query), Some("sea"));
     assert!(completion_contains(&mut composer, "/search"));
 
     let selected = composer.accept_command().unwrap();
@@ -51,7 +51,7 @@ fn file_picker_filters_and_inserts_a_mention() {
     composer.insert_str("main");
     composer.refresh_overlay_query();
 
-    assert_eq!(composer.completion().map(wisp::surfaces::picker::CompletionOverlay::query), Some("main"));
+    assert_eq!(composer.completion().map(foxfire_tui::surfaces::picker::CompletionOverlay::query), Some("main"));
     assert!(completion_contains(&mut composer, "src/main.rs"));
 
     let selected = composer.accept_file().unwrap();
@@ -74,7 +74,7 @@ fn selected_file_is_sent_as_an_acp_resource_attachment() {
     assert!(
         matches!(&prompt[..], [acp::ContentBlock::Text(text), acp::ContentBlock::Resource(_)] if text.text == "@context.txt ")
     );
-    let expanded = acp_utils::content::map_content_blocks_to_text(&prompt);
+    let expanded = foxfire_acp::content::map_content_blocks_to_text(&prompt);
     assert!(expanded.contains("attached context"), "the model receives the file contents");
     app.assert_viewport_contains("@context.txt");
     app.assert_viewport_contains(&format!("file://{}", app.workspace().join("context.txt").display()));

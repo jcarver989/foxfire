@@ -5,7 +5,7 @@ use crate::theme::Theme;
 use crate::view::filterable_list::FilterableList;
 use crate::view::input::{Nav, UiEvent};
 use crate::view::wrap::truncate_to_width;
-use client_core::session_config_view::LocalConfigValue;
+use foxfire_core::session_config_view::LocalConfigValue;
 use ratatui::buffer::Buffer;
 use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::style::Style;

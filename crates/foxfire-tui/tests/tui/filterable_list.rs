@@ -1,10 +1,10 @@
+use foxfire_tui::theme::Theme;
+use foxfire_tui::view::filterable_list::FilterableList;
+use foxfire_tui::view::selection::Direction;
 use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
 use ratatui::text::Line;
 use ratatui::widgets::StatefulWidget;
-use wisp::theme::Theme;
-use wisp::view::filterable_list::FilterableList;
-use wisp::view::selection::Direction;
 
 #[test]
 fn filters_once_per_query_change_and_selects_from_cached_matches() {

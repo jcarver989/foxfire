@@ -5,7 +5,7 @@ use ratatui::text::{Line, Span};
 use unicode_width::UnicodeWidthStr;
 
 use super::tool_view::tool_lines;
-use acp_utils::conversation::{ConversationContent, ConversationItem};
+use foxfire_acp::conversation::{ConversationContent, ConversationItem};
 use std::borrow::Cow;
 
 const NOTICE_PREFIX: &str = "[wisp]";
