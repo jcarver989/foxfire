@@ -13,7 +13,7 @@ fn main() -> ExitCode {
                 Rustfmt::new().set("max_width", 120).set("newline_style", "Unix").set("use_small_heuristics", "Max"),
             )
             .ci(Ci::new().setup(
-                Step::run("sudo apt-get update && sudo apt-get install --yes libfontconfig1-dev libxkbcommon-x11-dev")
+                Step::run("sudo apt-get update && sudo apt-get install --yes libfontconfig1-dev libxkbcommon-x11-dev mesa-vulkan-drivers")
                     .name("Install system libraries"),
             )),
     );
