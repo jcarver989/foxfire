@@ -40,7 +40,7 @@ pub async fn connect_acp_client(
     let closed = CancellationToken::new();
     let stop = CancellationToken::new();
     let events = ConnectionEvents { event_tx, closed: closed.clone() };
-    spawn(run_client_connection(agent, init_request, init_tx, events, stop.clone()));
+    tokio::spawn(run_client_connection(agent, init_request, init_tx, events, stop.clone()));
     let connection = Arc::new(ClientConnection { stop, closed });
     let (initialize_response, cx) = await_response(init_rx).await?;
     Ok(AcpClient { initialize_response, event_rx, handle: AcpClientHandle { cx, connection } })
@@ -187,16 +187,6 @@ impl HandleDispatchFrom<acp::Agent> for ClientHandlers {
     fn describe_chain(&self) -> impl std::fmt::Debug {
         "ClientHandlers"
     }
-}
-
-#[cfg(not(target_family = "wasm"))]
-fn spawn(future: impl Future<Output = ()> + Send + 'static) {
-    tokio::spawn(future);
-}
-
-#[cfg(target_family = "wasm")]
-fn spawn(future: impl Future<Output = ()> + 'static) {
-    wasm_bindgen_futures::spawn_local(future);
 }
 
 async fn await_response<T>(receiver: oneshot::Receiver<Result<T, AcpClientError>>) -> Result<T, AcpClientError> {
