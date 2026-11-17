@@ -91,7 +91,7 @@ fn context_clear_discards_conversation_retained_in_the_live_viewport() {
     ui.acp_event(context_cleared());
 
     ui.assert_viewport_not_contains("old retained message");
-    ui.assert_viewport_not_contains("[wisp] Context cleared");
+    ui.assert_viewport_not_contains("[foxfire] Context cleared");
 }
 
 #[test]

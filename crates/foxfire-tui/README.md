@@ -1,15 +1,15 @@
-# wisp
+# Foxfire
 
 A terminal interface for AI coding agents, built on the Agent Client Protocol (ACP) v2.
 
-Wisp launches an ACP-compatible agent as a subprocess, streams markdown responses and tool activity, and provides built-in session management, file attachments, plan review, git review, and settings without leaving the terminal.
+Foxfire launches an ACP-compatible agent as a subprocess, streams markdown responses and tool activity, and provides built-in session management, file attachments, plan review, git review, and settings without leaving the terminal.
 
 ## Quick start
 
 ```bash
 cargo install foxfire-tui
-wisp                       # launches the default agent ("aether acp")
-wisp --agent "my-agent"    # launches a custom ACP agent
+foxfire                      # launches the default agent ("aether acp")
+foxfire --agent "my-agent"   # launches a custom ACP agent
 ```
 
 The `--agent` flag accepts any shell command that speaks ACP v2 over stdio.
@@ -28,7 +28,7 @@ The `--agent` flag accepts any shell command that speaks ACP v2 over stdio.
 | `Ctrl+G` | Toggle git review |
 | `Ctrl+R` | Search prompt history when supported |
 
-Global bindings can be overridden in Wisp settings.
+Global bindings can be overridden in Foxfire settings.
 
 ## Commands
 
@@ -44,9 +44,9 @@ The connected agent may advertise additional commands.
 
 ## Settings and themes
 
-UI preferences are stored in `~/.wisp/settings.json`. Set `WISP_HOME` to use a different configuration directory. Supported settings include themes, content padding, status-line segments, and global keybindings.
+UI preferences are stored in `~/.foxfire/settings.json`. Set `FOXFIRE_HOME` to use a different configuration directory. Supported settings include themes, content padding, status-line segments, and global keybindings.
 
-Choose a Clankerdiff built-in theme in `/settings`, or place versioned Clankerdiff JSON theme files in `~/.wisp/themes/`. A built-ins use `{"source":"builtin","id":"sage"}`; custom uses the JSON filename:
+Choose a Clankerdiff built-in theme in `/settings`, or place versioned Clankerdiff JSON theme files in `~/.foxfire/themes/`. A built-ins use `{"source":"builtin","id":"sage"}`; custom uses the JSON filename:
 
 ```json
 {
@@ -61,10 +61,10 @@ Agent-provided options such as model, reasoning effort, modes, provider login, a
 
 ## Logs
 
-Logs are written to `/tmp/wisp-logs/wisp.log.YYYY-MM-DD` by default. Override the directory with:
+Logs are written to `/tmp/foxfire-logs/foxfire.log.YYYY-MM-DD` by default. Override the directory with:
 
 ```bash
-wisp --log-dir ~/logs
+foxfire --log-dir ~/logs
 ```
 
 Use `RUST_LOG` to configure verbosity.
@@ -79,8 +79,8 @@ cargo doc -p foxfire-tui --open
 
 The primary public entry points are:
 
-- `run_tui` — connect to an ACP agent and launch Wisp
-- `run_remote_tui` — attach Wisp to an Aether remote host over an established transport
+- `run_tui` — connect to an ACP agent and launch Foxfire
+- `run_remote_tui` — attach Foxfire to an Aether remote host over an established transport
 - `UiSettings` and the `settings` module — persistent UI configuration
 
-The `testing` feature exposes Wisp's in-memory integration harness for project tests.
+The `testing` feature exposes Foxfire's in-memory integration harness for project tests.

@@ -113,7 +113,7 @@ pub struct StatusLineSettings {
 /// (`{"type":"model","maxWidth":40}`).
 ///
 /// A segment carrying no options may also be written as its bare name
-/// (`"model"`). Both clients read the same `~/.wisp/settings.json`, and a file
+/// (`"model"`). Both clients read the same `~/.foxfire/settings.json`, and a file
 /// serde rejects is discarded whole, so refusing the shorthand would silently
 /// reset every unrelated setting alongside it. Writing always uses the object
 /// form.
@@ -233,7 +233,7 @@ pub fn resolve_content_padding(settings: &UiSettings) -> usize {
 pub fn load_or_create_settings() -> UiSettings {
     settings_path().map_or_else(
         || {
-            warn!("Unable to resolve Wisp settings path; using defaults");
+            warn!("Unable to resolve Foxfire settings path; using defaults");
             UiSettings::default()
         },
         |path| load_or_create_at(&path),
@@ -242,16 +242,16 @@ pub fn load_or_create_settings() -> UiSettings {
 
 pub fn save_settings(settings: &UiSettings) -> std::io::Result<()> {
     let path = settings_path()
-        .ok_or_else(|| std::io::Error::new(std::io::ErrorKind::NotFound, "Unable to resolve Wisp settings path"))?;
+        .ok_or_else(|| std::io::Error::new(std::io::ErrorKind::NotFound, "Unable to resolve Foxfire settings path"))?;
     save_to_path(&path, settings)
 }
 
-fn wisp_home() -> Option<PathBuf> {
-    app_home("WISP_HOME", ".wisp")
+fn foxfire_home() -> Option<PathBuf> {
+    app_home("FOXFIRE_HOME", ".foxfire")
 }
 
 fn settings_path() -> Option<PathBuf> {
-    wisp_home().map(|home| home.join("settings.json"))
+    foxfire_home().map(|home| home.join("settings.json"))
 }
 
 fn load_or_create_at(path: &Path) -> UiSettings {

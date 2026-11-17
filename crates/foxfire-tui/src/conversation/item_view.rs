@@ -8,7 +8,7 @@ use super::tool_view::tool_lines;
 use foxfire_acp::conversation::{ConversationContent, ConversationItem};
 use std::borrow::Cow;
 
-const NOTICE_PREFIX: &str = "[wisp]";
+const NOTICE_PREFIX: &str = "[foxfire]";
 
 /// Which of the four transcript content kinds an item holds, driving the blank
 /// line inserted between runs of different kinds.

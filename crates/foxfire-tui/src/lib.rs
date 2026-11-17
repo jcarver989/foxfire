@@ -29,10 +29,10 @@ use std::str::FromStr;
 use tracing_appender::rolling::{RollingFileAppender, Rotation};
 use tracing_subscriber::EnvFilter;
 
-pub const DEFAULT_LOG_DIR: &str = "/tmp/wisp-logs";
+pub const DEFAULT_LOG_DIR: &str = "/tmp/foxfire-logs";
 const MAX_LOG_FILES: usize = 7;
 
-/// Launch the Wisp TUI with the given agent subprocess command.
+/// Launch the Foxfire TUI with the given agent subprocess command.
 pub async fn run_tui(agent_command: &str, settings: UiSettings, log_dir: Option<&str>) -> Result<(), AppError> {
     setup_logging(log_dir.map(Path::new));
     let agent = AcpAgent::from_str(agent_command).map_err(AppError::InvalidAgentCommand)?;
@@ -54,7 +54,7 @@ pub async fn run_remote_tui(
 }
 
 pub fn client_info() -> Implementation {
-    Implementation::new("wisp", env!("CARGO_PKG_VERSION"))
+    Implementation::new("foxfire", env!("CARGO_PKG_VERSION"))
 }
 
 /// Logs to `dir/<file_name>.<date>`, rotating daily and keeping the most recent week of files.
@@ -83,5 +83,5 @@ async fn run_with_session(session: Session, settings: UiSettings) -> Result<(), 
 }
 
 fn setup_logging(log_dir: Option<&Path>) {
-    init_file_logging(log_dir.unwrap_or(Path::new(DEFAULT_LOG_DIR)), "wisp.log", "info");
+    init_file_logging(log_dir.unwrap_or(Path::new(DEFAULT_LOG_DIR)), "foxfire.log", "info");
 }

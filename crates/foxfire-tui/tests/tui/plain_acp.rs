@@ -1,4 +1,4 @@
-//! Most agents speak only standard ACP. Wisp must drive one without touching Aether's extensions.
+//! Most agents speak only standard ACP. Foxfire must drive one without touching Aether's extensions.
 
 use super::support::*;
 use agent_client_protocol::v2::schema::{
@@ -7,7 +7,7 @@ use agent_client_protocol::v2::schema::{
 };
 
 #[test]
-fn a_plain_acp_agent_drives_wisp_without_any_aether_extension() {
+fn a_plain_acp_agent_drives_foxfire_without_any_aether_extension() {
     let model = select("llm", "LLM", "fast", &[("fast", "Fast"), ("slow", "Slow")])
         .category(acp::SessionConfigOptionCategory::Model);
     let mut ui = TestUiBuilder::new()
