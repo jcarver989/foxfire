@@ -15,8 +15,8 @@ use crate::threads::{Attention, Thread, ThreadEvent, ThreadManager};
 use crate::ui::DEFAULT_INTERFACE_SIZE;
 use crate::ui::tokens::{GUTTER, HEADER_HEIGHT, MODAL_WIDTH, PICKER_LIST_HEIGHT};
 use crate::ui::{
-    ActiveReviewTheme, IconName, InterfaceSize, Material, PickerItem, SearchPickerHandle, StyledExt, UI_FONT, UiStyles,
-    WispMotion, appearance, backdrop, empty_state, picker_closed, search_picker,
+    ActiveReviewTheme, FoxfireMotion, IconName, InterfaceSize, Material, PickerItem, SearchPickerHandle, StyledExt,
+    UI_FONT, UiStyles, appearance, backdrop, empty_state, picker_closed, search_picker,
 };
 use clankerdiff_core::RepoPath;
 use clankerdiff_remote::Remotes;
@@ -109,7 +109,7 @@ impl DesktopApp {
         let preference = memo(move || registry.with(|state| state.theme.clone()));
         let active = ActiveReviewTheme::install(preference.get_untracked().theme(appearance().get_untracked()));
         effect(move || active.apply(&preference.get()));
-        let motion = WispMotion::install(registry.with_untracked(|state| state.reduced_motion));
+        let motion = FoxfireMotion::install(registry.with_untracked(|state| state.reduced_motion));
         effect(move || motion.set_reduced(registry.with(|state| state.reduced_motion)));
         let size = InterfaceSize::install(DEFAULT_INTERFACE_SIZE);
         if let Some(saved) = registry.with(|state| state.interface_size) {

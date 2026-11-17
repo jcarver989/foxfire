@@ -52,7 +52,7 @@ pub enum Collapsed {
 }
 
 pub fn default_state_dir() -> Option<PathBuf> {
-    foxfire_core::path::app_home("AETHER_HOME", ".aether").map(|home| home.join("desktop"))
+    foxfire_core::path::app_home("FOXFIRE_HOME", ".foxfire").map(|home| home.join("desktop"))
 }
 
 /// The state saved as `json`. Unreadable state is forgotten.

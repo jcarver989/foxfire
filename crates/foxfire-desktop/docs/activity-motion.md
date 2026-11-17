@@ -1,6 +1,6 @@
 # Desktop activity motion
 
-The wisp communicates **activity, not progress**. Its modes are semantic rather than an arbitrary energy percentage:
+The foxfire communicates **activity, not progress**. Its modes are semantic rather than an arbitrary energy percentage:
 
 | State | Motion | Static silhouette |
 | --- | --- | --- |
@@ -19,7 +19,7 @@ Moving marks step about 30 times a second (Writing types 9 cells a second) with 
 
 - Hover the status text to see its activity, current plan step, and running tool.
 - Click the status or focus it with the keyboard to open live details. Enter/Space opens it; Escape or an outside click dismisses it. This never cancels a turn.
-- **Settings → Activity motion → Reduced** is persisted in desktop state. It removes wisp clocks, mode tweening, entry/exit motion, and milestone cues, but keeps the artwork and labels. It is an explicit app preference, not automatic OS preference detection, and does not disable unrelated glass/menu animations.
+- **Settings → Activity motion → Reduced** is persisted in desktop state. It removes foxfire clocks, mode tweening, entry/exit motion, and milestone cues, but keeps the artwork and labels. It is an explicit app preference, not automatic OS preference detection, and does not disable unrelated glass/menu animations.
 - Every running tool has persistent “Running” text, not just a decorative mark. Color is supplementary.
 
 Rouge currently has no native accessibility-tree API. Visible labels and keyboard support improve usability, but are **not** a claim of native screen-reader status announcements. That requires toolkit work.
@@ -27,7 +27,7 @@ Rouge currently has no native accessibility-tree API. Visible labels and keyboar
 ## Preview the actual shader
 
 ```sh
-cargo run -p foxfire-desktop --example wisp_preview
+cargo run -p foxfire-desktop --example foxfire_preview
 ```
 
 The gallery shows light/dark backgrounds, 12/16 px compact and 48 px expanded artwork, manual state controls, rapid transitions, reduced motion, static outcomes, and a scrollable indicator load.
@@ -35,14 +35,14 @@ The gallery shows light/dark backgrounds, 12/16 px compact and 48 px expanded ar
 Capture deterministic frames without opening a window:
 
 ```sh
-cargo run -p foxfire-desktop --example wisp_preview -- --capture target/wisp-preview.png
-cargo run -p foxfire-desktop --example wisp_preview -- --reduced --scale 2 --capture target/wisp-preview-still@2x.png
+cargo run -p foxfire-desktop --example foxfire_preview -- --capture target/foxfire-preview.png
+cargo run -p foxfire-desktop --example foxfire_preview -- --reduced --scale 2 --capture target/foxfire-preview-still@2x.png
 ```
 
 Measure synchronized headless rendering after shader/pipeline warmup:
 
 ```sh
-cargo run --release -p foxfire-desktop --example wisp_preview -- --benchmark
+cargo run --release -p foxfire-desktop --example foxfire_preview -- --benchmark
 ```
 
 The report includes mean/p95 wall time, layout/paint deltas, and rendering pass counts. Wall time includes CPU work, GPU completion, and driver overhead; it is **not GPU-only timing** or a portable performance guarantee. The gallery only renders indicators intersecting its viewport. A separate 32-visible-indicator test asserts work budgets without fragile timing thresholds.
@@ -51,10 +51,10 @@ The report includes mean/p95 wall time, layout/paint deltas, and rendering pass 
 
 The shared component selects a clock-free effect when waiting, reduced motion is enabled, the window loses focus, or its tracked paint region is clipped out. Hidden application views are unmounted and their clocks are disposed. On resuming a suspended mark, time restarts; ordinary active-mode changes retain their phase.
 
-Rouge's paint-region observer currently does not account for the `invisible` style flag or arbitrary opaque-window occlusion. Hide containing views through conditional mounting (`show`/`dynamic`), as the desktop already does, rather than leaving live wisps under an `invisible`/zero-opacity ancestor.
+Rouge's paint-region observer currently does not account for the `invisible` style flag or arbitrary opaque-window occlusion. Hide containing views through conditional mounting (`show`/`dynamic`), as the desktop already does, rather than leaving live foxfires under an `invisible`/zero-opacity ancestor.
 
 ```sh
-cargo test -p foxfire-desktop --features testing --test desktop wisp::
+cargo test -p foxfire-desktop --features testing --test desktop foxfire::
 cargo test -p foxfire-desktop --features testing --test desktop activity::
 cargo test -p foxfire-desktop --features testing --test desktop settings::
 ```

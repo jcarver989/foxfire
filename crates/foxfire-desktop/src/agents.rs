@@ -100,11 +100,11 @@ pub enum AddAgentError {
 }
 
 pub fn default_agents_file() -> Option<PathBuf> {
-    foxfire_core::path::app_home("AETHER_HOME", ".aether").map(|home| home.join("desktop").join(AGENTS_FILE))
+    foxfire_core::path::app_home("FOXFIRE_HOME", ".foxfire").map(|home| home.join("desktop").join(AGENTS_FILE))
 }
 
 pub fn project_agents_file(project: &Path) -> PathBuf {
-    project.join(".aether").join(AGENTS_FILE)
+    project.join(".foxfire").join(AGENTS_FILE)
 }
 
 impl Agents {

@@ -1,4 +1,4 @@
-use super::{Theme, WispMotion};
+use super::{FoxfireMotion, Theme};
 use rouge::core::{
     Div, Ease, Inputs, Motion, PaintRegion, Rect, Role, ShaderEffect, Styled, Tween, div, switch, window_focused,
 };
@@ -16,8 +16,8 @@ pub fn kindling(composer: impl Fn() -> Rect + 'static, reveal: Motion) -> Div {
     let theme = Theme::current();
     let region = signal(PaintRegion::default());
     let focused = window_focused();
-    let motion = use_context::<WispMotion>();
-    let reduced = move || motion.is_some_and(WispMotion::reduced);
+    let motion = use_context::<FoxfireMotion>();
+    let reduced = move || motion.is_some_and(FoxfireMotion::reduced);
     let animated = memo(move || focused.get() && !reduced() && region.with(|region| !region.bounds.is_empty()));
     let veiled = focused.get_untracked() && !untrack(reduced);
     reveal.set(if veiled { HIDDEN } else { 1.0 });

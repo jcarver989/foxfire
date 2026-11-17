@@ -1,7 +1,7 @@
 use crate::tasks::spawn_in;
 use crate::threads::{Thread, ThreadStatus};
 use crate::ui::tokens::{ICON_SIZE, ICON_SIZE_SMALL, ROW_HEIGHT, Radius};
-use crate::ui::{Hint, Icon, IconName, Theme, UiStyles, WispMotion, WispState, wisp};
+use crate::ui::{FoxfireMotion, FoxfireState, Hint, Icon, IconName, Theme, UiStyles, foxfire};
 use agent_client_protocol::v2::schema as acp;
 use foxfire_acp::conversation::{Activity, Conversation, ConversationContent, ToolStatus, is_plan_entry_finished};
 use foxfire_core::format::token_count;
@@ -125,7 +125,7 @@ impl StatusLine {
 
     fn activity(self, doing: Memo<Option<Doing>>, plan: Memo<Option<Vec<acp::PlanEntry>>>) -> impl View {
         let theme = Theme::current();
-        let motion = WispMotion::current();
+        let motion = FoxfireMotion::current();
         let details = signal(false);
         let restoring_focus = stored(false);
         let open_details = move || {
@@ -255,20 +255,20 @@ impl Doing {
         }
     }
 
-    fn wisp(self) -> WispState {
+    fn foxfire(self) -> FoxfireState {
         match self {
-            Self::Waiting => WispState::Waiting,
-            Self::Thinking => WispState::Thinking,
-            Self::Compacting => WispState::Compacting,
-            Self::Working => WispState::Working,
-            Self::Writing => WispState::Writing,
+            Self::Waiting => FoxfireState::Waiting,
+            Self::Thinking => FoxfireState::Thinking,
+            Self::Compacting => FoxfireState::Compacting,
+            Self::Working => FoxfireState::Working,
+            Self::Writing => FoxfireState::Writing,
         }
     }
 }
 
 fn indicator(doing: Memo<Option<Doing>>, plan: Memo<Option<Vec<acp::PlanEntry>>>) -> impl View {
     let theme = Theme::current();
-    let motion = WispMotion::current();
+    let motion = FoxfireMotion::current();
     let focused = window_focused();
     let region = signal(PaintRegion::default());
     let previous = stored(None::<Vec<acp::PlanEntry>>);
@@ -335,7 +335,7 @@ fn indicator(doing: Memo<Option<Doing>>, plan: Memo<Option<Vec<acp::PlanEntry>>>
     let tint = move || if doing.get() == Some(Doing::Waiting) { theme.get().warning } else { theme.get().info };
     view! {
         <div test_id="activity" flex_none relative size=ICON_SIZE_SMALL flex items_center justify_center track_paint_region=region>
-            {wisp(ICON_SIZE_SMALL, tint, move || doing.get().unwrap_or(Doing::Waiting).wisp())}
+            {foxfire(ICON_SIZE_SMALL, tint, move || doing.get().unwrap_or(Doing::Waiting).foxfire())}
             {cue}
             <dynamic>{doing.get().map(|doing| view! {
                 <div test_id={doing.describe().1} absolute top=0.0 left=0.0 size_full pass_through/>

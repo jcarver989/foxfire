@@ -1,4 +1,4 @@
-use foxfire_desktop::ui::{WispMotion, WispState, wisp};
+use foxfire_desktop::ui::{FoxfireMotion, FoxfireState, foxfire};
 use rouge::core::testing::TestUi;
 use rouge::core::{Color, Styled, div, show};
 use rouge::reactive::{Entered, Runtime, Signal, signal};
@@ -6,7 +6,7 @@ use rouge_widgets::testing::component_test;
 
 #[test]
 fn waiting_and_reduced_motion_have_no_clock_and_never_change_pixels() {
-    for (state, reduced) in [(WispState::Waiting, false), (WispState::Writing, true)] {
+    for (state, reduced) in [(FoxfireState::Waiting, false), (FoxfireState::Writing, true)] {
         let mut scene = SceneBuilder::default().state(state).reduced(reduced).build();
         let before = scene.ui.render().unwrap().pixels;
         scene.ui.run(3.0);
@@ -16,7 +16,7 @@ fn waiting_and_reduced_motion_have_no_clock_and_never_change_pixels() {
 }
 
 #[test]
-fn clipped_hidden_and_unfocused_wisps_stop_and_resume_their_clocks() {
+fn clipped_hidden_and_unfocused_foxfires_stop_and_resume_their_clocks() {
     let mut scene = SceneBuilder::default().build();
     assert!(scene.ui.is_animating());
     scene.offset.set(1000.0);
@@ -43,7 +43,7 @@ fn clipped_hidden_and_unfocused_wisps_stop_and_resume_their_clocks() {
 }
 
 #[test]
-fn many_running_wisps_animate_on_the_compositor_alone() {
+fn many_running_foxfires_animate_on_the_compositor_alone() {
     let mut scene = SceneBuilder::default().count(32).build();
     scene.ui.run(1.0);
     let before = scene.ui.stats();
@@ -59,10 +59,14 @@ fn many_running_wisps_animate_on_the_compositor_alone() {
 }
 
 #[test]
-fn a_running_wisp_wakes_the_compositor_at_most_thirty_times_a_second() {
-    for state in
-        [WispState::Connecting, WispState::Thinking, WispState::Working, WispState::Writing, WispState::Compacting]
-    {
+fn a_running_foxfire_wakes_the_compositor_at_most_thirty_times_a_second() {
+    for state in [
+        FoxfireState::Connecting,
+        FoxfireState::Thinking,
+        FoxfireState::Working,
+        FoxfireState::Writing,
+        FoxfireState::Compacting,
+    ] {
         let mut scene = SceneBuilder::default().state(state).build();
         scene.ui.run(1.0);
         scene.ui.draw().unwrap();
@@ -71,30 +75,30 @@ fn a_running_wisp_wakes_the_compositor_at_most_thirty_times_a_second() {
     }
 }
 
-const WISP_SIZE: f32 = 12.0;
+const FOXFIRE_SIZE: f32 = 12.0;
 
 struct Scene {
     ui: TestUi,
-    motion: WispMotion,
+    motion: FoxfireMotion,
     offset: Signal<f32>,
     hidden: Signal<bool>,
     _entered: Entered,
 }
 
 struct SceneBuilder {
-    state: WispState,
+    state: FoxfireState,
     reduced: bool,
     count: usize,
 }
 
 impl Default for SceneBuilder {
     fn default() -> Self {
-        Self { state: WispState::Thinking, reduced: false, count: 1 }
+        Self { state: FoxfireState::Thinking, reduced: false, count: 1 }
     }
 }
 
 impl SceneBuilder {
-    fn state(mut self, state: WispState) -> Self {
+    fn state(mut self, state: FoxfireState) -> Self {
         self.state = state;
         self
     }
@@ -112,14 +116,14 @@ impl SceneBuilder {
         let (ui, (motion, offset, hidden)) =
             component_test().size(800.0, 120.0).refresh_rate(120.0).build_with(move || {
                 let state = self.state;
-                let motion = WispMotion::install(self.reduced);
+                let motion = FoxfireMotion::install(self.reduced);
                 let offset = signal(0.0);
                 let hidden = signal(false);
                 let art = show(
                     move || !hidden.get(),
                     move || {
                         div().absolute().top(16.0).left(move || offset.get()).flex().gap(8.0).children(
-                            (0..self.count).map(move |_| wisp(WISP_SIZE, Color::rgb(0x0038_7ccf), move || state)),
+                            (0..self.count).map(move |_| foxfire(FOXFIRE_SIZE, Color::rgb(0x0038_7ccf), move || state)),
                         )
                     },
                 );

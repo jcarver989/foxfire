@@ -154,7 +154,7 @@ fn the_changes_at_an_agents_diff_endpoint_are_shown_in_place_of_those_it_serves(
 #[test]
 fn a_diff_endpoint_that_cannot_be_resolved_shows_why_in_place_of_the_changes() {
     let project = tempfile::tempdir().unwrap();
-    let diff = json!({ "url": "ws://${AETHER_DESKTOP_TEST_UNSET_HOST}/ws" });
+    let diff = json!({ "url": "ws://${FOXFIRE_DESKTOP_TEST_UNSET_HOST}/ws" });
     write_agents_file(
         project.path(),
         &json!({ "agents": { "aether": { "type": "stdio", "command": "aether", "diff": diff } } }),
@@ -169,7 +169,7 @@ fn a_diff_endpoint_that_cannot_be_resolved_shows_why_in_place_of_the_changes() {
     harness.press("secondary-2");
 
     let status = thread.review().and_then(|review| review.status());
-    assert!(status.is_some_and(|status| status.contains("AETHER_DESKTOP_TEST_UNSET_HOST")));
+    assert!(status.is_some_and(|status| status.contains("FOXFIRE_DESKTOP_TEST_UNSET_HOST")));
     assert!(viewer_says(&mut harness, "Could not load changes"));
 }
 

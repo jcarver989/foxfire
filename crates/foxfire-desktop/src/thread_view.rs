@@ -8,7 +8,7 @@ use crate::sidebar::toggle_button;
 use crate::threads::{Thread, ThreadStatus};
 use crate::ui::tokens::{GROUP_HEIGHT, GUTTER, HEADER_HEIGHT, ICON_SIZE_SMALL, PANEL_INSET, ROW_HEIGHT, Radius};
 use crate::ui::{
-    Icon, IconName, Material, MaterialExt, StyledExt, Theme, UiStyles, WispState, kindling, scroll_edge, wisp,
+    FoxfireState, Icon, IconName, Material, MaterialExt, StyledExt, Theme, UiStyles, foxfire, kindling, scroll_edge,
 };
 use agent_client_protocol::v2::schema as acp;
 use clankerdiff_core::RepoPath;
@@ -387,7 +387,7 @@ fn connecting_message() -> impl View {
     let muted = Role::TextMuted;
     view! {
         <div test_id="new-thread-connecting" flex_none flex items_center gap=8.0>
-            {wisp(ICON_SIZE_SMALL, muted, || WispState::Connecting)}
+            {foxfire(ICON_SIZE_SMALL, muted, || FoxfireState::Connecting)}
             <text body muted>"Connecting…"</text>
         </div>
     }

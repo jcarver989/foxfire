@@ -9,7 +9,7 @@ pub(crate) struct TempDir(PathBuf);
 
 impl TempDir {
     pub(crate) fn new() -> Self {
-        Self(temp_dir().join(format!("aether-{}", Uuid::new_v4())))
+        Self(temp_dir().join(format!("foxfire-{}", Uuid::new_v4())))
     }
 
     pub(crate) fn path(&self) -> &Path {

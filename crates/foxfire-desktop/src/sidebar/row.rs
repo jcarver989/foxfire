@@ -3,7 +3,9 @@ use super::listing::{Row, RowKind};
 use crate::remotes::{InstanceState, Lifecycle};
 use crate::threads::ThreadStatus;
 use crate::ui::tokens::{ICON_SIZE, ROW_HEIGHT, Radius, TWO_LINE_ROW_HEIGHT, UNREAD_DOT_SIZE};
-use crate::ui::{Icon, IconName, SelectionState, UiStyles, WispState, hint, icon_button, icon_slot, list_row, wisp};
+use crate::ui::{
+    FoxfireState, Icon, IconName, SelectionState, UiStyles, foxfire, hint, icon_button, icon_slot, list_row,
+};
 use rouge::core::{
     AnyView, Div, Key, MenuItem as WindowMenuItem, Role, Styled, Theme, View, div, editable, text, view,
 };
@@ -251,8 +253,8 @@ fn trailing(selector: &str, age: Option<String>, actions: Vec<AnyView>, selected
 
 fn status_icon(row: &str, status: ThreadStatus) -> AnyView {
     let (name, label, shape, icon, color) = match status {
-        ThreadStatus::Connecting => ("connecting", "Starting agent", "wisp", None, Role::TextMuted),
-        ThreadStatus::Running => ("running", "Agent working", "wisp", None, Role::Info),
+        ThreadStatus::Connecting => ("connecting", "Starting agent", "foxfire", None, Role::TextMuted),
+        ThreadStatus::Running => ("running", "Agent working", "foxfire", None, Role::Info),
         ThreadStatus::Background => {
             ("background", "Background task still running", "dot", Some(IconName::CircleDot), Role::TextMuted)
         }
@@ -280,8 +282,8 @@ fn status_icon(row: &str, status: ThreadStatus) -> AnyView {
     let id = format!("{row}-status-{name}");
     let mark = match icon {
         Some(icon) => Icon::new(icon, color).into_any(),
-        None if status == ThreadStatus::Running => wisp(ICON_SIZE, color, || WispState::Working).into_any(),
-        None => wisp(ICON_SIZE, color, || WispState::Connecting).into_any(),
+        None if status == ThreadStatus::Running => foxfire(ICON_SIZE, color, || FoxfireState::Working).into_any(),
+        None => foxfire(ICON_SIZE, color, || FoxfireState::Connecting).into_any(),
     };
     hint(id.clone(), label, tagged(format!("{id}-{shape}"), mark))
 }
@@ -296,7 +298,7 @@ fn instance_icon(row: &str, state: Option<InstanceState>) -> AnyView {
     let id = format!("{row}-instance-{name}");
     let mark = match icon {
         Some(icon) => Icon::new(icon, muted).into_any(),
-        None => wisp(ICON_SIZE, muted, || WispState::Connecting).into_any(),
+        None => foxfire(ICON_SIZE, muted, || FoxfireState::Connecting).into_any(),
     };
     hint(id.clone(), label, tagged(format!("{id}-icon"), mark))
 }

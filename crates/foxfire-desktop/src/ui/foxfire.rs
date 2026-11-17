@@ -7,7 +7,7 @@ use std::f32::consts::TAU;
 
 /// Activity, not progress: each state has a distinct choreography and direction of motion.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub enum WispState {
+pub enum FoxfireState {
     Connecting,
     Thinking,
     Compacting,
@@ -18,23 +18,23 @@ pub enum WispState {
 
 /// A shared, reactive preference for activity indicators. Reduced motion removes their clocks.
 #[derive(Clone, Copy)]
-pub struct WispMotion(Signal<bool>);
+pub struct FoxfireMotion(Signal<bool>);
 
 /// A quiet activity mark: a 3×3 matrix of cells, lit in a different pattern for each state.
 /// Cells move on compositor keyframes, so a running mark never relays out or repaints; each new state fades in.
 /// Waiting is always still; reduced motion, loss of focus, and clipping also stop the clock.
 /// Pair this decoration with a visible activity label rather than relying on its color or motion.
-pub fn wisp<T>(size: f32, tint: impl IntoProp<Fill, T>, state: impl Fn() -> WispState + 'static) -> Div {
+pub fn foxfire<T>(size: f32, tint: impl IntoProp<Fill, T>, state: impl Fn() -> FoxfireState + 'static) -> Div {
     let tint = stored(tint.into_prop());
     let fill = move || tint.with(Prop::get);
     let state = memo(state);
     let region = signal(PaintRegion::default());
     let focused = window_focused();
-    let motion = use_context::<WispMotion>();
+    let motion = use_context::<FoxfireMotion>();
     let animated = memo(move || {
-        state.get() != WispState::Waiting
+        state.get() != FoxfireState::Waiting
             && focused.get()
-            && !motion.is_some_and(WispMotion::reduced)
+            && !motion.is_some_and(FoxfireMotion::reduced)
             && region.with(|region| !region.bounds.is_empty())
     });
     div().flex_none().relative().size(size).pass_through().track_paint_region(region).child(switch(
@@ -62,7 +62,7 @@ pub fn wisp<T>(size: f32, tint: impl IntoProp<Fill, T>, state: impl Fn() -> Wisp
     ))
 }
 
-impl WispState {
+impl FoxfireState {
     #[must_use]
     pub const fn label(self) -> &'static str {
         match self {
@@ -98,7 +98,7 @@ impl WispState {
     }
 }
 
-impl WispMotion {
+impl FoxfireMotion {
     #[must_use]
     pub fn install(reduced: bool) -> Self {
         let motion = Self(signal(reduced));
@@ -154,13 +154,13 @@ fn matrix(size: f32, fill: impl Fn() -> Fill + Copy + 'static, cell: impl Fn(Div
     }))
 }
 
-fn still(cell: Div, state: WispState, size: f32, column: u8, row: u8) -> Div {
+fn still(cell: Div, state: FoxfireState, size: f32, column: u8, row: u8) -> Div {
     let frame = frame(state, column, row, state.still_phase());
     let (x, y) = toward_center(size, column, row, frame.pull);
     cell.opacity(frame.opacity()).translate_x(x).translate_y(y)
 }
 
-fn moving(cell: Div, state: WispState, size: f32, column: u8, row: u8) -> Div {
+fn moving(cell: Div, state: FoxfireState, size: f32, column: u8, row: u8) -> Div {
     let (seconds, steps) = state.choreography();
     let pose = |phase| frame(state, column, row, phase).pose(size, column, row);
     let keyframes = (0..steps).fold(Keyframes::new(), |keyframes, step| {
@@ -170,17 +170,17 @@ fn moving(cell: Div, state: WispState, size: f32, column: u8, row: u8) -> Div {
     cell.animate(keyframes.duration(seconds).repeat())
 }
 
-fn frame(state: WispState, column: u8, row: u8, phase: f32) -> Frame {
+fn frame(state: FoxfireState, column: u8, row: u8, phase: f32) -> Frame {
     let ring = (0..8u8).find(|&index| RING[usize::from(index)] == (column, row));
     let distance = (f32::from(column) - 1.0).hypot(f32::from(row) - 1.0);
     let lit = match state {
-        WispState::Connecting => ring.map_or(0.0, |index| chase(phase * 8.0, index, 2.2)),
-        WispState::Thinking => (0.5 + 0.5 * (TAU * phase + distance * 2.3).sin()).powi(2),
-        WispState::Working => ring.map_or(0.45 + 0.4 * (TAU * phase).sin(), |index| chase(phase * 8.0, index, 4.0)),
-        WispState::Writing => typed(step(phase), row * 3 + column),
-        WispState::Compacting if ring.is_some() => 1.0 - smoothstep(0.1, 0.6, phase),
-        WispState::Compacting => 0.5 + 0.5 * smoothstep(0.3, 0.7, phase),
-        WispState::Waiting => {
+        FoxfireState::Connecting => ring.map_or(0.0, |index| chase(phase * 8.0, index, 2.2)),
+        FoxfireState::Thinking => (0.5 + 0.5 * (TAU * phase + distance * 2.3).sin()).powi(2),
+        FoxfireState::Working => ring.map_or(0.45 + 0.4 * (TAU * phase).sin(), |index| chase(phase * 8.0, index, 4.0)),
+        FoxfireState::Writing => typed(step(phase), row * 3 + column),
+        FoxfireState::Compacting if ring.is_some() => 1.0 - smoothstep(0.1, 0.6, phase),
+        FoxfireState::Compacting => 0.5 + 0.5 * smoothstep(0.3, 0.7, phase),
+        FoxfireState::Waiting => {
             if ring.is_some() {
                 0.0
             } else {
@@ -189,7 +189,7 @@ fn frame(state: WispState, column: u8, row: u8, phase: f32) -> Frame {
         }
     };
     let pull = match state {
-        WispState::Compacting => 0.36 * smoothstep(0.1, 0.55, phase) * (1.0 - smoothstep(0.75, 1.0, phase)),
+        FoxfireState::Compacting => 0.36 * smoothstep(0.1, 0.55, phase) * (1.0 - smoothstep(0.75, 1.0, phase)),
         _ => 0.0,
     };
     Frame { lit, pull }

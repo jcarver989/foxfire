@@ -110,9 +110,9 @@ fn activity_replaces_the_conversation_icon_until_the_turn_and_its_sub_agents_end
     let title_left = harness.bounds("thread-row-0-title").unwrap().left();
 
     let turn = harness.start_turn(alpha, &mut requests, "explore in the background");
-    let wisp = harness.bounds("thread-row-0-status-running-wisp").expect("running thread has a wisp");
+    let foxfire = harness.bounds("thread-row-0-status-running-foxfire").expect("running thread has a foxfire");
     assert!(harness.bounds("thread-row-0-conversation-icon").is_none());
-    assert_eq!(wisp.left(), icon.left());
+    assert_eq!(foxfire.left(), icon.left());
     assert_eq!(harness.bounds("thread-row-0-title").unwrap().left(), title_left);
 
     let spawn = ToolCallUpdate::new("spawn-1").title("spawn_subagent").status(ToolCallStatus::Completed);

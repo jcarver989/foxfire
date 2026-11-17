@@ -245,7 +245,7 @@ async fn an_agent_that_cannot_be_reached_says_why() {
         (json!({ "type": "websocket", "url": occupied }), |error| {
             matches!(error, ConnectError::WebSocket(websocket::ConnectError::Occupied))
         }),
-        (json!({ "type": "websocket", "url": "ws://${AETHER_DESKTOP_TEST_UNSET_HOST}:8765" }), |error| {
+        (json!({ "type": "websocket", "url": "ws://${FOXFIRE_DESKTOP_TEST_UNSET_HOST}:8765" }), |error| {
             matches!(error, ConnectError::Variable(_))
         }),
         (

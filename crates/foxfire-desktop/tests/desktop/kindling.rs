@@ -1,4 +1,4 @@
-use foxfire_desktop::ui::{WispMotion, kindling};
+use foxfire_desktop::ui::{FoxfireMotion, kindling};
 use rouge::core::testing::TestUi;
 use rouge::core::{Motion, Rect, Styled, div, motion};
 use rouge::reactive::{Entered, Runtime};
@@ -69,7 +69,7 @@ fn an_unfocused_window_holds_the_fire_still_and_refocusing_keeps_the_composer_sh
 struct Scene {
     ui: TestUi,
     reveal: Motion,
-    motion: WispMotion,
+    motion: FoxfireMotion,
     _entered: Entered,
 }
 
@@ -86,12 +86,12 @@ impl SceneBuilder {
 
     fn build(self) -> Scene {
         let entered = Runtime::new().enter();
-        let (ui, (reveal, wisp_motion)) = component_test().size(900.0, 400.0).build_with(move || {
-            let wisp_motion = WispMotion::install(self.reduced);
+        let (ui, (reveal, foxfire_motion)) = component_test().size(900.0, 400.0).build_with(move || {
+            let foxfire_motion = FoxfireMotion::install(self.reduced);
             let composer = Rect::new(150.0, 160.0, 600.0, 80.0);
             let reveal = motion(1.0);
-            (div().size_full().relative().child(kindling(move || composer, reveal)), (reveal, wisp_motion))
+            (div().size_full().relative().child(kindling(move || composer, reveal)), (reveal, foxfire_motion))
         });
-        Scene { ui, reveal, motion: wisp_motion, _entered: entered }
+        Scene { ui, reveal, motion: foxfire_motion, _entered: entered }
     }
 }

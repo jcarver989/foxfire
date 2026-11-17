@@ -7,14 +7,14 @@ license.workspace = true
 repository.workspace = true
 description = "Native desktop client for running and managing many ACP agent threads"
 publish = false
-default-run = "aether-desktop"
+default-run = "foxfire-desktop"
 
 [lib]
 name = "foxfire_desktop"
 path = "src/lib.rs"
 
 [[bin]]
-name = "aether-desktop"
+name = "foxfire-desktop"
 path = "src/main.rs"
 
 [[bin]]

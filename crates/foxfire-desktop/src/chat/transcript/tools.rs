@@ -2,7 +2,7 @@ use super::code::highlights;
 use super::groups::{GroupKind, Work};
 use crate::ui::tokens::{ICON_SIZE_SMALL, ROW_HEIGHT};
 use crate::ui::typography::BODY_STRONG;
-use crate::ui::{ButtonVariant, CODE_FONT, ControlSize, Hint, Icon, IconName, UiStyles, WispState, button, wisp};
+use crate::ui::{ButtonVariant, CODE_FONT, ControlSize, FoxfireState, Hint, Icon, IconName, UiStyles, button, foxfire};
 use agent_client_protocol::v2::schema as acp;
 use clankerdiff_core::{DiffDocument, LineStat};
 use clankerdiff_rouge::PatchPreview;
@@ -391,7 +391,7 @@ fn status_icon(status: ToolStatus, id: &str) -> AnyView {
         ToolStatus::Running => {
             return view! {
                 <div test_id={format!("tool-status-{id}")} flex_none flex items_center gap=4.0>
-                    {wisp(ICON_SIZE_SMALL, Role::Info, || WispState::Working).test_id(format!("tool-wisp-{id}"))}
+                    {foxfire(ICON_SIZE_SMALL, Role::Info, || FoxfireState::Working).test_id(format!("tool-foxfire-{id}"))}
                     <text small muted>"Running"</text>
                 </div>
             }

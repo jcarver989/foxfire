@@ -1,8 +1,9 @@
 use clankerdiff_ui_core::ReviewTheme;
 use clap::Parser;
+use foxfire_desktop::branding::APP_NAME;
 use foxfire_desktop::ui::{
-    ActiveReviewTheme, ButtonVariant, ControlSize, Icon, IconName, UI_FONT, UiStyles, WispMotion, WispState, button,
-    wisp,
+    ActiveReviewTheme, ButtonVariant, ControlSize, FoxfireMotion, FoxfireState, Icon, IconName, UI_FONT, UiStyles,
+    button, foxfire,
 };
 use rouge::core::{Color, Styled, View, div, scroll, text, view};
 use rouge::reactive::{Runtime, signal, sleep, spawn};
@@ -34,7 +35,7 @@ fn main() {
         let mut ui = component_test().size(960.0, 840.0).scale(options.scale).build(move || preview(options.reduced));
         ui.run(1.3);
         if let Some(path) = options.capture {
-            let image = ui.render().expect("render the wisp gallery");
+            let image = ui.render().expect("render the foxfire gallery");
             fs::write(&path, image.to_png().expect("encode the gallery")).expect("write the gallery");
             println!("Captured {}", path.display());
         }
@@ -70,17 +71,18 @@ fn main() {
     App::new()
         .fonts(bundled_fonts())
         .tokio(runtime.handle().clone())
-        .window(WindowOptions::default().title("Aether · Activity motion").size(960.0, 840.0), move || {
-            preview(options.reduced)
-        })
+        .window(
+            WindowOptions::default().title(format!("{APP_NAME} · Activity motion")).size(960.0, 840.0),
+            move || preview(options.reduced),
+        )
         .run()
-        .expect("open the wisp preview");
+        .expect("open the foxfire preview");
 }
 
 fn preview(reduced: bool) -> impl View {
     let _ = ActiveReviewTheme::install(ReviewTheme::default());
-    let motion = WispMotion::install(reduced);
-    let selected = signal(WispState::Thinking);
+    let motion = FoxfireMotion::install(reduced);
+    let selected = signal(FoxfireState::Thinking);
     let cycling = signal(false);
     let choices = STATES.map(|state| {
         view! {
@@ -98,7 +100,7 @@ fn preview(reduced: bool) -> impl View {
                         if cycling.get_untracked() { return; }
                         cycling.set(true);
                         spawn(async move {
-                            for state in [WispState::Working, WispState::Writing, WispState::Thinking, WispState::Working, WispState::Writing] {
+                            for state in [FoxfireState::Working, FoxfireState::Writing, FoxfireState::Thinking, FoxfireState::Working, FoxfireState::Writing] {
                                 selected.set(state);
                                 sleep(Duration::from_millis(100)).await;
                             }
@@ -111,8 +113,8 @@ fn preview(reduced: bool) -> impl View {
         <div flex col gap=12.0>
             <text heading>"State transitions"</text>
             <div flex items_center gap=24.0 h=64.0>
-                {wisp(12.0, Color::rgb(0x0038_7ccf), move || selected.get())}
-                {wisp(48.0, Color::rgb(0x0038_7ccf), move || selected.get())}
+                {foxfire(12.0, Color::rgb(0x0038_7ccf), move || selected.get())}
+                {foxfire(48.0, Color::rgb(0x0038_7ccf), move || selected.get())}
                 <text>{move || selected.get().label()}</text>
             </div>
             <div flex flex_wrap gap=8.0>{..choices}</div>
@@ -151,13 +153,13 @@ fn palette(dark: bool) -> impl View {
         (0x00ff_ffff, 0x001f_2328, 0x0028_64b4, 0x0094_6200)
     };
     let rows = STATES.map(|state| {
-        let tint = Color::rgb(if state == WispState::Waiting { warning } else { tint });
+        let tint = Color::rgb(if state == FoxfireState::Waiting { warning } else { tint });
         view! {
             <div flex items_center gap=24.0 h=48.0>
                 <div w=144.0><text>{state.label()}</text></div>
-                {wisp(12.0, tint, move || state)}
-                {wisp(16.0, tint, move || state)}
-                {wisp(48.0, tint, move || state)}
+                {foxfire(12.0, tint, move || state)}
+                {foxfire(16.0, tint, move || state)}
+                {foxfire(48.0, tint, move || state)}
             </div>
         }
     });
@@ -176,17 +178,17 @@ fn outcome(icon: IconName, label: &'static str, color: u32) -> impl View {
 fn stress_row(row: usize) -> impl View {
     view! {
         <div flex items_center gap=24.0 h=20.0>
-            {..(0..4).map(move |index| wisp(12.0, Color::rgb(0x0038_7ccf), move || STATES[(row + index) % 5]))}
+            {..(0..4).map(move |index| foxfire(12.0, Color::rgb(0x0038_7ccf), move || STATES[(row + index) % 5]))}
             <text>{format!("Tool group {}", row + 1)}</text>
         </div>
     }
 }
 
-const STATES: [WispState; 6] = [
-    WispState::Connecting,
-    WispState::Thinking,
-    WispState::Compacting,
-    WispState::Working,
-    WispState::Writing,
-    WispState::Waiting,
+const STATES: [FoxfireState; 6] = [
+    FoxfireState::Connecting,
+    FoxfireState::Thinking,
+    FoxfireState::Compacting,
+    FoxfireState::Working,
+    FoxfireState::Writing,
+    FoxfireState::Waiting,
 ];
