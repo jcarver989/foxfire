@@ -22,7 +22,7 @@ Utilities for the [Agent Client Protocol](https://agentclientprotocol.com/) (ACP
 - Agent subprocesses -- use upstream `agent_client_protocol::{AcpAgent, AcpAgentConfig, Stdio}`
 - **`AcpClientHandle`** -- Initialized, cloneable client for typed ACP v2 requests
 - **`AcpEvent`** -- Ordered notifications, including replay updates sent before the resume response; `AcpEvent::session_id` tells hosts which session an event concerns
-- **`conversation::Conversation`** -- Host-independent reduction of one session's events (`apply_event`) and prompt lifecycle into ordered items (messages, thoughts, tool calls, notices) and turn state; shared by `wisp` and the desktop app
+- **`conversation::Conversation`** -- Host-independent reduction of one session's events (`apply_event`) and prompt lifecycle into ordered items (messages, thoughts, tool calls, notices) and turn state; shared by `foxfire` and the desktop app
 
 ## Feature Flags
 

@@ -6,7 +6,7 @@ rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
 description = "UI-agnostic Agent Client Protocol (ACP) client core shared by foxfire's frontends"
-keywords = ["acp", "aether", "agent", "client"]
+keywords = ["acp", "foxfire", "agent", "client"]
 categories = ["api-bindings", "asynchronous"]
 
 [lib]

@@ -260,8 +260,8 @@ mod tests {
     #[test]
     fn test_basename() {
         for (path, expected) in [
-            ("/Users/josh/code/aether/Cargo.toml", "Cargo.toml"),
-            (r"C:\Users\josh\code\aether\Cargo.toml", "Cargo.toml"),
+            ("/Users/josh/code/foxfire/Cargo.toml", "Cargo.toml"),
+            (r"C:\Users\josh\code\foxfire\Cargo.toml", "Cargo.toml"),
             ("Cargo.toml", "Cargo.toml"),
         ] {
             assert_eq!(basename(path), expected, "path: {path}");

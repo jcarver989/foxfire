@@ -266,7 +266,7 @@ pub struct WorkspaceStatusResponse {
     pub git_ref: Option<String>,
 }
 
-/// Server→client MCP extension notifications (relay → wisp).
+/// Server→client MCP extension notifications (relay → foxfire).
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, JsonSchema, JsonRpcNotification)]
 #[notification(method = "_aether/mcp_event")]
 #[serde(tag = "type", rename_all = "snake_case")]
@@ -274,7 +274,7 @@ pub enum McpNotification {
     ServerStatus { servers: Vec<McpServerStatusEntry> },
 }
 
-/// Client→server MCP extension requests (wisp → relay).
+/// Client→server MCP extension requests (foxfire → relay).
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, JsonRpcNotification)]
 #[notification(method = "_aether/mcp_request")]
 #[serde(tag = "type", rename_all = "snake_case", rename_all_fields = "camelCase")]
