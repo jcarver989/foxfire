@@ -1550,7 +1550,7 @@ version = "0.10.0"
 dependencies = [
  "clankerdiff-core",
  "clankerdiff-fingerprint",
- "rouge-markdown 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rouge-markdown",
  "serde",
  "thiserror 2.0.21",
 ]
@@ -1581,7 +1581,7 @@ dependencies = [
  "crossterm",
  "imbl",
  "ratatui",
- "rouge-syntax 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rouge-syntax",
  "similar",
  "thiserror 2.0.21",
  "unicode-segmentation",
@@ -1608,10 +1608,10 @@ dependencies = [
  "clankerdiff-markdown",
  "clankerdiff-symbols",
  "clankerdiff-ui-core",
- "rouge-core 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "rouge-reactive 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "rouge-syntax 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "rouge-widgets 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rouge-core",
+ "rouge-reactive",
+ "rouge-syntax",
+ "rouge-widgets",
  "web-time",
 ]
 
@@ -1637,7 +1637,7 @@ name = "clankerdiff-symbols"
 version = "0.10.0"
 dependencies = [
  "clankerdiff-core",
- "rouge-syntax 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rouge-syntax",
 ]
 
 [[package]]
@@ -1647,8 +1647,8 @@ dependencies = [
  "arborium-theme",
  "clankerdiff-fingerprint",
  "nucleo-matcher",
- "rouge-syntax 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "rouge-theme 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rouge-syntax",
+ "rouge-theme",
  "serde",
  "serde_json",
  "thiserror 2.0.21",
@@ -2484,7 +2484,7 @@ dependencies = [
  "regex",
  "rfd",
  "rouge",
- "rouge-widgets 0.1.0",
+ "rouge-widgets",
  "rustls",
  "serde",
  "serde_json",
@@ -2515,7 +2515,7 @@ dependencies = [
  "futures",
  "log",
  "ratatui",
- "rouge-syntax 0.1.0",
+ "rouge-syntax",
  "serde",
  "serde_json",
  "tempfile",
@@ -5263,6 +5263,8 @@ dependencies = [
 [[package]]
 name = "rouge"
 version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "65077a6121b2ec280c27a2ee0c5c2a3b622d4ab8745f88e3bac0f62c8a08a7ac"
 dependencies = [
  "arboard",
  "image",
@@ -5273,12 +5275,12 @@ dependencies = [
  "objc2-ui-kit 0.3.2",
  "open",
  "pollster 1.0.1",
- "rouge-core 0.1.0",
- "rouge-markdown 0.1.0",
- "rouge-reactive 0.1.0",
- "rouge-render 0.1.0",
- "rouge-syntax 0.1.0",
- "rouge-widgets 0.1.0",
+ "rouge-core",
+ "rouge-markdown",
+ "rouge-reactive",
+ "rouge-render",
+ "rouge-syntax",
+ "rouge-widgets",
  "serde",
  "serde_json",
  "thiserror 2.0.21",
@@ -5297,35 +5299,15 @@ dependencies = [
 [[package]]
 name = "rouge-core"
 version = "0.1.0"
-dependencies = [
- "image",
- "parley",
- "rouge-macros 0.1.0",
- "rouge-reactive 0.1.0",
- "rouge-render 0.1.0",
- "rouge-theme 0.1.0",
- "rustc-hash 2.1.3",
- "slotmap",
- "swash",
- "taffy",
- "thiserror 2.0.21",
- "tracing",
- "web-time",
- "zeno",
-]
-
-[[package]]
-name = "rouge-core"
-version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "190c7f3f7855d9af0f7b83f6bfbf7e2a866487c1875ba08e59709a69f042b24b"
 dependencies = [
  "image",
  "parley",
- "rouge-macros 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "rouge-reactive 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "rouge-render 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "rouge-theme 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rouge-macros",
+ "rouge-reactive",
+ "rouge-render",
+ "rouge-theme",
  "rustc-hash 2.1.3",
  "slotmap",
  "swash",
@@ -5334,16 +5316,6 @@ dependencies = [
  "tracing",
  "web-time",
  "zeno",
-]
-
-[[package]]
-name = "rouge-macros"
-version = "0.1.0"
-dependencies = [
- "proc-macro-crate",
- "proc-macro2",
- "quote",
- "syn 2.0.119",
 ]
 
 [[package]]
@@ -5361,39 +5333,14 @@ dependencies = [
 [[package]]
 name = "rouge-markdown"
 version = "0.1.0"
-dependencies = [
- "linkify",
- "pulldown-cmark",
- "rouge-syntax 0.1.0",
- "serde",
- "unicase",
-]
-
-[[package]]
-name = "rouge-markdown"
-version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4f150278ec657e46782a5277fb3239762a71f121b677ebd394ae86050841085e"
 dependencies = [
  "linkify",
  "pulldown-cmark",
- "rouge-syntax 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rouge-syntax",
  "serde",
  "unicase",
-]
-
-[[package]]
-name = "rouge-reactive"
-version = "0.1.0"
-dependencies = [
- "crossbeam-channel",
- "gloo-timers",
- "indexmap 2.14.2",
- "rustc-hash 2.1.3",
- "slotmap",
- "thiserror 2.0.21",
- "tokio",
- "web-time",
 ]
 
 [[package]]
@@ -5415,26 +5362,6 @@ dependencies = [
 [[package]]
 name = "rouge-render"
 version = "0.1.0"
-dependencies = [
- "bytemuck",
- "image",
- "objc2 0.6.5",
- "objc2-core-foundation",
- "objc2-io-surface",
- "objc2-metal 0.3.2",
- "pollster 1.0.1",
- "rouge-theme 0.1.0",
- "rustc-hash 2.1.3",
- "slotmap",
- "thiserror 2.0.21",
- "tokio",
- "web-time",
- "wgpu",
-]
-
-[[package]]
-name = "rouge-render"
-version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "05d2134e7cac3646c1a0afb1aa497557f309e021b27c298b9bd9358eb3f655bd"
 dependencies = [
@@ -5445,86 +5372,13 @@ dependencies = [
  "objc2-io-surface",
  "objc2-metal 0.3.2",
  "pollster 1.0.1",
- "rouge-theme 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rouge-theme",
  "rustc-hash 2.1.3",
  "slotmap",
  "thiserror 2.0.21",
  "tokio",
  "web-time",
  "wgpu",
-]
-
-[[package]]
-name = "rouge-syntax"
-version = "0.1.0"
-dependencies = [
- "arborium-asm",
- "arborium-bash",
- "arborium-batch",
- "arborium-c",
- "arborium-c-sharp",
- "arborium-clojure",
- "arborium-cmake",
- "arborium-commonlisp",
- "arborium-cpp",
- "arborium-css",
- "arborium-dart",
- "arborium-diff",
- "arborium-dockerfile",
- "arborium-elixir",
- "arborium-erlang",
- "arborium-fish",
- "arborium-go",
- "arborium-graphql",
- "arborium-haskell",
- "arborium-hcl",
- "arborium-html",
- "arborium-ini",
- "arborium-java",
- "arborium-javascript",
- "arborium-json",
- "arborium-just",
- "arborium-kotlin",
- "arborium-lua",
- "arborium-make",
- "arborium-markdown",
- "arborium-meson",
- "arborium-ninja",
- "arborium-nix",
- "arborium-objc",
- "arborium-ocaml",
- "arborium-perl",
- "arborium-php",
- "arborium-powershell",
- "arborium-proto",
- "arborium-python",
- "arborium-r",
- "arborium-rego",
- "arborium-ruby",
- "arborium-rust",
- "arborium-scala",
- "arborium-scheme",
- "arborium-scss",
- "arborium-solidity",
- "arborium-sql",
- "arborium-starlark",
- "arborium-svelte",
- "arborium-swift",
- "arborium-theme",
- "arborium-toml",
- "arborium-tsx",
- "arborium-typescript",
- "arborium-vue",
- "arborium-x86asm",
- "arborium-xml",
- "arborium-yaml",
- "arborium-zig",
- "arborium-zsh",
- "cc",
- "rouge-theme 0.1.0",
- "serde",
- "thiserror 2.0.21",
- "tree-sitter",
 ]
 
 [[package]]
@@ -5596,17 +5450,10 @@ dependencies = [
  "arborium-zig",
  "arborium-zsh",
  "cc",
- "rouge-theme 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rouge-theme",
  "serde",
  "thiserror 2.0.21",
  "tree-sitter",
-]
-
-[[package]]
-name = "rouge-theme"
-version = "0.1.0"
-dependencies = [
- "serde",
 ]
 
 [[package]]
@@ -5621,27 +5468,15 @@ dependencies = [
 [[package]]
 name = "rouge-widgets"
 version = "0.1.0"
-dependencies = [
- "nucleo-matcher",
- "rouge-core 0.1.0",
- "rouge-markdown 0.1.0",
- "rouge-reactive 0.1.0",
- "rouge-syntax 0.1.0",
- "rouge-theme 0.1.0",
-]
-
-[[package]]
-name = "rouge-widgets"
-version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "799b171af79527ebc74af0d3b6a0186e529d1c3bdf34ee246eedcd7ece8f995b"
 dependencies = [
  "nucleo-matcher",
- "rouge-core 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "rouge-markdown 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "rouge-reactive 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "rouge-syntax 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "rouge-theme 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rouge-core",
+ "rouge-markdown",
+ "rouge-reactive",
+ "rouge-syntax",
+ "rouge-theme",
 ]
 
 [[package]]
