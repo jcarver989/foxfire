@@ -4,6 +4,7 @@ version = "0.1.0"
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
+repository.workspace = true
 description = "A terminal UI for AI coding agents via the Agent Client Protocol (ACP)"
 keywords = ["tui", "ai", "agent", "acp", "terminal"]
 categories = ["command-line-interface"]

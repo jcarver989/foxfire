@@ -4,6 +4,7 @@ version = "0.1.0"
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
+repository.workspace = true
 description = "Agent Client Protocol (ACP) client utilities and Aether protocol extensions"
 keywords = ["acp", "aether", "agent", "protocol"]
 categories = ["api-bindings", "asynchronous"]

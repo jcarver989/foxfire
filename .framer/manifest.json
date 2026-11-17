@@ -32,6 +32,7 @@
         "workspace.members",
         "workspace.package.edition",
         "workspace.package.license",
+        "workspace.package.repository",
         "workspace.package.rust-version",
         "workspace.lints",
         "profile.dev"

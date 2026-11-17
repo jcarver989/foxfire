@@ -4,6 +4,7 @@ version = "0.1.0"
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
+repository.workspace = true
 description = "Native desktop client for running and managing many ACP agent threads"
 publish = false
 default-run = "aether-desktop"

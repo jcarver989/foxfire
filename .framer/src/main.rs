@@ -1,6 +1,6 @@
 use framer::Project;
 use framer::github::Step;
-use framer_presets::{Ci, Rust, RustMonorepo, Rustfmt};
+use framer_presets::{Ci, Rust, RustMonorepo, Rustfmt, Workspace};
 use std::process::ExitCode;
 
 fn main() -> ExitCode {
@@ -8,6 +8,7 @@ fn main() -> ExitCode {
     project.apply(
         RustMonorepo::new()
             .rust(Rust::new("1.100"))
+            .workspace(Workspace::new().repository("https://github.com/jcarver989/foxfire"))
             .rustfmt(
                 Rustfmt::new().set("max_width", 120).set("newline_style", "Unix").set("use_small_heuristics", "Max"),
             )
