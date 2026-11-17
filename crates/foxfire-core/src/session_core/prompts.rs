@@ -3,8 +3,8 @@ use crate::command::RequestId;
 use crate::command::{AgentCommand, Command, PromptRejection};
 use crate::composer::attachment::AttachmentOutcome;
 use crate::composer::submission::Submission;
-use acp_utils::aether::PromptSearchParams;
 use agent_client_protocol::v2::schema as acp;
+use foxfire_acp::aether::PromptSearchParams;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct QueuedPrompt {

@@ -1,13 +1,13 @@
 use crate::support::{deliver, notices};
-use acp_utils::aether::SelectOptionMeta;
-use acp_utils::conversation::NoticeLevel;
-use acp_utils::testing::{model_choice, model_picker, option_group};
 use agent_client_protocol::v2::schema::{self as acp, ContentBlock, SessionConfigSelectOption};
-use client_core::command::CommandResult;
-use client_core::composer::attachment::{AttachmentOutcome, PromptAttachment};
-use client_core::composer::submission::Submission;
-use client_core::session_core::SessionCore;
-use client_core::testing::SessionCoreConfigBuilder;
+use foxfire_acp::aether::SelectOptionMeta;
+use foxfire_acp::conversation::NoticeLevel;
+use foxfire_acp::testing::{model_choice, model_picker, option_group};
+use foxfire_core::command::CommandResult;
+use foxfire_core::composer::attachment::{AttachmentOutcome, PromptAttachment};
+use foxfire_core::composer::submission::Submission;
+use foxfire_core::session_core::SessionCore;
+use foxfire_core::testing::SessionCoreConfigBuilder;
 use std::path::Path;
 
 #[test]

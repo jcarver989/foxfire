@@ -1,9 +1,9 @@
 use crate::session_core::SessionCoreConfig;
 use crate::session_model::{WorkspaceAccess, WorkspaceStatus, initial_workspace_status};
-use acp_utils::aether::{AetherCapabilities, AetherMeta};
-use acp_utils::testing::FakeAgent;
 use agent_client_protocol::schema::ProtocolVersion;
 use agent_client_protocol::v2::schema as acp;
+use foxfire_acp::aether::{AetherCapabilities, AetherMeta};
+use foxfire_acp::testing::FakeAgent;
 use std::path::PathBuf;
 
 pub struct SessionCoreConfigBuilder {

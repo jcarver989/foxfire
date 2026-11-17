@@ -1,28 +1,28 @@
 use crate::support::{LiveSession, deliver, notices, offline, receive, run_local};
-use acp_utils::aether::{WorkspaceEntry, WorkspaceListResponse, WorkspaceMoveResponse, WorkspaceMoveTarget};
-use acp_utils::client::AcpEvent;
-use acp_utils::conversation::NoticeLevel;
-use acp_utils::testing::{
-    FakeAgent, Question, idle_notification, message_chunk, mode_select, model_select, on_session, running_notification,
-    test_connection, texts, user_message,
-};
 use agent_client_protocol::v2::schema::{
     self as acp, ContentBlock, CreateElicitationRequest, CreateElicitationResponse, ElicitationAction,
     ElicitationFormMode, ElicitationSchema, ElicitationSessionScope, ImageContent, NewSessionResponse,
     SessionConfigOption, SessionId, SessionUpdate, StopReason,
 };
 use clankerdiff_core::RepoPath;
-use client_core::command::RequestId;
-use client_core::command::{AgentCommand, Command, CommandResult, GitReviewCommand, PromptRejection, ReviewSource};
-use client_core::composer::attachment::{AttachmentOutcome, PromptAttachment};
-use client_core::composer::file_listing::FileListing;
-use client_core::composer::submission::Submission;
-use client_core::elicitation::{Elicitation, ElicitationAnswer};
-use client_core::session_config_view::LocalConfigOption;
-use client_core::session_core::{Effect, ForegroundOperation, SessionCore};
-use client_core::session_model::{SessionSetting, WorkspaceAccess, WorkspaceStatus};
-use client_core::testing::TestWorkspace;
-use client_core::testing::{FakeGit, SessionCoreConfigBuilder};
+use foxfire_acp::aether::{WorkspaceEntry, WorkspaceListResponse, WorkspaceMoveResponse, WorkspaceMoveTarget};
+use foxfire_acp::client::AcpEvent;
+use foxfire_acp::conversation::NoticeLevel;
+use foxfire_acp::testing::{
+    FakeAgent, Question, idle_notification, message_chunk, mode_select, model_select, on_session, running_notification,
+    test_connection, texts, user_message,
+};
+use foxfire_core::command::RequestId;
+use foxfire_core::command::{AgentCommand, Command, CommandResult, GitReviewCommand, PromptRejection, ReviewSource};
+use foxfire_core::composer::attachment::{AttachmentOutcome, PromptAttachment};
+use foxfire_core::composer::file_listing::FileListing;
+use foxfire_core::composer::submission::Submission;
+use foxfire_core::elicitation::{Elicitation, ElicitationAnswer};
+use foxfire_core::session_config_view::LocalConfigOption;
+use foxfire_core::session_core::{Effect, ForegroundOperation, SessionCore};
+use foxfire_core::session_model::{SessionSetting, WorkspaceAccess, WorkspaceStatus};
+use foxfire_core::testing::TestWorkspace;
+use foxfire_core::testing::{FakeGit, SessionCoreConfigBuilder};
 use std::path::{Path, PathBuf};
 use tokio::sync::oneshot;
 

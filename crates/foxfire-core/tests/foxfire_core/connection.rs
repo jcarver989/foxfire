@@ -1,10 +1,4 @@
 use crate::support::{LiveSession, client_info, next_result, run_local};
-use acp_utils::aether::{AetherCapabilities, RemoteServerInfo};
-use acp_utils::client::{AcpClientError, AcpEvent};
-use acp_utils::conversation::Conversation;
-use acp_utils::testing::{
-    FakeAgent, FakeAgentRequests, idle_notification, model_select, running_notification, session_preview, texts,
-};
 use agent_client_protocol::Error;
 use agent_client_protocol::schema::ProtocolVersion;
 use agent_client_protocol::v2::schema::{
@@ -13,15 +7,21 @@ use agent_client_protocol::v2::schema::{
     ResumeSessionResponse, SessionCapabilities, SessionConfigId, SessionConfigOption, SessionConfigOptionValue,
     SessionId, SessionUpdate, StopReason, TextContent, UpdateSessionNotification,
 };
-use client_core::command::RequestId;
-use client_core::command::{AgentCommand, Command, CommandResult, PromptRejection, Reply};
-use client_core::composer::submission::Submission;
-use client_core::connection::Connection;
-use client_core::connection::ConnectionError;
-use client_core::runtime::SessionRuntime;
-use client_core::session_core::SessionCoreConfig;
-use client_core::session_model::WorkspaceAccess;
-use client_core::testing::SessionCoreConfigBuilder;
+use foxfire_acp::aether::{AetherCapabilities, RemoteServerInfo};
+use foxfire_acp::client::{AcpClientError, AcpEvent};
+use foxfire_acp::conversation::Conversation;
+use foxfire_acp::testing::{
+    FakeAgent, FakeAgentRequests, idle_notification, model_select, running_notification, session_preview, texts,
+};
+use foxfire_core::command::RequestId;
+use foxfire_core::command::{AgentCommand, Command, CommandResult, PromptRejection, Reply};
+use foxfire_core::composer::submission::Submission;
+use foxfire_core::connection::Connection;
+use foxfire_core::connection::ConnectionError;
+use foxfire_core::runtime::SessionRuntime;
+use foxfire_core::session_core::SessionCoreConfig;
+use foxfire_core::session_model::WorkspaceAccess;
+use foxfire_core::testing::SessionCoreConfigBuilder;
 use std::path::{Path, PathBuf};
 
 #[test]

@@ -9,16 +9,26 @@ rust-version = "1.100"
 
 [workspace.dependencies]
 agent-client-protocol = { version = "=5.0.0", features = ["unstable_auth_status", "unstable_protocol_v2", "unstable_session_set_title", "unstable_subagents"] }
+base64 = "0.23"
+clankerdiff-client = { path = "../diff/crates/diff/client", default-features = false }
+clankerdiff-core = { path = "../diff/crates/diff/core" }
+clankerdiff-git = { path = "../diff/crates/diff/git" }
 clankerdiff-protocol = { path = "../diff/crates/diff/protocol" }
+clankerdiff-remote = { path = "../diff/crates/util/remote" }
+clankerdiff-server = { path = "../diff/crates/diff/server" }
+foxfire-acp = { path = "crates/foxfire-acp", version = "0.1.0" }
 futures = "0.3.32"
+mime_guess = "2"
 schemars = { version = "1.2.1", features = ["derive"] }
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.150"
+tempfile = "3.27"
 thiserror = "2.0"
 tokio = "1.52.3"
 tokio-tungstenite = { version = "0.30.0", features = ["rustls-tls-webpki-roots"] }
 tokio-util = "0.7.18"
 tracing = "0.1.44"
+url = "2.5"
 wasm-bindgen-futures = "0.4.78"
 
 [workspace.lints.rust]

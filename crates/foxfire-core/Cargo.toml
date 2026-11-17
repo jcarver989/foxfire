@@ -1,18 +1,15 @@
 [package]
-name = "aether-client-core"
+name = "foxfire-core"
 version = "0.1.0"
-edition = "2024"
-description = "UI-agnostic Agent Client Protocol (ACP) client core shared by Aether's frontends"
-license = "MIT"
-repository = "https://github.com/contextbridge/aether"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "UI-agnostic Agent Client Protocol (ACP) client core shared by foxfire's frontends"
 keywords = ["acp", "aether", "agent", "client"]
 categories = ["api-bindings", "asynchronous"]
 
-[package.metadata.dist]
-dist = false
-
 [lib]
-name = "client_core"
+name = "foxfire_core"
 path = "src/lib.rs"
 
 [[bin]]
@@ -22,11 +19,11 @@ test = false
 required-features = ["testing"]
 
 [[test]]
-name = "client_core"
-path = "tests/client_core/main.rs"
+name = "foxfire_core"
+path = "tests/foxfire_core/main.rs"
 
 [features]
-testing = ["acp_utils/testing"]
+testing = ["foxfire-acp/testing"]
 
 [package.metadata.docs.rs]
 all-features = true
@@ -36,7 +33,7 @@ rustdoc-args = ["--cfg", "docsrs"]
 workspace = true
 
 [dependencies]
-acp_utils = { package = "aether-acp-utils", path = "../acp-utils", features = ["client"], version = "0.5.19" }
+foxfire-acp = { workspace = true, features = ["client"] }
 agent-client-protocol = { workspace = true, features = ["process"] }
 clankerdiff-client = { workspace = true, features = ["websocket"] }
 clankerdiff-server = { workspace = true }
@@ -54,8 +51,8 @@ mime_guess = { workspace = true }
 url = { workspace = true }
 
 [dev-dependencies]
-aether-client-core = { path = ".", features = ["testing"] }
-acp_utils = { package = "aether-acp-utils", path = "../acp-utils", features = ["client", "testing"], version = "0.5.19" }
+foxfire-core = { path = ".", features = ["testing"] }
+foxfire-acp = { workspace = true, features = ["client", "testing"] }
 clankerdiff-core = { workspace = true }
 clankerdiff-remote = { workspace = true }
 clankerdiff-git = { workspace = true }

@@ -2,11 +2,11 @@ use crate::git::current_ref;
 use crate::path::home_relative_path;
 use crate::session_config_view::{LocalConfigKind, LocalConfigOption, LocalConfigView};
 use crate::session_core::SessionCoreConfig;
-use acp_utils::aether::{AetherCapabilities, McpServerStatus, McpServerStatusEntry};
 use agent_client_protocol::v2::schema as acp;
+use foxfire_acp::aether::{AetherCapabilities, McpServerStatus, McpServerStatusEntry};
 use std::path::{Path, PathBuf};
 
-pub use acp_utils::aether::WorkspaceStatusResponse as WorkspaceStatus;
+pub use foxfire_acp::aether::WorkspaceStatusResponse as WorkspaceStatus;
 
 pub struct SessionModel {
     agent_name: String,

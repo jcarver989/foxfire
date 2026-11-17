@@ -1,9 +1,9 @@
 use super::{Effect, ForegroundOperation, SessionCore};
 use crate::command::{AgentCommand, Command};
 use crate::session_model::{SessionSetting, WorkspaceAccess};
-use acp_utils::aether::WorkspaceMoveTarget;
-use acp_utils::client::AcpClientError;
 use agent_client_protocol::v2::schema::{self as acp, SessionId};
+use foxfire_acp::aether::WorkspaceMoveTarget;
+use foxfire_acp::client::AcpClientError;
 use std::path::{Path, PathBuf};
 
 impl SessionCore {

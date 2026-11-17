@@ -1,4 +1,4 @@
-use client_core::format::token_count;
+use foxfire_core::format::token_count;
 
 #[test]
 fn token_counts_read_in_thousands_and_millions_to_a_tenth() {

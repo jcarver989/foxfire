@@ -1,15 +1,15 @@
 use crate::command::{AgentCommand, CommandResult, PromptRejection, Reply};
 use crate::connection::{list_sessions, resume_request};
 use crate::session_model::initial_workspace_status;
-use acp_utils::aether::{
-    McpRequest, SessionPreviewParams, WorkspaceListParams, WorkspaceMoveParams, WorkspaceStatusPayload,
-};
-use acp_utils::client::{AcpClientError, AcpClientHandle};
 use agent_client_protocol::v2::schema::{
     AuthStatusRequest, CancelSessionNotification, LoginAuthRequest, NewSessionRequest, PromptRequest,
     SetSessionConfigOptionRequest,
 };
 use agent_client_protocol::{ErrorCode, JsonRpcRequest};
+use foxfire_acp::aether::{
+    McpRequest, SessionPreviewParams, WorkspaceListParams, WorkspaceMoveParams, WorkspaceStatusPayload,
+};
+use foxfire_acp::client::{AcpClientError, AcpClientHandle};
 use futures::FutureExt;
 use futures::future::BoxFuture;
 use futures::stream::FuturesUnordered;

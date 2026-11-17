@@ -2,7 +2,7 @@ use agent_client_protocol::v2::schema::{
     BooleanPropertySchema, ElicitationContentValue as Value, ElicitationPropertySchema, ElicitationSchema, EnumOption,
     IntegerPropertySchema, MultiSelectPropertySchema, NumberPropertySchema, StringPropertySchema,
 };
-use client_core::elicitation::{
+use foxfire_core::elicitation::{
     ElicitationAnswer, FieldError, FieldInput, FormError, FormField, FormFieldKind, SelectOption, accept_content,
     form_fields,
 };

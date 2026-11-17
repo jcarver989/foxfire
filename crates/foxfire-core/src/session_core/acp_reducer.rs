@@ -1,14 +1,14 @@
 use super::{CommandEntry, Effect, ForegroundOperation, SessionCore, TurnEnd};
 use crate::elicitation::{Elicitation, ElicitationId, PendingElicitation, Reply, form_fields};
 use crate::session_model::SessionSetting;
-use acp_utils::aether::McpNotification;
-use acp_utils::aether::source_mcp_server_name;
-use acp_utils::artifact_review::ArtifactReviewElicitationMeta;
-use acp_utils::client::AcpEvent;
-use acp_utils::conversation::TurnFinished;
 use agent_client_protocol::v2::schema::{
     self as acp, CreateElicitationRequest, CreateElicitationResponse, ElicitationAction, ElicitationMode, SessionUpdate,
 };
+use foxfire_acp::aether::McpNotification;
+use foxfire_acp::aether::source_mcp_server_name;
+use foxfire_acp::artifact_review::ArtifactReviewElicitationMeta;
+use foxfire_acp::client::AcpEvent;
+use foxfire_acp::conversation::TurnFinished;
 
 impl SessionCore {
     pub(super) fn on_acp_event(&mut self, event: AcpEvent) {

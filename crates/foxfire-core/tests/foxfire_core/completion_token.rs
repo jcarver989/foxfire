@@ -1,4 +1,4 @@
-use client_core::composer::completion_token::{CompletionToken, Trigger};
+use foxfire_core::composer::completion_token::{CompletionToken, Trigger};
 
 #[test]
 fn a_slash_at_the_start_of_the_prompt_names_a_command() {

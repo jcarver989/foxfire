@@ -4,8 +4,6 @@ use std::pin::Pin;
 use std::process::Stdio;
 use std::sync::Arc;
 
-use acp_utils::aether::{GitDiffClosePayload, GitDiffCommandPayload};
-use acp_utils::client::AcpClientHandle;
 use agent_client_protocol::v2::schema::SessionId;
 use clankerdiff_client::protocol::client::ClientCommand;
 use clankerdiff_client::protocol::server::ServerMessage;
@@ -16,6 +14,8 @@ use clankerdiff_client::{
 };
 use clankerdiff_remote::Invocation;
 use clankerdiff_server::{DiffServer, ServerError, ServerOptions};
+use foxfire_acp::aether::{GitDiffClosePayload, GitDiffCommandPayload};
+use foxfire_acp::client::AcpClientHandle;
 use tokio::process::{Child, Command};
 use tokio::sync::mpsc;
 use tokio::task::JoinSet;

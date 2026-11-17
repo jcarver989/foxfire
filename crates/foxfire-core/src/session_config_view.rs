@@ -1,6 +1,6 @@
-use acp_utils::ReasoningEffort;
-use acp_utils::aether::{ConfigOptionMeta, SelectOptionMeta};
 use agent_client_protocol::v2::schema::{self as acp, SessionConfigOptionCategory};
+use foxfire_acp::ReasoningEffort;
+use foxfire_acp::aether::{ConfigOptionMeta, SelectOptionMeta};
 
 /// Client-owned configuration state projected from an ACP session schema.
 ///

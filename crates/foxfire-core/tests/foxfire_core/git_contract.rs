@@ -1,8 +1,8 @@
 use clankerdiff_client::RemoteErrorCode;
 use clankerdiff_core::{FileStatus, RepoPath, RepositoryAction, StageState};
 use clankerdiff_git::GitRepository;
-use client_core::testing::FakeGit;
-use client_core::testing::TestWorkspace;
+use foxfire_core::testing::FakeGit;
+use foxfire_core::testing::TestWorkspace;
 use tempfile::TempDir;
 
 #[tokio::test]

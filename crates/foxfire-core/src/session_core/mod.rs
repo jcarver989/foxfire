@@ -11,10 +11,10 @@ use crate::composer::submission::Submission;
 use crate::elicitation::{Elicitation, ElicitationAnswer, ElicitationId, PendingElicitation};
 use crate::runtime::Input;
 use crate::session_model::{SessionModel, SessionSetting, WorkspaceAccess, WorkspaceStatus};
-use acp_utils::aether::WorkspaceEntry;
-use acp_utils::conversation::{Conversation, NoticeLevel};
 use agent_client_protocol::v2::schema as acp;
 use clankerdiff_client::{ClientState, DiffReviewEvent};
+use foxfire_acp::aether::WorkspaceEntry;
+use foxfire_acp::conversation::{Conversation, NoticeLevel};
 use std::path::PathBuf;
 use std::sync::Arc;
 

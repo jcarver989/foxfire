@@ -1,17 +1,17 @@
 use crate::composer::attachment::{AttachmentOutcome, PromptAttachment};
 use crate::session_model::{WorkspaceAccess, WorkspaceStatus};
-use acp_utils::aether::{
-    PromptSearchParams, PromptSearchResponse, SessionPreviewResponse, WorkspaceListResponse, WorkspaceMoveResponse,
-    WorkspaceMoveTarget,
-};
-use acp_utils::client::AcpClientError;
-use acp_utils::conversation::ConversationId;
 use agent_client_protocol::v2::schema::{
     AuthStatusResponse, ContentBlock, LoginAuthResponse, NewSessionResponse, ResumeSessionResponse,
     SessionConfigOptionValue, SessionId, SessionInfo, SetSessionConfigOptionResponse,
 };
 use clankerdiff_client::{ClientError, ClientState, ConnectionHeader, DiffReviewEvent, LookupReply};
 use clankerdiff_remote::Invocation;
+use foxfire_acp::aether::{
+    PromptSearchParams, PromptSearchResponse, SessionPreviewResponse, WorkspaceListResponse, WorkspaceMoveResponse,
+    WorkspaceMoveTarget,
+};
+use foxfire_acp::client::AcpClientError;
+use foxfire_acp::conversation::ConversationId;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};

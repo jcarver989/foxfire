@@ -1,5 +1,5 @@
-use acp_utils::aether::{PromptSearchResponse, PromptSearchResult};
-use acp_utils::client::AcpClientError;
+use foxfire_acp::aether::{PromptSearchResponse, PromptSearchResult};
+use foxfire_acp::client::AcpClientError;
 
 #[derive(Debug, Default)]
 pub struct PromptSearchState {

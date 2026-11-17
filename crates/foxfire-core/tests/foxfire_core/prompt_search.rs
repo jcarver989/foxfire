@@ -1,12 +1,12 @@
 use crate::support::deliver;
-use acp_utils::aether::PromptSearchResponse;
-use acp_utils::client::AcpClientError;
-use acp_utils::testing::{prompt_search_hit, prompt_search_response};
 use agent_client_protocol::Error;
-use client_core::command::{AgentCommand, Command, CommandResult};
-use client_core::composer::prompt_search::PromptSearchStatus;
-use client_core::session_core::{Effect, SessionCore};
-use client_core::testing::SessionCoreConfigBuilder;
+use foxfire_acp::aether::PromptSearchResponse;
+use foxfire_acp::client::AcpClientError;
+use foxfire_acp::testing::{prompt_search_hit, prompt_search_response};
+use foxfire_core::command::{AgentCommand, Command, CommandResult};
+use foxfire_core::composer::prompt_search::PromptSearchStatus;
+use foxfire_core::session_core::{Effect, SessionCore};
+use foxfire_core::testing::SessionCoreConfigBuilder;
 
 #[test]
 fn a_query_is_sent_to_the_agent_and_waits_for_its_answer() {

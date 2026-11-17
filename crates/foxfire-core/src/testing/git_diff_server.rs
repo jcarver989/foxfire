@@ -1,5 +1,4 @@
 use super::FakeGit;
-use acp_utils::aether::{GitDiffClosePayload, GitDiffCommandPayload, GitDiffEventPayload};
 use agent_client_protocol::util::MatchDispatchFrom;
 use agent_client_protocol::v2::schema::SessionId;
 use agent_client_protocol::{self as acp, Client, ConnectionTo, Dispatch, HandleDispatchFrom, Handled};
@@ -8,6 +7,7 @@ use clankerdiff_client::protocol::server::{SentDocument, ServerEvent};
 use clankerdiff_client::protocol::shared::{Event, LIVE_PROTOCOL_VERSION};
 use clankerdiff_client::{RemoteError, RemoteErrorCode};
 use clankerdiff_core::{DiffDocument, RepoPath, ReviewTarget};
+use foxfire_acp::aether::{GitDiffClosePayload, GitDiffCommandPayload, GitDiffEventPayload};
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 use tokio::task::AbortHandle;
 

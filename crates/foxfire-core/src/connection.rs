@@ -1,13 +1,13 @@
 use crate::runtime::SessionRuntime;
 use crate::session_core::SessionCoreConfig;
 use crate::session_model::{WorkspaceAccess, initial_workspace_status};
-use acp_utils::aether::{RemoteServerInfo, SessionPreviewParams};
-use acp_utils::client::{AcpClient, AcpClientError, AcpClientHandle, connect_acp_client, initialize_request};
 use agent_client_protocol::v2::schema::{
     AbsolutePath, Implementation, ListSessionsRequest, NewSessionRequest, NewSessionResponse, ReplayFrom,
     ReplayFromStart, ResumeSessionRequest, SessionId, SessionInfo,
 };
 use agent_client_protocol::{Client, ConnectTo};
+use foxfire_acp::aether::{RemoteServerInfo, SessionPreviewParams};
+use foxfire_acp::client::{AcpClient, AcpClientError, AcpClientHandle, connect_acp_client, initialize_request};
 use std::path::{Path, PathBuf};
 
 pub struct Connection {

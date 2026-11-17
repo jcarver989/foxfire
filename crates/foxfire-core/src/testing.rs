@@ -5,13 +5,13 @@ use git_diff_server::FakeGitDiffServer;
 pub use session_config::SessionCoreConfigBuilder;
 pub use workspace::TestWorkspace;
 
-use acp_utils::testing::FakeAgent;
 use agent_client_protocol::{Agent, Client, HandleDispatchFrom, NullRun, v2};
 use clankerdiff_client::{RemoteError, RemoteErrorCode};
 use clankerdiff_core::{
     DiffDocument, DiffScope, FileDiff, FileStatus, LookupAnswer, LookupRequest, RepoPath, RepositoryAction, Resolution,
     ReviewTarget, SourceDocument, SourcePath, SourceResult, SourceUnavailable, StageState,
 };
+use foxfire_acp::testing::FakeAgent;
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};

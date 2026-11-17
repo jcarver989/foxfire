@@ -1,4 +1,4 @@
-use client_core::composer::prompt_history::PromptHistory;
+use foxfire_core::composer::prompt_history::PromptHistory;
 
 #[test]
 fn submitting_ends_recall_so_the_next_recall_starts_from_the_newest_prompt() {
