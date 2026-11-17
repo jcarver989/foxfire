@@ -5,8 +5,8 @@ ACP clients for AI coding agents: a terminal UI, a native desktop app, and the s
 ## Run
 
 ```sh
-cargo run -p foxfire-tui                         # foxfire; defaults to the Aether ACP agent
-cargo run -p foxfire-tui -- --agent "my-agent"    # any stdio ACP agent
+cargo run -p foxfire                              # defaults to the Aether ACP agent
+cargo run -p foxfire -- --agent "my-agent"        # any stdio ACP agent
 cargo run -p foxfire-desktop -- --agent "my-agent"
 ```
 
@@ -16,7 +16,8 @@ The terminal binary is `foxfire`; the desktop binary is `foxfire-desktop`. The d
 
 - `foxfire-acp`: ACP transport, client utilities, conversation reduction, and optional Aether protocol extensions.
 - `foxfire-core`: UI-independent session and runtime logic.
-- `foxfire-tui`: terminal client and embeddable terminal UI.
+- `foxfire`: the terminal client binary (`cargo install foxfire`).
+- `foxfire-tui`: embeddable terminal UI.
 - `foxfire-desktop`: native desktop client.
 
 ## Configuration

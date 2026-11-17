@@ -44,7 +44,7 @@ framer-check:
 
 # Run the terminal UI against an ACP agent
 tui agent="aether acp":
-    cargo run -p foxfire-tui -- -a '{{agent}}'
+    cargo run -p foxfire -- -a '{{agent}}'
 
 # Run the desktop app against an ACP agent
 desktop agent="aether acp":

@@ -22,6 +22,8 @@ fn collapsing_the_sidebar_gives_its_room_to_the_thread_and_its_toggle_to_the_hea
         .window_size(640.0, 480.0)
         .agent("/alpha", replying("alpha-session", "hello"))
         .start("/alpha");
+    // Linux defaults to a larger interface size than macOS, so prove the layout holds at a zoom other than 1.
+    harness.press("secondary-=");
     let settings = harness.bounds("open-settings").expect("settings is painted in the sidebar");
     let sidebar = harness.bounds("sidebar").expect("the sidebar is painted");
     let expanded = harness.bounds("toggle-sidebar").expect("the toggle is painted in the sidebar");
@@ -32,7 +34,8 @@ fn collapsing_the_sidebar_gives_its_room_to_the_thread_and_its_toggle_to_the_hea
 
     assert!(harness.bounds("sidebar").is_none(), "the sidebar is hidden");
     let main = harness.bounds("main").expect("the main region is painted");
-    assert!((main.size.width - 640.0).abs() < 0.5, "{main:?}");
+    let desktop = harness.bounds("desktop").expect("the desktop is painted");
+    assert!((main.size.width - desktop.size.width).abs() < 0.5, "{desktop:?} {main:?}");
     assert!(harness.bounds("toggle-sidebar").is_some(), "the toggle is painted in the thread header");
     assert!(harness.bounds("thread-header").is_some());
 
