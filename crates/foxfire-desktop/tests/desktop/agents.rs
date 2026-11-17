@@ -1,11 +1,11 @@
 use crate::support::{replying, write_agents_file};
-use aether_desktop::agents::{
+use foxfire_core::fs::JsonFileError;
+use foxfire_desktop::agents::{
     AgentCatalog, AgentTransport, Agents, CommandLine, Endpoint, EndpointSource, KNOWN_AGENTS, KnownAgent,
     project_agents_file,
 };
-use aether_desktop::testing::{DesktopHarness, DesktopHarnessBuilder};
-use aether_desktop::threads::Thread;
-use client_core::fs::JsonFileError;
+use foxfire_desktop::testing::{DesktopHarness, DesktopHarnessBuilder};
+use foxfire_desktop::threads::Thread;
 use serde_json::json;
 use std::fs;
 use std::path::{Path, PathBuf};

@@ -1,6 +1,6 @@
-use aether_desktop::agents::CommandLine;
-use aether_desktop::cli::Cli;
 use clap::Parser;
+use foxfire_desktop::agents::CommandLine;
+use foxfire_desktop::cli::Cli;
 
 #[test]
 fn no_agent_is_passed_by_default() {

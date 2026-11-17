@@ -4,7 +4,7 @@ use crate::ui::ActiveReviewTheme;
 use clankerdiff_core::ReviewCapabilities;
 use clankerdiff_markdown::{MarkdownDocument, MarkdownReviewDecision, MarkdownReviewEvent, MarkdownReviewSubmission};
 use clankerdiff_rouge::{MarkdownController, MarkdownHandle, MarkdownOutput, markdown_review_view};
-use client_core::elicitation::{
+use foxfire_core::elicitation::{
     ArtifactReviewElicitationMeta, ArtifactReviewSubmission, ElicitationAnswer, ElicitationId,
 };
 use rouge::core::{Styled, View, WindowHandle, div, dynamic, view, window_handle};

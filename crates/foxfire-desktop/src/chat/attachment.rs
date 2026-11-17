@@ -3,7 +3,7 @@ use crate::ui::{Icon, IconName, UiStyles};
 use agent_client_protocol::v2::schema as acp;
 use base64::Engine;
 use base64::engine::general_purpose::STANDARD as BASE64;
-use client_core::composer::attachment::{AttachmentKind, PromptAttachment, classify_attachment};
+use foxfire_core::composer::attachment::{AttachmentKind, PromptAttachment, classify_attachment};
 use rouge::core::{AnyView, Div, Fit, ImageSource, Role, Styled, View, div, image, px, text, view};
 use std::sync::Arc;
 

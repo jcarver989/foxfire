@@ -2,9 +2,9 @@ use crate::tasks::spawn_in;
 use crate::threads::{Thread, ThreadStatus};
 use crate::ui::tokens::{ICON_SIZE, ICON_SIZE_SMALL, ROW_HEIGHT, Radius};
 use crate::ui::{Hint, Icon, IconName, Theme, UiStyles, WispMotion, WispState, wisp};
-use acp_utils::conversation::{Activity, Conversation, ConversationContent, ToolStatus, is_plan_entry_finished};
 use agent_client_protocol::v2::schema as acp;
-use client_core::format::token_count;
+use foxfire_acp::conversation::{Activity, Conversation, ConversationContent, ToolStatus, is_plan_entry_finished};
+use foxfire_core::format::token_count;
 use rouge::core::{
     AnyView, Cursor, Div, Ease, Keyframes, PaintRegion, Path, Point, Pose, Role, Styled, TextAlign, Tween, View,
     canvas, div, dynamic, pct, show, switch, text, view, window_focused,

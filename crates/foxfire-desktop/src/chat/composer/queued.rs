@@ -1,6 +1,6 @@
 use crate::ui::tokens::ICON_SIZE_SMALL;
 use crate::ui::{Icon, IconName, Material, MaterialExt, UiStyles};
-use client_core::session_core::QueuedPrompt;
+use foxfire_core::session_core::QueuedPrompt;
 use rouge::core::{AnyView, Div, Role, Styled, View, div, text, view};
 
 pub(crate) fn queued_prompts(prompts: &[QueuedPrompt]) -> Div {

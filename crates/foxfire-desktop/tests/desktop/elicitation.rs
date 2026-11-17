@@ -1,12 +1,12 @@
 use crate::support::{asked, asking_name, name_form, texts};
-use acp_utils::artifact_review::ArtifactReviewElicitationMeta;
-use acp_utils::testing::{FakeAgent, Question};
-use aether_desktop::testing::DesktopHarness;
-use aether_desktop::threads::{Thread, ThreadStatus};
 use agent_client_protocol::v2::schema::{
     BooleanPropertySchema, CreateElicitationRequest, ElicitationFormMode, ElicitationSchema, ElicitationSessionScope,
     EnumOption, PermissionOption, PermissionOptionKind, StringPropertySchema,
 };
+use foxfire_acp::artifact_review::ArtifactReviewElicitationMeta;
+use foxfire_acp::testing::{FakeAgent, Question};
+use foxfire_desktop::testing::DesktopHarness;
+use foxfire_desktop::threads::{Thread, ThreadStatus};
 use std::path::PathBuf;
 
 #[test]

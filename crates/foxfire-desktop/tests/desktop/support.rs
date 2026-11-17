@@ -1,11 +1,11 @@
-use acp_utils::testing::{FakeAgent, Question};
-use acp_utils::websocket::WebSocketTransport;
-use aether_desktop::agents::{AgentProfile, Agents, project_agents_file};
-use aether_desktop::testing::DesktopHarness;
-use aether_desktop::threads::{Thread, ThreadStatus};
 use agent_client_protocol::v2::schema::{ElicitationSchema, StringPropertySchema};
 use clankerdiff_core::FilesMode;
 use clankerdiff_server::{DiffServer, ServerListener, ServerOptions};
+use foxfire_acp::testing::{FakeAgent, Question};
+use foxfire_acp::websocket::WebSocketTransport;
+use foxfire_desktop::agents::{AgentProfile, Agents, project_agents_file};
+use foxfire_desktop::testing::DesktopHarness;
+use foxfire_desktop::threads::{Thread, ThreadStatus};
 use rouge::core::Rect;
 use serde_json::json;
 use std::fs;
@@ -22,7 +22,7 @@ pub(crate) fn replying(session_id: &str, reply: &str) -> FakeAgent {
 }
 
 pub(crate) fn texts(thread: Thread) -> Vec<String> {
-    thread.with_core(|core| acp_utils::testing::texts(core.conversation())).unwrap_or_default()
+    thread.with_core(|core| foxfire_acp::testing::texts(core.conversation())).unwrap_or_default()
 }
 
 pub(crate) fn asking_name() -> FakeAgent {

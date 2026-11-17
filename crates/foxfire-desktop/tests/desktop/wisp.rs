@@ -1,4 +1,4 @@
-use aether_desktop::ui::{WispMotion, WispState, wisp};
+use foxfire_desktop::ui::{WispMotion, WispState, wisp};
 use rouge::core::testing::TestUi;
 use rouge::core::{Color, Styled, div, show};
 use rouge::reactive::{Entered, Runtime, Signal, signal};

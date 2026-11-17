@@ -1,9 +1,9 @@
 use super::thread::Thread;
 use crate::target::{AgentConnector, ConnectError, SessionTarget};
 use agent_client_protocol::v2::schema::SessionId;
-use client_core::command::{Command, ReviewSource};
-use client_core::runtime::{Input, SessionRuntime};
-use client_core::session_core::SessionCoreConfig;
+use foxfire_core::command::{Command, ReviewSource};
+use foxfire_core::runtime::{Input, SessionRuntime};
+use foxfire_core::session_core::SessionCoreConfig;
 use rouge::reactive::{Task, spawn, spawn_tokio};
 use std::future::Future;
 use std::pin::pin;
@@ -114,7 +114,7 @@ async fn forward(
             },
         };
         let closed =
-            matches!(message, DriverMessage::Input(Input::Event(acp_utils::client::AcpEvent::ConnectionClosed)));
+            matches!(message, DriverMessage::Input(Input::Event(foxfire_acp::client::AcpEvent::ConnectionClosed)));
         if messages.send(message).is_err() || closed {
             return;
         }

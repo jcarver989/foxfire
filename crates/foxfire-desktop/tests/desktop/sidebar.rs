@@ -1,7 +1,7 @@
 use crate::support::Edges;
 use crate::support::replying;
-use aether_desktop::testing::{DesktopHarness, DesktopHarnessBuilder};
-use aether_desktop::threads::ThreadStatus;
+use foxfire_desktop::testing::{DesktopHarness, DesktopHarnessBuilder};
+use foxfire_desktop::threads::ThreadStatus;
 use std::path::{Path, PathBuf};
 
 #[test]

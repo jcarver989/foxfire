@@ -1,18 +1,15 @@
 [package]
-name = "aether-desktop"
+name = "foxfire-desktop"
 version = "0.1.0"
-edition = "2024"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
 description = "Native desktop client for running and managing many ACP agent threads"
-license = "MIT"
-repository = "https://github.com/contextbridge/aether"
 publish = false
 default-run = "aether-desktop"
 
-[package.metadata.dist]
-dist = false
-
 [lib]
-name = "aether_desktop"
+name = "foxfire_desktop"
 path = "src/lib.rs"
 
 [[bin]]
@@ -27,8 +24,8 @@ required-features = ["testing"]
 
 [features]
 testing = [
-    "acp_utils/testing",
-    "client_core/testing",
+    "foxfire-acp/testing",
+    "foxfire-core/testing",
     "tokio/io-std",
     "clankerdiff-remote/test-support",
     "dep:tempfile",
@@ -43,11 +40,11 @@ required-features = ["testing"]
 workspace = true
 
 [dependencies]
-acp_utils = { package = "aether-acp-utils", path = "../acp-utils", features = ["client", "websocket"], version = "0.5.19" }
+foxfire-acp = { workspace = true, features = ["client", "websocket"] }
 agent-client-protocol = { workspace = true, features = ["process"] }
 base64 = { workspace = true }
 chrono = { workspace = true }
-client_core = { package = "aether-client-core", path = "../client-core", version = "0.1.0" }
+foxfire-core = { workspace = true }
 clankerdiff-client = { workspace = true }
 clankerdiff-core = { workspace = true }
 clankerdiff-lspd = { workspace = true, features = ["daemon"] }
@@ -82,5 +79,5 @@ notify-rust = "4.18"
 clankerdiff-core = { workspace = true, features = ["test-support"] }
 clankerdiff-symbols = { workspace = true }
 clankerdiff-server = { workspace = true }
-client_core = { package = "aether-client-core", path = "../client-core", features = ["testing"], version = "0.1.0" }
+foxfire-core = { workspace = true, features = ["testing"] }
 tempfile = { workspace = true }

@@ -1,9 +1,9 @@
 use crate::support::{Edges, choose, files_mode, replying, serve_diff, texts, write_agents_file};
-use aether_desktop::testing::{DesktopHarness, DesktopHarnessBuilder};
-use aether_desktop::threads::Thread;
 use clankerdiff_core::{DiffScope, FileStatus, FilesMode, StageState};
-use client_core::testing::FakeGit;
-use client_core::testing::TestWorkspace;
+use foxfire_core::testing::FakeGit;
+use foxfire_core::testing::TestWorkspace;
+use foxfire_desktop::testing::{DesktopHarness, DesktopHarnessBuilder};
+use foxfire_desktop::threads::Thread;
 use serde_json::json;
 
 #[test]

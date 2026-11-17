@@ -1,5 +1,5 @@
-use aether_desktop::cli::Cli;
 use clap::Parser;
+use foxfire_desktop::cli::Cli;
 use std::process::ExitCode;
 use tracing_subscriber::EnvFilter;
 
@@ -16,6 +16,6 @@ fn main() -> ExitCode {
             .with_writer(std::io::stderr)
             .init();
     }
-    aether_desktop::run(Cli::parse());
+    foxfire_desktop::run(Cli::parse());
     ExitCode::SUCCESS
 }

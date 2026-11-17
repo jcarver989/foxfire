@@ -1,12 +1,12 @@
 use crate::support::Edges;
 use crate::support::{asked, replying};
-use acp_utils::testing::{FakeAgent, Question, announced, idle_state, running_state};
-use aether_desktop::platform::Notification;
-use aether_desktop::testing::{DesktopHarness, DesktopHarnessBuilder};
-use aether_desktop::threads::{Thread, ThreadStatus};
 use agent_client_protocol::v2::schema::{
     ElicitationSchema, SessionUpdate, StopReason, SubagentUpdate, ToolCallStatus, ToolCallUpdate,
 };
+use foxfire_acp::testing::{FakeAgent, Question, announced, idle_state, running_state};
+use foxfire_desktop::platform::Notification;
+use foxfire_desktop::testing::{DesktopHarness, DesktopHarnessBuilder};
+use foxfire_desktop::threads::{Thread, ThreadStatus};
 
 #[test]
 fn a_turn_that_finishes_on_an_unselected_thread_is_announced_once_and_stays_unread_until_selected() {

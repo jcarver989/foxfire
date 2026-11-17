@@ -1,5 +1,5 @@
 use crate::temp_dir::TempDir;
-use client_core::composer::attachment::PromptAttachment;
+use foxfire_core::composer::attachment::PromptAttachment;
 use std::fs;
 
 #[derive(Default)]

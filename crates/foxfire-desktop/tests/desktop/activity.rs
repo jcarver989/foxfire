@@ -1,9 +1,9 @@
 use crate::support::Edges;
 use crate::support::{asked, asking_name};
-use acp_utils::testing::{FakeAgent, message_chunk, plan, thought_chunk, tool_call};
-use aether_desktop::testing::{DesktopHarness, DesktopHarnessBuilder};
-use aether_desktop::threads::ThreadStatus;
 use agent_client_protocol::v2::schema as acp;
+use foxfire_acp::testing::{FakeAgent, message_chunk, plan, thought_chunk, tool_call};
+use foxfire_desktop::testing::{DesktopHarness, DesktopHarnessBuilder};
+use foxfire_desktop::threads::ThreadStatus;
 
 #[test]
 fn a_running_turn_says_what_the_agent_is_doing_and_how_long_it_took_once_it_ends() {

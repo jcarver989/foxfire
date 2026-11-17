@@ -1,9 +1,9 @@
-use aether_desktop::ui::{
+use clankerdiff_ui_core::ReviewTheme;
+use clap::Parser;
+use foxfire_desktop::ui::{
     ActiveReviewTheme, ButtonVariant, ControlSize, Icon, IconName, UI_FONT, UiStyles, WispMotion, WispState, button,
     wisp,
 };
-use clankerdiff_ui_core::ReviewTheme;
-use clap::Parser;
 use rouge::core::{Color, Styled, View, div, scroll, text, view};
 use rouge::reactive::{Runtime, signal, sleep, spawn};
 use rouge::{App, WindowOptions};

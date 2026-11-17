@@ -1,10 +1,10 @@
 use crate::support::{replying, texts};
-use acp_utils::testing::{FakeAgent, FakeAgentRequests};
-use aether_desktop::testing::{DesktopHarness, DesktopHarnessBuilder};
-use aether_desktop::threads::{Thread, ThreadStatus};
 use agent_client_protocol as acp;
 use agent_client_protocol::v2::schema::PromptRequest;
-use client_core::testing::TestWorkspace;
+use foxfire_acp::testing::{FakeAgent, FakeAgentRequests};
+use foxfire_core::testing::TestWorkspace;
+use foxfire_desktop::testing::{DesktopHarness, DesktopHarnessBuilder};
+use foxfire_desktop::threads::{Thread, ThreadStatus};
 use std::path::PathBuf;
 
 #[test]

@@ -1,9 +1,9 @@
 use crate::support::texts;
-use acp_utils::aether::RemoteServerInfo;
-use acp_utils::testing::{FakeAgent, FakeAgentRequests};
-use aether_desktop::testing::{DesktopHarness, DesktopHarnessBuilder};
-use aether_desktop::threads::Thread;
 use agent_client_protocol::v2::schema as acp;
+use foxfire_acp::aether::RemoteServerInfo;
+use foxfire_acp::testing::{FakeAgent, FakeAgentRequests};
+use foxfire_desktop::testing::{DesktopHarness, DesktopHarnessBuilder};
+use foxfire_desktop::threads::Thread;
 use std::fs;
 use std::path::PathBuf;
 use tempfile::TempDir;

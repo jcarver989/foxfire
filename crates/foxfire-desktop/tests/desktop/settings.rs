@@ -1,6 +1,6 @@
-use aether_desktop::AppearanceMode;
-use aether_desktop::registry::STATE_FILE;
-use aether_desktop::testing::{DesktopHarness, DesktopHarnessBuilder};
+use foxfire_desktop::AppearanceMode;
+use foxfire_desktop::registry::STATE_FILE;
+use foxfire_desktop::testing::{DesktopHarness, DesktopHarnessBuilder};
 use rouge::core::Point;
 use std::fs;
 
@@ -135,7 +135,7 @@ fn the_app_starts_with_the_saved_theme() {
 #[test]
 fn reduced_motion_is_live_and_remembered_after_restart() {
     let dir = tempfile::tempdir().unwrap();
-    let (agent, mut requests) = acp_utils::testing::FakeAgent::new("alpha-session").capture();
+    let (agent, mut requests) = foxfire_acp::testing::FakeAgent::new("alpha-session").capture();
     let (mut harness, thread) =
         DesktopHarnessBuilder::default().state_dir(dir.path()).agent("/alpha", agent).start("/alpha");
     let _turn = harness.start_turn(thread, &mut requests, "work");

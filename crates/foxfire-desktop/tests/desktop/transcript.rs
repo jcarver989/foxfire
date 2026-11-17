@@ -1,10 +1,10 @@
 use crate::support::{Edges, replying, texts};
-use acp_utils::testing::{
+use agent_client_protocol::v2::schema as acp;
+use foxfire_acp::testing::{
     FakeAgent, FakeAgentRequests, announced, message_chunk, plan, running_state, thought_chunk, tool_call,
 };
-use aether_desktop::testing::{DesktopHarness, DesktopHarnessBuilder};
-use aether_desktop::threads::{Thread, ThreadStatus};
-use agent_client_protocol::v2::schema as acp;
+use foxfire_desktop::testing::{DesktopHarness, DesktopHarnessBuilder};
+use foxfire_desktop::threads::{Thread, ThreadStatus};
 use rouge::core::Point;
 use std::fmt::Write;
 

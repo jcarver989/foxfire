@@ -1,9 +1,9 @@
-use acp_utils::testing::FakeAgent;
-use aether_desktop::agents::{AgentProfile, Agents, CommandLine};
-use aether_desktop::sessions::{AcpSessions, SessionSource};
-use aether_desktop::target::AgentConnector;
-use aether_desktop::testing::FakeConnector;
 use agent_client_protocol::v2::schema::{AbsolutePath, SessionInfo};
+use foxfire_acp::testing::FakeAgent;
+use foxfire_desktop::agents::{AgentProfile, Agents, CommandLine};
+use foxfire_desktop::sessions::{AcpSessions, SessionSource};
+use foxfire_desktop::target::AgentConnector;
+use foxfire_desktop::testing::FakeConnector;
 use std::path::Path;
 use std::sync::Arc;
 

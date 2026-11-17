@@ -1,11 +1,11 @@
 use crate::support::{files_mode, replying, texts};
-use acp_utils::aether::RemoteServerInfo;
-use acp_utils::testing::FakeAgent;
-use aether_desktop::testing::{DesktopHarness, DesktopHarnessBuilder, static_remote};
-use aether_desktop::threads::Thread;
 use agent_client_protocol::v2::schema as acp;
 use clankerdiff_core::FilesMode;
-use client_core::testing::FakeGit;
+use foxfire_acp::aether::RemoteServerInfo;
+use foxfire_acp::testing::FakeAgent;
+use foxfire_core::testing::FakeGit;
+use foxfire_desktop::testing::{DesktopHarness, DesktopHarnessBuilder, static_remote};
+use foxfire_desktop::threads::Thread;
 use serde_json::json;
 use std::path::Path;
 

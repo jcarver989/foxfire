@@ -1,8 +1,8 @@
 use crate::support::{Edges, replying};
-use acp_utils::testing::FakeAgent;
-use aether_desktop::testing::{DesktopHarness, DesktopHarnessBuilder};
-use aether_desktop::threads::ThreadStatus;
 use agent_client_protocol::v2::schema as acp;
+use foxfire_acp::testing::FakeAgent;
+use foxfire_desktop::testing::{DesktopHarness, DesktopHarnessBuilder};
+use foxfire_desktop::threads::ThreadStatus;
 
 #[test]
 fn a_new_thread_shows_the_composer_under_a_heading_with_a_fire_kindling_behind_it() {

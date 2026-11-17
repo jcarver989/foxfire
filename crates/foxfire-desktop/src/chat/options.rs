@@ -5,7 +5,7 @@ use crate::ui::{
     with_middots,
 };
 use agent_client_protocol::v2::schema as acp;
-use client_core::session_config_view::LocalConfigOption;
+use foxfire_core::session_config_view::LocalConfigOption;
 use rouge::core::{AnyView, Color, Cursor, Role, Styled, View, div, dynamic, px, text, view};
 use rouge::reactive::{memo, signal};
 use rouge::widgets::{Placement, popover};

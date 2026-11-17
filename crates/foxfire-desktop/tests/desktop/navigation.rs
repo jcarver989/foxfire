@@ -1,7 +1,7 @@
 use crate::support::replying;
-use acp_utils::testing::FakeAgent;
-use aether_desktop::testing::{DesktopHarness, DesktopHarnessBuilder};
 use agent_client_protocol::v2::schema::SessionId;
+use foxfire_acp::testing::FakeAgent;
+use foxfire_desktop::testing::{DesktopHarness, DesktopHarnessBuilder};
 
 #[test]
 fn the_cycling_shortcuts_step_through_live_threads_in_sidebar_order_and_wrap() {

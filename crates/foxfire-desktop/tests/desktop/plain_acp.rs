@@ -1,11 +1,11 @@
 //! Most agents speak only standard ACP. A whole thread against one must work without touching Aether's extensions.
 
 use crate::support::texts;
-use acp_utils::conversation::{ConversationContent, Notice, NoticeLevel};
-use acp_utils::testing::{FakeAgent, Question, select};
-use aether_desktop::testing::DesktopHarnessBuilder;
-use aether_desktop::threads::{Thread, ThreadStatus};
 use agent_client_protocol::v2::schema as acp;
+use foxfire_acp::conversation::{ConversationContent, Notice, NoticeLevel};
+use foxfire_acp::testing::{FakeAgent, Question, select};
+use foxfire_desktop::testing::DesktopHarnessBuilder;
+use foxfire_desktop::threads::{Thread, ThreadStatus};
 use tempfile::TempDir;
 
 #[test]

@@ -1,6 +1,6 @@
-use aether_desktop::registry::{Registry, STATE_FILE, State, saved_in};
-use aether_desktop::sessions::SessionKey;
 use agent_client_protocol::v2::schema::SessionId;
+use foxfire_desktop::registry::{Registry, STATE_FILE, State, saved_in};
+use foxfire_desktop::sessions::SessionKey;
 use rouge::core::div;
 use rouge::persist::FileStorage;
 use rouge::reactive::Runtime as Reactive;

@@ -2,7 +2,7 @@ pub use agent_client_protocol::AcpAgentConfig as CommandLine;
 
 use crate::variables::{VarError, Vars};
 use agent_client_protocol::AcpAgent;
-use client_core::fs::{JsonFileError, read_json, write_json_atomic};
+use foxfire_core::fs::{JsonFileError, read_json, write_json_atomic};
 use rouge::reactive::{Signal, Stored, signal, stored};
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value, json};
@@ -100,7 +100,7 @@ pub enum AddAgentError {
 }
 
 pub fn default_agents_file() -> Option<PathBuf> {
-    client_core::path::app_home("AETHER_HOME", ".aether").map(|home| home.join("desktop").join(AGENTS_FILE))
+    foxfire_core::path::app_home("AETHER_HOME", ".aether").map(|home| home.join("desktop").join(AGENTS_FILE))
 }
 
 pub fn project_agents_file(project: &Path) -> PathBuf {

@@ -1,4 +1,4 @@
-use acp_utils::conversation::{ConversationContent, ConversationItem, ToolCall, ToolStatus};
+use foxfire_acp::conversation::{ConversationContent, ConversationItem, ToolCall, ToolStatus};
 use std::collections::HashSet;
 use std::ops::Range;
 

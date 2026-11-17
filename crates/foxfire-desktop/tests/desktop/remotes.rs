@@ -1,8 +1,8 @@
 use crate::support::{Edges, choose, replying};
-use aether_desktop::remotes::{InstanceState, RemoteSpec};
-use aether_desktop::target::SessionTarget;
-use aether_desktop::testing::{DesktopHarnessBuilder, launching_remote, static_remote};
-use aether_desktop::threads::{Thread, ThreadStatus};
+use foxfire_desktop::remotes::{InstanceState, RemoteSpec};
+use foxfire_desktop::target::SessionTarget;
+use foxfire_desktop::testing::{DesktopHarnessBuilder, launching_remote, static_remote};
+use foxfire_desktop::threads::{Thread, ThreadStatus};
 use std::fs;
 use std::path::{Path, PathBuf};
 

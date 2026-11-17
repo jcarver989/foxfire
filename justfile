@@ -45,3 +45,11 @@ framer-check:
 # Lint foxfire-acp for wasm32, which the browser client builds for
 wasm-check:
     CARGO_BUILD_WARNINGS=deny cargo clippy -p foxfire-acp --target wasm32-unknown-unknown
+
+# Run the terminal UI against an ACP agent
+tui agent="aether acp":
+    cargo run -p foxfire-tui -- -a '{{agent}}'
+
+# Run the desktop app against an ACP agent
+desktop agent="aether acp":
+    cargo run -p foxfire-desktop -- --agent '{{agent}}'

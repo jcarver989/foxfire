@@ -1,13 +1,13 @@
 use crate::agents::{AgentProfile, AgentTransport, CommandLine, Endpoint, EndpointSource, expand_command_line};
 use crate::variables::VarError;
-use acp_utils::websocket;
 use agent_client_protocol::v2::schema::{Implementation, SessionId};
 use agent_client_protocol::{self as acp, Agent, ByteStreams, Client, ConnectTo};
 use clankerdiff_client::ConnectionHeader;
 use clankerdiff_remote::{AcpTarget, Channel, Invocation, RemoteError, RemoteSpec, Remotes};
-use client_core::command::ReviewSource;
-use client_core::connection::{Connection, ConnectionError, Session};
-use client_core::session_model::WorkspaceAccess;
+use foxfire_acp::websocket;
+use foxfire_core::command::ReviewSource;
+use foxfire_core::connection::{Connection, ConnectionError, Session};
+use foxfire_core::session_model::WorkspaceAccess;
 use serde::de::DeserializeOwned;
 use std::future::Future;
 use std::io;

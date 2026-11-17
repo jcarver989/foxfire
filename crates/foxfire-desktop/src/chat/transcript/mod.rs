@@ -14,12 +14,12 @@ use crate::ui::{
     ActiveReviewTheme, Hint, Icon, IconName, Material, MaterialExt, StyledExt, UiStyles, empty_state,
     vertical_scrollbar,
 };
-use acp_utils::conversation::{
-    ConversationContent, ConversationId, ConversationItem, ConversationItemId, Notice, NoticeLevel, Revision,
-};
 use agent_client_protocol::v2::schema as acp;
 use clankerdiff_core::DiffDocument;
 use clankerdiff_rouge::{DiffViewerEvent, DiffViewerOptions, ReviewController, ReviewHandle, ReviewOutput};
+use foxfire_acp::conversation::{
+    ConversationContent, ConversationId, ConversationItem, ConversationItemId, Notice, NoticeLevel, Revision,
+};
 use groups::{Group, GroupKind, groups};
 use message::{error, full_diff, image_preview, message_actions, notice, prompt, reconnect_button, thinking_block};
 use rouge::core::{

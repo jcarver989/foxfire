@@ -1,10 +1,10 @@
 use crate::ui::tokens::COMPOSER_POPUP_HEIGHT;
 use crate::ui::{Material, MaterialExt, PickerItem, picker_list};
 use clankerdiff_ui_core::{PickerOption, PickerState};
-use client_core::composer::attachment::PromptAttachment;
-use client_core::composer::completion_token::{CompletionToken, Trigger};
-use client_core::composer::file_listing::RepoFiles;
-use client_core::session_core::CommandEntry;
+use foxfire_core::composer::attachment::PromptAttachment;
+use foxfire_core::composer::completion_token::{CompletionToken, Trigger};
+use foxfire_core::composer::file_listing::RepoFiles;
+use foxfire_core::session_core::CommandEntry;
 use rouge::core::{Div, Styled, div, px, view};
 use rouge::reactive::Callback;
 use std::ops::Range;

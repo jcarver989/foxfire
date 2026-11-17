@@ -1,10 +1,10 @@
 use crate::support::Edges;
 use crate::support::{replying, texts};
-use acp_utils::testing::{FakeAgent, FakeAgentRequests, model_select, select};
-use aether_desktop::testing::{DesktopHarness, DesktopHarnessBuilder};
-use aether_desktop::threads::ThreadStatus;
 use agent_client_protocol::v2::schema as acp;
-use client_core::testing::TestWorkspace;
+use foxfire_acp::testing::{FakeAgent, FakeAgentRequests, model_select, select};
+use foxfire_core::testing::TestWorkspace;
+use foxfire_desktop::testing::{DesktopHarness, DesktopHarnessBuilder};
+use foxfire_desktop::threads::ThreadStatus;
 
 #[test]
 fn up_and_down_walk_the_prompts_sent_before() {

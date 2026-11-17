@@ -1,11 +1,11 @@
 use crate::support::choose;
-use acp_utils::testing::FakeAgent;
-use aether_desktop::registry::STATE_FILE;
-use aether_desktop::testing::{DesktopHarness, DesktopHarnessBuilder};
-use aether_desktop::threads::ThreadStatus;
-use aether_desktop::ui::DEFAULT_INTERFACE_SIZE;
-use aether_desktop::ui::tokens::BASE_SIZE;
 use agent_client_protocol::v2::schema::SessionId;
+use foxfire_acp::testing::FakeAgent;
+use foxfire_desktop::registry::STATE_FILE;
+use foxfire_desktop::testing::{DesktopHarness, DesktopHarnessBuilder};
+use foxfire_desktop::threads::ThreadStatus;
+use foxfire_desktop::ui::DEFAULT_INTERFACE_SIZE;
+use foxfire_desktop::ui::tokens::BASE_SIZE;
 use rouge::core::Point;
 use std::fs;
 use std::path::{Path, PathBuf};

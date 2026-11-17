@@ -3,15 +3,15 @@ use super::groups::{GroupKind, Work};
 use crate::ui::tokens::{ICON_SIZE_SMALL, ROW_HEIGHT};
 use crate::ui::typography::BODY_STRONG;
 use crate::ui::{ButtonVariant, CODE_FONT, ControlSize, Hint, Icon, IconName, UiStyles, WispState, button, wisp};
-use acp_utils::content::first_line;
-use acp_utils::conversation::{
-    ConversationItem, ConversationItemId, Revision, SubAgent, ToolCall, ToolStatus, diff_change_label,
-};
 use agent_client_protocol::v2::schema as acp;
 use clankerdiff_core::{DiffDocument, LineStat};
 use clankerdiff_rouge::PatchPreview;
 use clankerdiff_rouge::style::stat_badges;
 use clankerdiff_ui_core::ReviewTheme;
+use foxfire_acp::content::first_line;
+use foxfire_acp::conversation::{
+    ConversationItem, ConversationItemId, Revision, SubAgent, ToolCall, ToolStatus, diff_change_label,
+};
 use rouge::core::{AnyView, Cursor, Div, FocusHandle, Role, SpanStyle, Styled, View, div, px, rich_text, text, view};
 use rouge::reactive::{Callback, ReadSignal};
 use rouge::syntax::{SourceSyntax, analyze};

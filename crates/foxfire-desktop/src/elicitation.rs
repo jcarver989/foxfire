@@ -1,7 +1,7 @@
 use crate::platform::Platform;
 use crate::threads::Thread;
 use crate::ui::{ButtonVariant, Material, MaterialExt, UiStyles, button, text_field};
-use client_core::elicitation::{
+use foxfire_core::elicitation::{
     Elicitation, ElicitationAnswer, ElicitationId, FieldInput, FormError, FormField, FormFieldKind, accept_content,
 };
 use rouge::core::{AnyView, Role, Styled, View, div, dynamic, px, text, view};

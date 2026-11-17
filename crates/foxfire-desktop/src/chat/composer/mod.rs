@@ -13,14 +13,14 @@ use crate::ui::{
     Hint, Icon, IconName, Material, MaterialExt, PickerItem, SearchPickerEvent, SearchPickerHandle, Theme, UI_FONT,
     icon_button, picker_closed, search_picker,
 };
-use client_core::composer::attachment::{AttachedFile, PromptAttachment, attach_missing, classify_paths};
-use client_core::composer::completion_token::Trigger;
-use client_core::composer::prompt_history::PromptHistory;
-use client_core::composer::prompt_search::PromptSearchStatus;
-use client_core::composer::submission::Submission;
-use client_core::session_core::SessionCore;
-use client_core::session_model::WorkspaceAccess;
 use completion::{CompletionItem, CompletionMenu, active_token};
+use foxfire_core::composer::attachment::{AttachedFile, PromptAttachment, attach_missing, classify_paths};
+use foxfire_core::composer::completion_token::Trigger;
+use foxfire_core::composer::prompt_history::PromptHistory;
+use foxfire_core::composer::prompt_search::PromptSearchStatus;
+use foxfire_core::composer::submission::Submission;
+use foxfire_core::session_core::SessionCore;
+use foxfire_core::session_model::WorkspaceAccess;
 use pasted::PastedImages;
 use queued::queued_prompts;
 use rouge::core::{

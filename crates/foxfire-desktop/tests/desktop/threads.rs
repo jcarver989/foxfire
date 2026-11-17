@@ -1,8 +1,8 @@
 use crate::support::{replying, texts};
-use acp_utils::testing::FakeAgent;
-use aether_desktop::testing::DesktopHarnessBuilder;
-use aether_desktop::threads::{Thread, ThreadStatus};
 use agent_client_protocol::v2::schema::SessionId;
+use foxfire_acp::testing::FakeAgent;
+use foxfire_desktop::testing::DesktopHarnessBuilder;
+use foxfire_desktop::threads::{Thread, ThreadStatus};
 
 #[test]
 fn concurrent_threads_each_receive_only_their_own_updates() {

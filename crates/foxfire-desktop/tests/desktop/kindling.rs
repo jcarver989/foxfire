@@ -1,4 +1,4 @@
-use aether_desktop::ui::{WispMotion, kindling};
+use foxfire_desktop::ui::{WispMotion, kindling};
 use rouge::core::testing::TestUi;
 use rouge::core::{Motion, Rect, Styled, div, motion};
 use rouge::reactive::{Entered, Runtime};

@@ -1,8 +1,8 @@
 use crate::support::{replying, texts, write_agents_file};
-use acp_utils::testing::FakeAgent;
-use aether_desktop::history::{UNTITLED, git_root};
-use aether_desktop::testing::{DesktopHarness, DesktopHarnessBuilder, TEST_AGENT};
 use agent_client_protocol::v2::schema::{AbsolutePath, SessionId};
+use foxfire_acp::testing::FakeAgent;
+use foxfire_desktop::history::{UNTITLED, git_root};
+use foxfire_desktop::testing::{DesktopHarness, DesktopHarnessBuilder, TEST_AGENT};
 use serde_json::json;
 use std::fs;
 use std::path::{Path, PathBuf};

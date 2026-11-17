@@ -1,5 +1,5 @@
 use crate::support::{choose, replying};
-use aether_desktop::testing::{DesktopHarness, DesktopHarnessBuilder};
+use foxfire_desktop::testing::{DesktopHarness, DesktopHarnessBuilder};
 
 #[test]
 fn renaming_a_thread_retitles_its_row_and_header_until_the_name_is_cleared() {

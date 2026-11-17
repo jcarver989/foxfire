@@ -1,7 +1,7 @@
 use crate::agents::AgentProfile;
 use crate::target::{AgentConnector, ConnectError};
 use agent_client_protocol::v2::schema::{SessionId, SessionInfo};
-use client_core::connection::Connection;
+use foxfire_core::connection::Connection;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::future::Future;

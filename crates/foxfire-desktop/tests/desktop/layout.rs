@@ -1,8 +1,8 @@
 use crate::support::{Edges, replying};
-use aether_desktop::sidebar::MIN_MAIN_WIDTH;
-use aether_desktop::testing::{DesktopHarness, DesktopHarnessBuilder};
-use aether_desktop::threads::{Thread, ThreadStatus};
-use aether_desktop::ui::tokens::{CONTENT_MAX_WIDTH, GUTTER, SCROLLBAR_WIDTH};
+use foxfire_desktop::sidebar::MIN_MAIN_WIDTH;
+use foxfire_desktop::testing::{DesktopHarness, DesktopHarnessBuilder};
+use foxfire_desktop::threads::{Thread, ThreadStatus};
+use foxfire_desktop::ui::tokens::{CONTENT_MAX_WIDTH, GUTTER, SCROLLBAR_WIDTH};
 use rouge::core::Point;
 
 #[test]

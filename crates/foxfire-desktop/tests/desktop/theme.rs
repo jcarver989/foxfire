@@ -1,5 +1,5 @@
-use aether_desktop::{AppearanceMode, ThemePreference};
 use clankerdiff_ui_core::{Appearance, ReviewTheme, ThemePair};
+use foxfire_desktop::{AppearanceMode, ThemePreference};
 
 #[test]
 fn unknown_theme_falls_back_to_the_default() {
