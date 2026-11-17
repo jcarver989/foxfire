@@ -1,13 +1,13 @@
-# Foxfire
+# foxfire-tui
 
-A terminal interface for AI coding agents, built on the Agent Client Protocol (ACP) v2.
+The terminal UI behind the [`foxfire`](https://crates.io/crates/foxfire) binary: a terminal interface for AI coding agents, built on the Agent Client Protocol (ACP) v2.
 
 Foxfire launches an ACP-compatible agent as a subprocess, streams markdown responses and tool activity, and provides built-in session management, file attachments, plan review, git review, and settings without leaving the terminal.
 
 ## Quick start
 
 ```bash
-cargo install foxfire-tui
+cargo install foxfire
 foxfire                      # launches the default agent ("aether acp")
 foxfire --agent "my-agent"   # launches a custom ACP agent
 ```

@@ -1,0 +1,23 @@
+[package]
+name = "foxfire"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "A terminal client for AI coding agents via the Agent Client Protocol (ACP)"
+keywords = ["tui", "ai", "agent", "acp", "terminal"]
+categories = ["command-line-utilities"]
+
+[[bin]]
+name = "foxfire"
+path = "src/main.rs"
+
+[lints]
+workspace = true
+
+[dependencies]
+clankerdiff-lspd = { workspace = true, features = ["daemon"] }
+clap = { workspace = true }
+foxfire-tui = { workspace = true }
+tokio = { workspace = true, features = ["rt-multi-thread"] }
