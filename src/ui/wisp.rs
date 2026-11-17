@@ -77,7 +77,7 @@ impl WispState {
 
     fn choreography(self) -> (f32, u8) {
         match self {
-            Self::Connecting => (8.0 / 7.0, 34),
+            Self::Connecting => (34.0 / 30.0, 34),
             Self::Thinking => (2.0, 60),
             Self::Working => (1.0, 30),
             Self::Writing => (f32::from(WRITING_STEPS) / 9.0, WRITING_STEPS),
