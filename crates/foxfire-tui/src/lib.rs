@@ -26,10 +26,11 @@ use std::env::current_dir;
 use std::fs::create_dir_all;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
-use tracing_appender::rolling::daily;
+use tracing_appender::rolling::{RollingFileAppender, Rotation};
 use tracing_subscriber::EnvFilter;
 
 pub const DEFAULT_LOG_DIR: &str = "/tmp/wisp-logs";
+const MAX_LOG_FILES: usize = 7;
 
 /// Launch the Wisp TUI with the given agent subprocess command.
 pub async fn run_tui(agent_command: &str, settings: UiSettings, log_dir: Option<&str>) -> Result<(), AppError> {
@@ -56,10 +57,19 @@ pub fn client_info() -> Implementation {
     Implementation::new("wisp", env!("CARGO_PKG_VERSION"))
 }
 
+/// Logs to `dir/<file_name>.<date>`, rotating daily and keeping the most recent week of files.
 pub fn init_file_logging(dir: &Path, file_name: &str, default_filter: &str) {
     create_dir_all(dir).ok();
+    let Ok(appender) = RollingFileAppender::builder()
+        .rotation(Rotation::DAILY)
+        .filename_prefix(file_name)
+        .max_log_files(MAX_LOG_FILES)
+        .build(dir)
+    else {
+        return;
+    };
     let _ = tracing_subscriber::fmt()
-        .with_writer(daily(dir, file_name))
+        .with_writer(appender)
         .with_ansi(false)
         .with_env_filter(EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new(default_filter)))
         .try_init();
