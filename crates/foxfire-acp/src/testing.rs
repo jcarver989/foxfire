@@ -25,7 +25,7 @@ use agent_client_protocol::{
 use std::collections::VecDeque;
 use std::sync::{Arc, Mutex};
 use tokio::sync::{mpsc, oneshot};
-use tokio::task::spawn_local;
+use tokio::task::{LocalSet, spawn_local};
 
 pub struct TestPeer {
     session_notifications: mpsc::UnboundedReceiver<UpdateSessionNotification>,
@@ -249,6 +249,11 @@ pub fn prompt_search_hit(prompt: &str, match_start: usize, match_end: usize) -> 
 
 pub fn prompt_search_response(query: &str, results: Vec<PromptSearchResult>) -> PromptSearchResponse {
     PromptSearchResponse { query: query.to_owned(), results, truncated: false }
+}
+
+pub fn run_local<T: Future>(test: T) -> T::Output {
+    let runtime = tokio::runtime::Builder::new_current_thread().enable_all().build().expect("a test runtime");
+    LocalSet::new().block_on(&runtime, Box::pin(test))
 }
 
 /// Build a live `ConnectionTo<Client>` over an in-memory duplex transport with

@@ -11,7 +11,6 @@ use foxfire_core::session_core::{Effect, SessionCore};
 use foxfire_core::testing::{FakeGit, git_diff_agent};
 use std::path::PathBuf;
 use std::sync::Arc;
-use tokio::task::LocalSet;
 
 /// A `SessionCore` driven by a real `SessionRuntime`, the way a frontend's
 /// event loop drives them.
@@ -74,12 +73,7 @@ pub(crate) fn client_info() -> Implementation {
     Implementation::new("client-core-test", "1")
 }
 
-/// The fake agent and the ACP client run as local tasks, so every async test
-/// runs inside a `LocalSet` on a current-thread runtime.
-pub(crate) fn run_local<T: Future>(test: T) -> T::Output {
-    let runtime = tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap();
-    LocalSet::new().block_on(&runtime, test)
-}
+pub(crate) use foxfire_acp::testing::run_local;
 
 pub(crate) fn deliver(core: &mut SessionCore, result: CommandResult) {
     core.on_input(Input::Result(result));
