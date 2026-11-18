@@ -111,6 +111,12 @@ impl Composer {
         self.focus.focus();
     }
 
+    /// Types `typed` at the caret, replacing any selection, and focuses the composer.
+    pub(crate) fn type_text(self, typed: &str) {
+        self.replace(self.selection.get_untracked(), typed);
+        self.focus();
+    }
+
     pub(crate) fn attach(self, paths: &[PathBuf]) {
         let remote =
             self.thread.with_core(|core| core.session().workspace_access() == WorkspaceAccess::Remote).unwrap_or(false);

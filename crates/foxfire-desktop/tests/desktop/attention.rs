@@ -143,18 +143,6 @@ fn a_thread_waiting_on_an_answer_shows_a_speech_bubble() {
     assert!(harness.bounds("thread-row-0-status-running").is_none(), "waiting is not busy");
 }
 
-#[test]
-fn a_saved_session_has_no_activity_icon() {
-    let mut harness = DesktopHarnessBuilder::default()
-        .session("saved", "/alpha", "2026-01-01T00:00:00Z", "prompt")
-        .project("/alpha")
-        .build();
-
-    assert!(harness.bounds("history-row-agent:saved-conversation-icon").is_some());
-    assert!(harness.bounds("history-row-agent:saved-status-dormant").is_none());
-    assert!(harness.bounds("history-row-agent:saved-unread").is_none());
-}
-
 fn notification(tag: &str, title: &str, body: &str) -> Notification {
     Notification { tag: tag.into(), title: title.into(), body: body.into() }
 }

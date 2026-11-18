@@ -23,10 +23,12 @@ use foxfire_acp::conversation::{
 use groups::{Group, GroupKind, groups};
 use message::{error, full_diff, image_preview, message_actions, notice, prompt, reconnect_button, thinking_block};
 use rouge::core::{
-    Align, AnyView, Cursor, FocusHandle, Rect, Role, RowKey, Styled, TextAlign, View, VirtualListHandle, WindowHandle,
-    div, dynamic, focus_handle, px, show, text, view, virtual_list, virtual_list_handle, window_handle,
+    Align, AnyView, Cursor, FocusHandle, KeyEvent, Rect, Role, RowKey, Styled, TextAlign, View, VirtualListHandle,
+    WindowHandle, div, dynamic, focus_handle, px, show, text, view, virtual_list, virtual_list_handle, window_handle,
 };
+use rouge::markdown::MarkdownDocument;
 use rouge::reactive::{Callback, Memo, Scope, Signal, Stored, effect, memo, signal, stored, untrack};
+use rouge::widgets::MarkdownRows;
 use std::borrow::Cow;
 use std::cell::Cell;
 use std::collections::{HashMap, HashSet};
@@ -40,6 +42,7 @@ pub(crate) struct Transcript {
     thread: Thread,
     list: VirtualListHandle,
     following: Signal<bool>,
+    on_type: Callback<(String,)>,
     dock: Signal<Rect>,
     unfolded: Signal<HashSet<Fold>>,
     preview: Signal<Option<Arc<[u8]>>>,
@@ -83,6 +86,7 @@ impl Transcript {
         platform: Rc<dyn Platform>,
         dock: Signal<Rect>,
         on_location: impl Fn(acp::ToolCallLocation) + 'static,
+        on_type: impl Fn(String) + 'static,
     ) -> Self {
         let summary = memo(move || {
             thread
@@ -107,6 +111,7 @@ impl Transcript {
             thread,
             list: virtual_list_handle(),
             following: signal(true),
+            on_type: Callback::from(on_type),
             dock,
             unfolded,
             preview: signal(None),
@@ -170,6 +175,7 @@ impl Transcript {
             RowKey::new(id, structure.get())
         })
         .measure_rows(|| 0)
+        .row_text(move |index| self.row_text(index))
         .handle(list)
         .follow_end(self.following)
         .size_full();
@@ -192,7 +198,8 @@ impl Transcript {
         };
         view! {
             <div size_full flex>
-                <div relative flex_1 min_w=0.0 h_full>
+                <div test_id="transcript-selection" relative flex_1 min_w=0.0 h_full selectable
+                     on_key_down={move |event| self.type_into_composer(event)}>
                     {rows}
                     <div test_id="transcript-view" absolute left=0.0 right=0.0 top=HEADER_HEIGHT
                          bottom=bottom_inset pb=FADE_HEIGHT px=GUTTER flex items_end
@@ -211,17 +218,67 @@ impl Transcript {
         }
     }
 
+    fn type_into_composer(self, event: &KeyEvent) {
+        let modifiers = event.modifiers;
+        if modifiers.ctrl || modifiers.meta || modifiers.alt {
+            return;
+        }
+        let Some(typed) = event.text.as_ref().filter(|typed| !typed.is_empty() && !typed.chars().any(char::is_control))
+        else {
+            return;
+        };
+        event.stop_propagation();
+        self.on_type.call(typed.clone());
+    }
+
+    fn with_group<T>(self, index: usize, read: impl FnOnce(Option<(&Group, Fold)>) -> T) -> T {
+        self.summary.with(|summary| {
+            let group = summary.groups.iter().find(|group| group.rows.contains(&index));
+            read(group.map(|group| (group, Fold::Rows(group.kind, summary.items[group.rows.start].0))))
+        })
+    }
+
+    fn expanded(self, fold: Fold) -> bool {
+        self.unfolded.with(|unfolded| unfolded.contains(&fold))
+    }
+
+    /// The selectable text of a row that is not mounted in the virtual list.
+    fn row_text(self, index: usize) -> String {
+        if self.with_group(index, |group| group.is_some_and(|(_, fold)| !self.expanded(fold))) {
+            return String::new();
+        }
+        self.thread
+            .with_core(|core| {
+                let item = core.conversation().items().get(index)?;
+                let id = item.id();
+                Some(match item.content() {
+                    ConversationContent::User(blocks) => prompt_text(blocks),
+                    ConversationContent::Assistant(_) => {
+                        let text = item.text().unwrap_or_default().into_owned();
+                        MarkdownRows::new(MarkdownDocument::parse(text).blocks()).plain_text()
+                    }
+                    ConversationContent::Thought(_) if self.expanded(Fold::Item(id)) => {
+                        item.text().unwrap_or_default().into_owned()
+                    }
+                    ConversationContent::Tool(tool) if self.expanded(Fold::Item(id)) => {
+                        tools::details_text(tool, self.expanded(Fold::Full(id)))
+                    }
+                    ConversationContent::Notice(Notice { text, .. }) => text.clone(),
+                    ConversationContent::Thought(_) | ConversationContent::Tool(_) => String::new(),
+                })
+            })
+            .flatten()
+            .unwrap_or_default()
+    }
+
     fn unobscured(self, content: impl View) -> AnyView {
         let dock = self.dock;
         view! { <div size_full pt=HEADER_HEIGHT pb={move || px(dock.get().size.height)}>{content}</div> }.into_any()
     }
 
     fn row(self, index: usize) -> AnyView {
-        let (item, group) = self.summary.with(|summary| {
-            let group = summary.groups.iter().find(|group| group.rows.contains(&index)).cloned();
-            (summary.items.get(index).map(|(id, _)| *id), group)
-        });
-        if item.is_none() {
+        let group = self.with_group(index, |group| group.map(|(group, fold)| (group.clone(), fold)));
+        if self.summary.with(|summary| index >= summary.items.len()) {
             let dock = self.dock;
             return view! { <div pt=FADE_HEIGHT><div h={move || px(dock.get().size.height)}/></div> }.into_any();
         }
@@ -230,12 +287,12 @@ impl Transcript {
             .with_core(|core| {
                 let items = core.conversation().items();
                 let kind = items.get(index).map(kind_of)?;
-                let header = group.as_ref().map(|Group { rows, kind }| {
-                    let fold = Fold::Rows(*kind, items[rows.start].id());
-                    let expanded = self.unfolded.with(|unfolded| unfolded.contains(&fold));
+                let header = group.as_ref().map(|(group, fold)| {
+                    let fold = *fold;
+                    let expanded = self.expanded(fold);
                     let toggle = Callback::from(move || self.toggle(fold));
-                    let header = (index == rows.start)
-                        .then(|| fold_header(*kind, index, &items[rows.clone()], expanded, toggle));
+                    let header = (index == group.rows.start)
+                        .then(|| fold_header(group.kind, index, &items[group.rows.clone()], expanded, toggle));
                     (header, !expanded)
                 });
                 Some((kind, header))
@@ -250,11 +307,11 @@ impl Transcript {
         }
         let hovered = signal(false);
         let content = (!folded).then(|| {
-            let indented = group.as_ref().is_some_and(|group| group.kind == GroupKind::Run);
+            let indented = group.as_ref().is_some_and(|(group, _)| group.kind == GroupKind::Run);
             let item = self.item(index, kind, hovered);
             if indented { div().pl(16.0).child(item) } else { div().child(item) }
         });
-        let turn_header = header.is_some() && group.as_ref().is_some_and(|group| group.kind == GroupKind::Turn);
+        let turn_header = header.is_some() && group.as_ref().is_some_and(|(group, _)| group.kind == GroupKind::Turn);
         let top = if index == 0 { HEADER_HEIGHT } else { 0.0 };
         let padding = match kind {
             Kind::User => (24.0, 8.0),
@@ -323,14 +380,7 @@ impl Transcript {
                 let ConversationContent::User(blocks) = item.content() else {
                     return None;
                 };
-                let text: String = blocks
-                    .iter()
-                    .filter_map(|block| match block {
-                        acp::ContentBlock::Text(text) => Some(text.text.as_str()),
-                        _ => None,
-                    })
-                    .collect();
-                Some((item.id(), text, blocks.clone()))
+                Some((item.id(), prompt_text(blocks), blocks.clone()))
             })
             .flatten()
         else {
@@ -371,7 +421,7 @@ impl Transcript {
             .with_core(|core| {
                 let item = core.conversation().items().get(index)?;
                 let id = item.id();
-                let expanded = self.unfolded.with(|unfolded| unfolded.contains(&Fold::Item(id)));
+                let expanded = self.expanded(Fold::Item(id));
                 let toggle = Callback::from(move || self.toggle(Fold::Item(id)));
                 Some(match item.content() {
                     ConversationContent::Thought(_) => {
@@ -380,7 +430,7 @@ impl Transcript {
                     }
                     ConversationContent::Tool(tool) => {
                         let full = Fold::Full(id);
-                        let fold = match (expanded, self.unfolded.with(|unfolded| unfolded.contains(&full))) {
+                        let fold = match (expanded, self.expanded(full)) {
                             (false, _) => ToolFold::Folded,
                             (true, false) => ToolFold::Expanded,
                             (true, true) => ToolFold::Full,
@@ -478,6 +528,16 @@ fn kind_of(item: &ConversationItem) -> Kind {
         ConversationContent::Tool(_) => Kind::Tool,
         ConversationContent::Notice(_) => Kind::Notice,
     }
+}
+
+fn prompt_text(blocks: &[acp::ContentBlock]) -> String {
+    blocks
+        .iter()
+        .filter_map(|block| match block {
+            acp::ContentBlock::Text(text) => Some(text.text.as_str()),
+            _ => None,
+        })
+        .collect()
 }
 
 fn hash(value: &impl Hash) -> u64 {

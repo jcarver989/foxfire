@@ -30,26 +30,11 @@ struct Manager {
     opened: usize,
 }
 
-#[derive(Debug, Clone, PartialEq)]
-pub enum ThreadRef {
-    Live(Thread),
-    Saved { session_id: SessionId, agent: AgentProfile },
-}
-
 #[derive(Debug, Clone)]
 pub struct Attention {
     pub thread: Thread,
     pub event: ThreadEvent,
     pub watched: bool,
-}
-
-impl ThreadRef {
-    pub fn live(&self) -> Option<Thread> {
-        match self {
-            Self::Live(thread) => Some(*thread),
-            Self::Saved { .. } => None,
-        }
-    }
 }
 
 impl ThreadManager {
@@ -126,15 +111,6 @@ impl ThreadManager {
         match attached {
             Some(thread) => self.reconnect_and_select(thread),
             None => self.spawn_thread(SessionTarget::remote(remote, Some(instance.to_owned())), None),
-        }
-    }
-
-    pub fn open(&self, thread: &ThreadRef) {
-        match thread {
-            ThreadRef::Live(thread) => self.select(*thread),
-            ThreadRef::Saved { session_id, agent } => {
-                self.resume(session_id.clone(), agent.clone());
-            }
         }
     }
 

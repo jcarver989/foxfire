@@ -48,7 +48,7 @@ pub(crate) fn prompt(
 
 pub(crate) fn message_actions(row: usize, text: String, hovered: Signal<bool>, window: WindowHandle) -> Div {
     view! {
-        <div pt=4.0 flex opacity={move || if hovered.get() { 1.0 } else { 0.0 }}>
+        <div pt=4.0 flex opacity={move || if hovered.get() { 1.0 } else { 0.0 }} unselectable>
             <icon_button test_id={format!("copy-message-{row}")} icon=IconName::Copy label="Copy"
                          on_click={move || window.copy_text(text.clone())}/>
         </div>

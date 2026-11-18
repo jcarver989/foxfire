@@ -27,6 +27,11 @@ impl SessionKey {
     pub fn new(agent: &str, id: &SessionId) -> Self {
         Self(format!("{agent}:{}", id.0))
     }
+
+    /// The name of the agent that saved the session.
+    pub fn agent(&self) -> &str {
+        self.0.split_once(':').map_or(self.0.as_str(), |(agent, _)| agent)
+    }
 }
 
 impl fmt::Display for SessionKey {
