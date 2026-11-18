@@ -1,7 +1,8 @@
-use crate::agents::{AUTO_ADDED_AGENT, Agents, Catalogs};
+use crate::agents::{AUTO_ADDED_AGENT, AgentProfile, Agents, Catalogs};
+use crate::chat::PastSessions;
 use crate::clock::Clock;
 use crate::file_picker::file_picker;
-use crate::history::{History, SavedSession};
+use crate::history::History;
 use crate::platform::{Notification, Platform};
 use crate::registry::{Registry, State, WindowSize};
 use crate::remotes::Fleet;
@@ -78,6 +79,7 @@ pub struct DesktopApp {
     views: Stored<HashMap<usize, (Scope, ThreadView)>>,
     modal: Signal<Option<Modal>>,
     platform: Stored<Rc<dyn Platform>>,
+    clock: Stored<Arc<dyn Clock>>,
     restore: Stored<Option<SessionKey>>,
     window: WindowHandle,
     scope: Scope,
@@ -124,10 +126,10 @@ impl DesktopApp {
         });
         let agents = Catalogs::new(auto_add_agent(agents, platform.as_ref(), registry));
         let threads = ThreadManager::new(connector, agents, clock.clone());
-        let history = History::new(sessions, registry, agents);
+        let history = History::new(sessions);
         let fleet = Fleet::new(remotes, remotes_file);
         let platform = stored(platform);
-        let sidebar = Sidebar::new(threads, history, registry, agents, fleet, clock, platform);
+        let sidebar = Sidebar::new(threads, registry, agents, fleet, clock.clone(), platform);
         let app = Self {
             threads,
             history,
@@ -138,6 +140,7 @@ impl DesktopApp {
             views: stored(HashMap::new()),
             modal: signal(None),
             platform,
+            clock: stored(clock),
             restore: stored(registry.with(|state| state.last_selected.clone())),
             window: window_handle(),
             scope: Scope::new(),
@@ -258,10 +261,26 @@ impl DesktopApp {
                 untrack(|| self.registry.update(|state| state.last_selected = session_id));
             }
         });
+        let roots = memo(move || self.registry.with(|state| state.projects.clone()));
         effect(move || {
-            let sessions = self.history.sessions();
-            untrack(|| self.restore_selection(&sessions));
+            self.agents.revision();
+            roots.with(|roots| untrack(|| self.list_restorable(roots)));
         });
+        if let Some(key) = self.restore.get() {
+            let candidate = memo(move || self.history.restorable(&key));
+            effect(move || {
+                let (ready, session) = candidate.get();
+                untrack(|| {
+                    if ready
+                        && self.threads.selected().is_none()
+                        && self.restore.update(Option::take).is_some()
+                        && let Some(session) = session
+                    {
+                        self.threads.resume(session.id, session.agent);
+                    }
+                });
+            });
+        }
     }
 
     fn view_of(self, thread: Thread) -> ThreadView {
@@ -269,7 +288,10 @@ impl DesktopApp {
             return view;
         }
         let scope = self.scope.child();
-        let view = scope.run(|| ThreadView::new(thread, self.registry, self.platform.get()));
+        let view = scope.run(|| {
+            let past = PastSessions::new(thread, self.threads, self.history, self.agents, self.registry, self.clock);
+            ThreadView::new(thread, self.registry, self.platform.get(), &past)
+        });
         self.views.update(|views| views.insert(thread.number(), (scope, view)));
         view
     }
@@ -306,16 +328,17 @@ impl DesktopApp {
         }
     }
 
-    fn restore_selection(self, sessions: &[SavedSession]) {
-        if self.restore.with(Option::is_none) || sessions.is_empty() || self.threads.selected().is_some() {
-            return;
-        }
-        let Some(key) = self.restore.update(Option::take) else {
+    /// Asks only the agent that saved the last selected session, in each project that has it, for its sessions.
+    fn list_restorable(self, roots: &[PathBuf]) {
+        let Some(name) = self.restore.with(|restore| restore.as_ref().map(|key| key.agent().to_owned())) else {
             return;
         };
-        if let Some(session) = sessions.iter().find(|session| session.key() == key) {
-            self.threads.resume(session.id.clone(), session.agent.clone());
-        }
+        let agents: Vec<AgentProfile> = roots
+            .iter()
+            .filter_map(|root| self.agents.catalog(root).get(&name).cloned())
+            .filter(|agent| self.history.listing(agent).is_none())
+            .collect();
+        self.history.list(&agents);
     }
 
     fn select_session(self, session_id: &SessionKey) {
@@ -419,7 +442,7 @@ impl DesktopApp {
                 let handle = SearchPickerHandle::new(items, move |event| {
                     let closed = picker_closed(&event, |index| {
                         if let Some(entry) = entries.get(index) {
-                            self.threads.open(&entry.thread);
+                            self.threads.select(entry.thread);
                         }
                     });
                     if closed {

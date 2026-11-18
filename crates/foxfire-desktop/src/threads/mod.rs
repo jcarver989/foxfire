@@ -2,5 +2,5 @@ mod driver;
 mod manager;
 mod thread;
 
-pub use manager::{Attention, ThreadManager, ThreadRef};
+pub use manager::{Attention, ThreadManager};
 pub use thread::{Thread, ThreadEvent, ThreadStatus};

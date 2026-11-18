@@ -3,6 +3,7 @@ use agent_client_protocol::v2::schema::SessionId;
 use foxfire_acp::testing::FakeAgent;
 use foxfire_desktop::testing::DesktopHarnessBuilder;
 use foxfire_desktop::threads::{Thread, ThreadStatus};
+use rouge::core::testing::TestResult;
 
 #[test]
 fn concurrent_threads_each_receive_only_their_own_updates() {
@@ -36,29 +37,34 @@ fn concurrent_threads_each_receive_only_their_own_updates() {
 }
 
 #[test]
-fn stopping_a_thread_ends_its_agent_and_returns_its_session_to_history() {
+fn a_stopped_threads_session_can_be_picked_up_again_from_a_new_thread() -> TestResult {
     let (mut harness, thread) = DesktopHarnessBuilder::default()
         .session("alpha-session", "/alpha", "2026-01-01T00:00:00Z", "hi")
         .agent("/alpha", replying("alpha-session", "hello"))
+        .agent("/alpha", replying("fresh-session", "unused"))
         .agent("/alpha", FakeAgent::default().replay_message("alpha-session", "replayed answer"))
         .start("/alpha");
-    assert!(harness.bounds("history-row-agent:alpha-session").is_none(), "the live thread stands in for its session");
 
-    harness.hover("thread-row-0").unwrap();
-    harness.click("thread-row-0-stop").unwrap();
+    harness.hover("thread-row-0")?;
+    harness.click("thread-row-0-stop")?;
     harness.run_until(|harness| harness.connector().live_agents("/alpha") == 0);
 
     assert_eq!(harness.threads().threads(), Vec::<Thread>::new());
     assert!(harness.selected_thread().is_none());
     assert_eq!(thread.status(), ThreadStatus::Dormant);
     assert!(harness.bounds("thread-row-0").is_none());
-    assert!(harness.bounds("history-row-agent:alpha-session").is_some(), "the session is back in history");
 
-    harness.click("history-row-agent:alpha-session").unwrap();
+    let fresh = harness.start_thread("/alpha");
+    harness.click("past-sessions-toggle")?;
+    harness.run_until_painted("past-session-agent:alpha-session");
+    harness.click("past-session-agent:alpha-session")?;
     let resumed = harness.connected_thread();
 
+    assert_eq!(resumed.session_id(), Some(SessionId::new("alpha-session")));
+    assert!(!harness.threads().threads().contains(&fresh));
     assert_eq!(texts(resumed), ["replayed answer"]);
-    assert_eq!(harness.connector().live_agents("/alpha"), 1);
+    assert_eq!(harness.connector().live_agents("/alpha"), 1, "the new thread's agent gave way to the resumed one");
+    Ok(())
 }
 
 #[test]
@@ -93,23 +99,6 @@ fn a_thread_whose_agent_cannot_start_is_errored_and_gives_a_prompt_back() {
     harness.type_text("hello?");
     harness.press("enter");
     assert!(harness.shows("composer-text", "hello?"), "a prompt the agent never received is kept");
-}
-
-#[test]
-fn clicking_a_saved_session_resumes_it_in_a_selected_thread_that_replaces_its_row() {
-    let mut harness = DesktopHarnessBuilder::default()
-        .session("saved-session", "/alpha", "2026-01-01T00:00:00Z", "earlier prompt")
-        .agent("/alpha", FakeAgent::default().replay_message("saved-session", "an earlier answer"))
-        .build();
-
-    harness.click("history-row-agent:saved-session").unwrap();
-    let thread = harness.connected_thread();
-
-    assert_eq!(thread.session_id(), Some(SessionId::new("saved-session")));
-    assert_eq!(texts(thread), ["an earlier answer"]);
-    assert!(harness.bounds("transcript-row-0").is_some(), "the replayed history is painted");
-    assert!(harness.bounds("history-row-agent:saved-session").is_none(), "the live thread replaces the saved row");
-    assert!(harness.bounds("thread-row-0").is_some());
 }
 
 #[test]

@@ -47,7 +47,7 @@ pub(super) fn row(sidebar: &Sidebar, row: &Row) -> AnyView {
         })
         .collect();
     let reconnect = row
-        .live()
+        .thread
         .filter(|_| matches!(row.icon, RowIcon::Status(status) if status.problem().is_some()))
         .map(|thread| {
             view! {
@@ -141,7 +141,7 @@ impl RowAction {
     }
 
     fn run(self, row: &Row, sidebar: &Sidebar) {
-        let thread = row.live();
+        let thread = row.thread;
         let stop = || {
             if let Some(thread) = thread {
                 sidebar.threads.stop(thread);
@@ -177,7 +177,7 @@ impl RowAction {
 
 fn open_row(row: &Row, sidebar: &Sidebar) {
     match (&row.thread, &row.kind) {
-        (Some(thread), _) => sidebar.threads.open(thread),
+        (Some(thread), _) => sidebar.threads.select(*thread),
         (None, RowKind::Cloud { remote, instance_id: Some(id), .. }) => {
             sidebar.threads.attach(remote, id);
         }

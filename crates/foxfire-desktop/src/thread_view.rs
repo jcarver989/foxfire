@@ -1,5 +1,9 @@
+use crate::app::chord;
 use crate::artifact_review::ArtifactReview;
-use crate::chat::{Composer, SessionOptions, StatusLine, Transcript, reconnect_banner};
+use crate::chat::{
+    Composer, PAST_SESSIONS_KEYS, PastSessions, SessionOptions, StatusLine, TogglePastSessions, Transcript,
+    reconnect_banner,
+};
 use crate::elicitation::ElicitationCard;
 use crate::files::Files;
 use crate::platform::Platform;
@@ -34,6 +38,7 @@ pub(crate) struct ThreadView {
     status: StatusLine,
     elicitation: ElicitationCard,
     composer: Composer,
+    past: PastSessions,
     files: Files,
     review: ArtifactReview,
 }
@@ -46,7 +51,7 @@ pub(crate) enum ThreadTab {
 }
 
 impl ThreadView {
-    pub(crate) fn new(thread: Thread, registry: Registry, platform: Rc<dyn Platform>) -> Self {
+    pub(crate) fn new(thread: Thread, registry: Registry, platform: Rc<dyn Platform>, past: &PastSessions) -> Self {
         let tab = signal(ThreadTab::Chat);
         let changes_seen = signal(None);
         let show = move |next: ThreadTab| show_tab(thread, tab, changes_seen, next);
@@ -57,9 +62,14 @@ impl ThreadView {
             }
         });
         let dock = signal(Rect::ZERO);
-        let transcript = Transcript::new(thread, platform.clone(), dock, move |location: acp::ToolCallLocation| {
-            open_location(thread, files, tab, changes_seen, &location);
-        });
+        let composer = Composer::new(thread, platform.clone());
+        let transcript = Transcript::new(
+            thread,
+            platform.clone(),
+            dock,
+            move |location: acp::ToolCallLocation| open_location(thread, files, tab, changes_seen, &location),
+            move |typed: String| composer.type_text(&typed),
+        );
         let view = Self {
             thread,
             registry,
@@ -72,8 +82,9 @@ impl ThreadView {
             transcript,
             options: SessionOptions::new(thread),
             status: StatusLine::new(thread),
-            elicitation: ElicitationCard::new(thread, platform.clone(), move || show(ThreadTab::Review)),
-            composer: Composer::new(thread, platform),
+            elicitation: ElicitationCard::new(thread, platform, move || show(ThreadTab::Review)),
+            composer,
+            past: *past,
             files,
             review,
         };
@@ -223,6 +234,9 @@ impl ThreadView {
         let unreachable = memo(move || unreachable(thread));
         let fresh = memo(move || thread.is_fresh());
         let connecting = memo(move || fresh.get() && thread.status() == ThreadStatus::Connecting);
+        let (past, composer) = (self.past, self.composer);
+        let offered = memo(move || past.offered());
+        let open = memo(move || past.is_open());
         let spacer = move || view! { <show when={move || fresh.get()}><div flex_1/></show> };
         view! {
             <div absolute left=0.0 right=0.0 bottom=0.0 top={move || if fresh.get() { px(0.0) } else { auto() }}
@@ -238,15 +252,21 @@ impl ThreadView {
                     <dynamic>{unreachable.get().and_then(|status| reconnect_banner(thread, status)).map(|banner| banner.mt(8.0))}</dynamic>
                     {self.elicitation.view()}
                     <div track_bounds={self.composer_bounds} opacity=reveal>{self.composer.view()}</div>
-                    <div test_id="composer-bar" h=ROW_HEIGHT mt=4.0 px=8.0 flex items_center gap=16.0 opacity=reveal>
-                        {self.options.view()}
-                        {self.status.view()}
-                        <show when={move || connecting.get()}>{connecting_message()}</show>
+                    <div flex col opacity=reveal>
+                        <div test_id="composer-bar" h=ROW_HEIGHT mt=4.0 px=8.0 flex items_center gap=16.0>
+                            {self.options.view()}
+                            {self.status.view()}
+                            <show when={move || connecting.get()}>{connecting_message()}</show>
+                            <show when={move || offered.get()}>{past.toggle_view()}</show>
+                        </div>
+                        <show when={move || open.get()}>{past.tray_view(move || composer.focus())}</show>
                     </div>
                 </div>
                 {spacer()}
             </div>
         }
+        .bind_key(chord(PAST_SESSIONS_KEYS), TogglePastSessions)
+        .on_action(move |_: &TogglePastSessions| self.past.toggle())
     }
 
     fn kindling(self, reveal: Motion) -> impl View {

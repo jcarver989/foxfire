@@ -6,7 +6,7 @@ pub(crate) use listing::SwitcherEntry;
 use crate::agents::{AGENTS_FILE, AgentProfile, Catalogs, KNOWN_AGENTS, KnownAgent};
 use crate::app::{OpenSettings, OpenThreadSwitcher};
 use crate::clock::Clock;
-use crate::history::{History, git_root};
+use crate::history::git_root;
 use crate::platform::{PathPrompt, Platform};
 use crate::registry::{Collapsed, Registry};
 use crate::remotes::{Action, Fleet, RemoteSpec};
@@ -23,7 +23,6 @@ use listing::{Listing, RemoteSection, Row, Section, project_name};
 use rouge::core::{AnyView, Div, Role, Styled, View, div, dynamic, each, scroll, show, text, view, window_size};
 use rouge::reactive::{Callback, Memo, ReadSignal, Scope, Signal, Stored, effect, memo, signal, stored, untrack};
 use serde_json::json;
-use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 use std::sync::Arc;
@@ -38,7 +37,6 @@ pub struct Sidebar {
     fleet: Fleet,
     platform: Stored<Rc<dyn Platform>>,
     sources: Sources,
-    limits: Signal<HashMap<PathBuf, usize>>,
     sections: Memo<Vec<Section>>,
     remotes: Memo<Vec<RemoteSection>>,
     scope: Scope,
@@ -47,7 +45,6 @@ pub struct Sidebar {
 #[derive(Clone, Copy)]
 struct Sources {
     threads: ThreadManager,
-    history: History,
     registry: Registry,
     fleet: Fleet,
     clock: Stored<Arc<dyn Clock>>,
@@ -73,22 +70,22 @@ pub(crate) fn toggle_button(open: bool) -> AnyView {
 impl Sidebar {
     pub(crate) fn new(
         threads: ThreadManager,
-        history: History,
         registry: Registry,
         agents: Catalogs,
         fleet: Fleet,
         clock: Arc<dyn Clock>,
         platform: Stored<Rc<dyn Platform>>,
     ) -> Self {
-        let sources = Sources { threads, history, registry, fleet, clock: stored(clock), rename: signal(None) };
-        let limits = signal(HashMap::new());
-        let sections = memo(move || limits.with(|limits| sources.with_listing(|listing| listing.sections(limits))));
+        let sources = Sources { threads, registry, fleet, clock: stored(clock), rename: signal(None) };
         #[allow(
             clippy::redundant_closure_for_method_calls,
             reason = "The method path cannot name the listing's borrowed lifetime."
         )]
-        let remotes = memo(move || sources.with_listing(|listing| listing.remotes()));
-        Self { threads, registry, agents, fleet, platform, sources, limits, sections, remotes, scope: Scope::new() }
+        let (sections, remotes) = (
+            memo(move || sources.with_listing(|listing| listing.sections())),
+            memo(move || sources.with_listing(|listing| listing.remotes())),
+        );
+        Self { threads, registry, agents, fleet, platform, sources, sections, remotes, scope: Scope::new() }
     }
 
     pub(crate) fn new_thread(self) {
@@ -105,11 +102,11 @@ impl Sidebar {
 
     pub(crate) fn live_order(self) -> Vec<Thread> {
         let listed = self.sections.with(|sections| {
-            sections.iter().flat_map(|section| &section.rows).filter_map(Row::live).collect::<Vec<_>>()
+            sections.iter().flat_map(|section| &section.rows).filter_map(|row| row.thread).collect::<Vec<_>>()
         });
-        let cloud = self
-            .remotes
-            .with(|remotes| remotes.iter().flat_map(|section| &section.rows).filter_map(Row::live).collect::<Vec<_>>());
+        let cloud = self.remotes.with(|remotes| {
+            remotes.iter().flat_map(|section| &section.rows).filter_map(|row| row.thread).collect::<Vec<_>>()
+        });
         let mut order: Vec<Thread> = listed.into_iter().chain(cloud).collect();
         for thread in self.threads.threads() {
             if !order.contains(&thread) {
@@ -241,19 +238,10 @@ impl Sidebar {
         });
     }
 
-    fn archive_inactive(self, root: &Path) {
-        let inactive = self.with_listing(|listing| listing.inactive_sessions(root));
-        self.registry.update(|state| state.archived.extend(inactive));
-    }
-
     fn remove_project(self, root: &Path) {
         if self.threads.projects().iter().all(|project| project != root) {
             self.registry.update(|state| state.projects.retain(|project| project != root));
         }
-    }
-
-    fn show_more(self, root: PathBuf) {
-        self.limits.update(|limits| *limits.entry(root).or_insert(listing::SAVED_ROWS) += MORE_SAVED_ROWS);
     }
 
     fn start_rename(self, session_id: SessionKey, title: &str) {
@@ -340,7 +328,6 @@ impl Sidebar {
         let name = project_name(&root);
         let id = format!("project-{name}");
         let collapsed = memo(move || section.with(|section| section.collapsed));
-        let hidden = memo(move || section.with(|section| section.hidden));
         let header = {
             let (root, name, id) = (root.clone(), name.clone(), id.clone());
             move || {
@@ -361,17 +348,6 @@ impl Sidebar {
                 })
             }
         };
-        let show_more = move || {
-            let hidden = hidden.get();
-            (hidden > 0).then(|| {
-                let root = root.clone();
-                view! {
-                    <tree_row test_id={format!("{id}-show-more")} label={format!("Show {hidden} more")} depth=1
-                              leading={icon_slot().into_any()} label_color=Role::TextMuted
-                              on_click={move || self.show_more(root.clone())}/>
-                }
-            })
-        };
         view! {
             <div w_full flex col>
                 <dynamic>{header()}</dynamic>
@@ -379,7 +355,6 @@ impl Sidebar {
                       let:row>
                     <dynamic>{row::row(&self, &row.get())}</dynamic>
                 </each>
-                <dynamic>{show_more()}</dynamic>
             </div>
         }
     }
@@ -528,12 +503,9 @@ impl Sidebar {
     }
 
     fn project_actions(self, root: &Path) -> Vec<MenuItem> {
-        let (archive_root, remove_root) = (root.to_path_buf(), root.to_path_buf());
+        let root = root.to_path_buf();
         vec![
-            MenuItem::callback("Archive inactive threads", move || self.archive_inactive(&archive_root))
-                .id("menu-archive-inactive")
-                .icon(IconName::Archive),
-            MenuItem::callback("Remove from sidebar", move || self.remove_project(&remove_root))
+            MenuItem::callback("Remove from sidebar", move || self.remove_project(&root))
                 .id("menu-remove-project")
                 .icon(IconName::X),
         ]
@@ -562,16 +534,13 @@ impl Sources {
     fn with_listing<T>(self, read: impl FnOnce(&Listing<'_>) -> T) -> T {
         let now = self.clock.with(|clock| clock.now());
         self.registry.with(|state| {
-            self.history.with_sessions(|sessions| {
-                self.rename.with(|rename| {
-                    read(&Listing {
-                        state,
-                        threads: self.threads,
-                        history: sessions,
-                        fleet: self.fleet,
-                        renaming: rename.as_ref().map(|rename| &rename.session_id),
-                        now,
-                    })
+            self.rename.with(|rename| {
+                read(&Listing {
+                    state,
+                    threads: self.threads,
+                    fleet: self.fleet,
+                    renaming: rename.as_ref().map(|rename| &rename.session_id),
+                    now,
                 })
             })
         })
@@ -591,8 +560,6 @@ struct Header {
 const DEFAULT_SIDEBAR_WIDTH: f32 = 272.0;
 const MIN_SIDEBAR_WIDTH: f32 = 200.0;
 const MAX_SIDEBAR_WIDTH: f32 = 480.0;
-
-const MORE_SAVED_ROWS: usize = 20;
 
 const LOCAL: &str = "local";
 const CLOUD: &str = "cloud";

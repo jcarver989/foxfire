@@ -64,7 +64,14 @@ pub struct FakeConnector {
 
 #[derive(Clone, Default)]
 pub struct FakeSessions {
-    saved: Arc<Mutex<Vec<(String, SessionInfo)>>>,
+    state: Arc<Mutex<FakeSessionsState>>,
+}
+
+#[derive(Default)]
+struct FakeSessionsState {
+    saved: Vec<(String, SessionInfo)>,
+    failing: HashSet<String>,
+    asked: Vec<(String, PathBuf)>,
 }
 
 #[derive(Clone, Default)]
@@ -281,8 +288,6 @@ impl DesktopHarnessBuilder {
             _entered: entered,
         };
         harness.advance();
-        let history = harness.history();
-        harness.run_until(|_| history.has_listed());
         let fleet = harness.fleet();
         harness.run_until(|_| fleet.with_inventory(clankerdiff_remote::Inventory::has_listed));
         harness
@@ -364,18 +369,34 @@ impl Transport for FakeConnector {
 
 impl FakeSessions {
     fn save(&self, agent: &str, session: SessionInfo) {
-        self.lock().push((agent.to_owned(), session));
+        self.lock().saved.push((agent.to_owned(), session));
     }
 
-    fn lock(&self) -> MutexGuard<'_, Vec<(String, SessionInfo)>> {
-        self.saved.lock().unwrap_or_else(PoisonError::into_inner)
+    /// Makes subsequent list requests for this agent fail.
+    pub fn fail(&self, agent: &str) {
+        self.lock().failing.insert(agent.to_owned());
+    }
+
+    /// Each agent asked for its sessions, by name and workspace, in the order they were asked.
+    pub fn asked(&self) -> Vec<(String, PathBuf)> {
+        self.lock().asked.clone()
+    }
+
+    fn lock(&self) -> MutexGuard<'_, FakeSessionsState> {
+        self.state.lock().unwrap_or_else(PoisonError::into_inner)
     }
 }
 
 impl SessionSource for FakeSessions {
     fn list<'a>(&'a self, agent: &'a AgentProfile) -> ListFuture<'a> {
+        let mut state = self.lock();
+        state.asked.push((agent.name.clone(), agent.workspace.clone()));
+        if state.failing.contains(&agent.name) {
+            let error = io::Error::new(io::ErrorKind::BrokenPipe, "the agent hung up");
+            return Box::pin(future::ready(Err(ConnectError::Spawn { program: agent.name.clone(), source: error })));
+        }
         let listed = |(name, session): &(String, SessionInfo)| *name == agent.name && session.cwd.0 == agent.workspace;
-        let saved = self.lock().iter().filter(|saved| listed(saved)).map(|(_, session)| session.clone()).collect();
+        let saved = state.saved.iter().filter(|saved| listed(saved)).map(|(_, session)| session.clone()).collect();
         Box::pin(future::ready(Ok(saved)))
     }
 }
@@ -573,6 +594,10 @@ impl DesktopHarness {
 
     pub fn save_session(&self, session_id: &str, cwd: impl AsRef<Path>, updated_at: &str, title: Option<&str>) {
         self.sessions.save(TEST_AGENT, saved_session(session_id, cwd.as_ref(), updated_at, title));
+    }
+
+    pub fn sessions(&self) -> &FakeSessions {
+        &self.sessions
     }
 
     pub fn ui(&mut self) -> &mut TestUi {

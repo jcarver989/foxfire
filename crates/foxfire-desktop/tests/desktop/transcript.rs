@@ -371,6 +371,62 @@ fn a_tool_whose_sub_agent_still_runs_is_never_folded_away() {
     assert!(harness.bounds("tool-card-3").is_some(), "the running sub-agent's tool shows");
 }
 
+#[test]
+fn dragging_across_a_prompt_and_its_reply_copies_their_text() {
+    let mut harness = answered(vec![message("Some **bold** advice.")]);
+    let prompt = harness.bounds("prompt-0").unwrap();
+    let reply = harness.bounds("reply-1").unwrap();
+
+    harness.ui().drag(Point::new(prompt.left() + 1.0, prompt.center().y), Point::new(reply.right(), reply.bottom()));
+    harness.press("cmd-c");
+
+    assert_eq!(harness.platform().copied_text().as_deref(), Some("go\n\nSome bold advice."));
+}
+
+#[test]
+fn select_all_copies_the_whole_transcript_including_rows_scrolled_out_of_view() {
+    let (agent, mut requests) = FakeAgent::new("alpha-session").capture();
+    let (mut harness, thread) = DesktopHarness::alpha(agent);
+    let reply = |turn: usize| (0..8).map(|line| format!("reply {turn} line {line}")).collect::<Vec<_>>().join("\n\n");
+    for turn in 0..30 {
+        play_turn(&mut harness, thread, &mut requests, Vec::new(), &reply(turn));
+    }
+    assert!(harness.bounds("prompt-0").is_none(), "the first prompt has scrolled out of view");
+
+    harness.click("reply-59").unwrap();
+    harness.press("cmd-a");
+    harness.press("cmd-c");
+
+    let expected = (0..30).map(|turn| format!("go\n\n{}", reply(turn))).collect::<Vec<_>>().join("\n\n");
+    assert_eq!(harness.platform().copied_text(), Some(expected));
+}
+
+#[test]
+fn a_selection_leaves_out_tool_headers_and_section_labels() {
+    let tool = acp::ToolCallUpdate::new("call-1")
+        .title("Read file")
+        .status(acp::ToolCallStatus::Completed)
+        .content(vec![acp::ToolCallContent::from("file contents")]);
+    let mut harness = answered(vec![acp::SessionUpdate::ToolCallUpdate(tool), message("Done.")]);
+    harness.click("tool-card-1").unwrap();
+
+    harness.click("reply-2").unwrap();
+    harness.press("cmd-a");
+    harness.press("cmd-c");
+
+    assert_eq!(harness.platform().copied_text().as_deref(), Some("go\n\nfile contents\n\nDone."));
+}
+
+#[test]
+fn typing_while_the_transcript_has_focus_types_into_the_composer() {
+    let mut harness = answered(vec![message("Some advice.")]);
+    harness.click("reply-1").unwrap();
+
+    harness.type_text("hi");
+
+    assert!(harness.shows("composer-text", "hi"));
+}
+
 fn answered(updates: Vec<acp::SessionUpdate>) -> DesktopHarness {
     let (mut harness, thread) = DesktopHarness::alpha(FakeAgent::new("alpha-session").prompt_updates(updates));
     harness.send(thread, "go");

@@ -32,7 +32,7 @@ impl Attachment {
 pub(crate) fn chip(id: String, preview: impl View, name: &str) -> Div {
     view! {
         <div test_id=id flex items_center gap=4.0 min_w=0.0 px=8.0 py=4.0 rounded=Radius::Inner
-             bg=Role::SurfaceSelected>
+             bg=Role::SurfaceSelected unselectable>
             {preview}
             <div min_w=0.0 overflow_hidden><text small secondary no_wrap>{name.to_owned()}</text></div>
         </div>

@@ -12,7 +12,9 @@ use foxfire_acp::content::first_line;
 use foxfire_acp::conversation::{
     ConversationItem, ConversationItemId, Revision, SubAgent, ToolCall, ToolStatus, diff_change_label,
 };
-use rouge::core::{AnyView, Cursor, Div, FocusHandle, Role, SpanStyle, Styled, View, div, px, rich_text, text, view};
+use rouge::core::{
+    AnyView, Cursor, Div, FocusHandle, Role, SpanStyle, Styled, TextBreak, View, div, px, rich_text, text, view,
+};
 use rouge::reactive::{Callback, ReadSignal};
 use rouge::syntax::{SourceSyntax, analyze};
 use std::cell::OnceCell;
@@ -214,23 +216,18 @@ impl ToolCard<'_> {
     }
 
     fn details(&self, tool: &ToolCall, index: usize, full: bool, on_show_all: Callback) -> Div {
-        let command = tool.bash_command().map(|command| {
-            let spans = self.command_highlights(command);
-            section("Command", rich_text(command.to_owned(), spans).font(CODE_FONT).into_any())
-        });
-        let input = if tool.diffs().next().is_some() { String::new() } else { tool.raw_input() };
-        let output = output_text(tool);
-        let clipped = |label: &'static str, source: &str| {
-            let (shown, hidden) = if full { (source, 0) } else { clip(source) };
+        let sections = detail_sections(tool, full).map(|(label, shown, hidden)| {
+            let body = if label == "Command" {
+                let spans = self.command_highlights(&shown);
+                rich_text(shown, spans).font(CODE_FONT)
+            } else {
+                text(shown).code()
+            };
             let more = (hidden > 0)
                 .then(|| show_all(format!("tool-{}-more-{index}", label.to_lowercase()), hidden, on_show_all));
-            section(label, view! { <text code>{shown.to_owned()}</text> }.into_any()).child(more)
-        };
-        let input = (!input.is_empty()).then(|| clipped("Input", &input));
-        let output = (!output.is_empty()).then(|| clipped("Output", &output));
-        view! {
-            <div test_id={format!("tool-details-{index}")} flex col gap=12.0>{command}{input}{output}</div>
-        }
+            section(label, body.selection_break(TextBreak::Paragraph).into_any()).child(more)
+        });
+        view! { <div test_id={format!("tool-details-{index}")} flex col gap=12.0>{..sections}</div> }
     }
 
     fn changes(&self, diffs: &[&acp::Diff], index: usize) -> Div {
@@ -261,7 +258,9 @@ impl ToolCard<'_> {
             }
         });
         view! {
-            <div test_id={format!("tool-changes-{index}")} flex col gap=8.0 font=CODE_FONT small>{..changes}</div>
+            <div test_id={format!("tool-changes-{index}")} flex col gap=8.0 font=CODE_FONT small unselectable>
+                {..changes}
+            </div>
         }
     }
 
@@ -320,7 +319,7 @@ impl ToolCard<'_> {
                 );
             }
         }
-        view! { <div flex col gap=4.0 small>{..rows}</div> }
+        view! { <div flex col gap=4.0 small unselectable>{..rows}</div> }
     }
 }
 
@@ -359,10 +358,37 @@ fn title(tool: &ToolCall) -> String {
     tool.headline().unwrap_or("Tool call").to_owned()
 }
 
+pub(super) fn details_text(tool: &ToolCall, full: bool) -> String {
+    detail_sections(tool, full)
+        .map(|(_, text, _)| text)
+        .filter(|text| !text.is_empty())
+        .collect::<Vec<_>>()
+        .join("\n\n")
+}
+
+fn detail_sections(tool: &ToolCall, full: bool) -> impl Iterator<Item = (&'static str, String, usize)> + use<> {
+    let input = if tool.diffs().next().is_some() { String::new() } else { tool.raw_input() };
+    let command = tool.bash_command().map(|command| ("Command", command.to_owned(), 0));
+    let sections = [("Input", input), ("Output", output_text(tool))];
+    command.into_iter().chain(sections.into_iter().filter_map(move |(label, mut source)| {
+        if source.is_empty() {
+            return None;
+        }
+        let hidden = if full {
+            0
+        } else {
+            let (shown, hidden) = clip(&source);
+            source.truncate(shown.len());
+            hidden
+        };
+        Some((label, source, hidden))
+    }))
+}
+
 fn section(label: &'static str, content: AnyView) -> Div {
     view! {
         <div flex col gap=4.0>
-            <text label muted>{label}</text>
+            <text label muted unselectable>{label}</text>
             <div text_color=Role::TextSecondary font=CODE_FONT small>{content}</div>
         </div>
     }
