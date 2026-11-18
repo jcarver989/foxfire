@@ -73,3 +73,14 @@ debug = "line-tables-only"
 
 [profile.dev.package."*"]
 debug = false
+
+[patch.crates-io]
+rouge = { path = "../rouge/crates/rouge" }
+rouge-core = { path = "../rouge/crates/rouge-core" }
+rouge-macros = { path = "../rouge/crates/rouge-macros" }
+rouge-markdown = { path = "../rouge/crates/rouge-markdown" }
+rouge-reactive = { path = "../rouge/crates/rouge-reactive" }
+rouge-render = { path = "../rouge/crates/rouge-render" }
+rouge-syntax = { path = "../rouge/crates/rouge-syntax" }
+rouge-theme = { path = "../rouge/crates/rouge-theme" }
+rouge-widgets = { path = "../rouge/crates/rouge-widgets" }
