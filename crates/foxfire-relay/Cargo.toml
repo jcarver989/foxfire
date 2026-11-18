@@ -1,0 +1,38 @@
+[package]
+name = "foxfire-relay"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Serves a stdio ACP agent and its workspace review to any number of Foxfire clients over WebSocket"
+keywords = ["acp", "foxfire", "agent", "websocket", "relay"]
+categories = ["command-line-utilities", "development-tools"]
+
+[lints]
+workspace = true
+
+[dependencies]
+agent-client-protocol = { workspace = true }
+clankerdiff-lspd = { workspace = true, features = ["daemon"] }
+clankerdiff-protocol = { workspace = true }
+clankerdiff-server = { workspace = true }
+clap = { workspace = true }
+foxfire-acp = { workspace = true, features = ["websocket"] }
+foxfire-core = { workspace = true }
+futures = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true, features = ["rt-multi-thread", "macros", "net", "process", "io-util", "sync"] }
+tokio-tungstenite = { workspace = true }
+tokio-util = { workspace = true, features = ["compat", "rt"] }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+
+[dev-dependencies]
+clankerdiff-core = { workspace = true }
+clankerdiff-git = { workspace = true, features = ["test-support"] }
+foxfire-acp = { workspace = true, features = ["testing", "websocket"] }
+tempfile = { workspace = true }
+tokio = { workspace = true, features = ["full"] }
