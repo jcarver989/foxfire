@@ -1,7 +1,7 @@
 use crate::wire::{self, field, session_of};
 use agent_client_protocol::{
-    RawJsonRpcId, RawJsonRpcMessage, RawJsonRpcNotification, RawJsonRpcParams, RawJsonRpcRequest, RawJsonRpcResponse,
-    TransportFrame,
+    Error, RawJsonRpcId, RawJsonRpcMessage, RawJsonRpcNotification, RawJsonRpcParams, RawJsonRpcRequest,
+    RawJsonRpcResponse, TransportFrame,
 };
 use futures::StreamExt;
 use futures::channel::mpsc::{UnboundedReceiver, UnboundedSender};
@@ -26,6 +26,7 @@ pub(crate) struct Hub {
     sessions: HashMap<String, Session>,
     session_parents: HashMap<String, String>,
     forwarded_client_requests: HashMap<i64, ForwardedClientRequest>,
+    pending_agent_requests: HashMap<i64, PendingAgentRequest>,
     next_request_id: i64,
 }
 
@@ -54,6 +55,13 @@ enum ClientRequestKind {
     SetSessionConfigOption(String),
 }
 
+struct PendingAgentRequest {
+    agent_request_id: RawJsonRpcId,
+    request: RawJsonRpcRequest,
+    session: Option<String>,
+    recipients: BTreeSet<ClientId>,
+}
+
 impl Hub {
     pub(crate) fn create(agent: UnboundedSender<TransportFrame>, initialize: Value) -> Self {
         Self {
@@ -63,6 +71,7 @@ impl Hub {
             sessions: HashMap::new(),
             session_parents: HashMap::new(),
             forwarded_client_requests: HashMap::new(),
+            pending_agent_requests: HashMap::new(),
             next_request_id: 1,
         }
     }
@@ -106,7 +115,7 @@ impl Hub {
         match message {
             RawJsonRpcMessage::Request(request) => self.on_client_request(client, request),
             RawJsonRpcMessage::Notification(notification) => self.on_client_notification(client, notification),
-            RawJsonRpcMessage::Response(_) => {}
+            RawJsonRpcMessage::Response(response) => self.on_client_response(client, response),
         }
     }
 
@@ -173,6 +182,22 @@ impl Hub {
         }
     }
 
+    fn on_client_response(&mut self, client: ClientId, response: RawJsonRpcResponse) {
+        let RawJsonRpcId::Number(id) = *response.id() else {
+            return;
+        };
+        if !self.pending_agent_requests.get(&id).is_some_and(|pending| pending.recipients.contains(&client)) {
+            return;
+        }
+        let Some(pending) = self.pending_agent_requests.remove(&id) else {
+            return;
+        };
+        self.send_to_agent(TransportFrame::Single(wire::readdress(response, pending.agent_request_id).into()));
+        for other in pending.recipients.into_iter().filter(|other| *other != client) {
+            self.send_to_client(other, wire::cancel(id));
+        }
+    }
+
     fn forward_client_request(&mut self, client: ClientId, mut request: RawJsonRpcRequest, kind: ClientRequestKind) {
         let id = self.allocate_request_id();
         let original = mem::replace(&mut request.id, RawJsonRpcId::Number(id));
@@ -186,13 +211,49 @@ impl Hub {
             return;
         };
         match message {
-            RawJsonRpcMessage::Request(_) => {}
+            RawJsonRpcMessage::Request(request) => self.on_agent_request(request),
             RawJsonRpcMessage::Notification(notification) => self.on_agent_notification(notification),
             RawJsonRpcMessage::Response(response) => self.on_agent_response(response),
         }
     }
 
+    fn on_agent_request(&mut self, mut request: RawJsonRpcRequest) {
+        let session = session_of(request.params.as_ref()).map(|session| self.find_root_session(&session));
+        let recipients = match &session {
+            Some(session) => self.sessions.get(session).map_or_default(|watched| watched.subscribers.clone()),
+            None => self.collect_initialized_clients(),
+        };
+        if session.is_none() && recipients.is_empty() {
+            let error = Error::internal_error().data("no client is connected to answer");
+            self.send_to_agent(wire::response(request.id, Err(Box::new(error.into()))));
+            return;
+        }
+        let id = self.allocate_request_id();
+        let agent_request_id = mem::replace(&mut request.id, RawJsonRpcId::Number(id));
+        for client in &recipients {
+            self.send_to_client(*client, TransportFrame::Single(request.clone().into()));
+        }
+        self.pending_agent_requests.insert(id, PendingAgentRequest { agent_request_id, request, session, recipients });
+    }
+
     fn on_agent_notification(&mut self, notification: RawJsonRpcNotification) {
+        if &*notification.method == "$/cancel_request" {
+            let withdrawn = field(notification.params.as_ref(), "requestId").cloned();
+            let withdrawn = withdrawn.and_then(|id| serde_json::from_value::<RawJsonRpcId>(id).ok());
+            let id = self
+                .pending_agent_requests
+                .iter()
+                .find(|(_, pending)| Some(&pending.agent_request_id) == withdrawn.as_ref())
+                .map(|(id, _)| *id);
+            if let Some(id) = id
+                && let Some(pending) = self.pending_agent_requests.remove(&id)
+            {
+                for client in pending.recipients {
+                    self.send_to_client(client, wire::cancel(id));
+                }
+            }
+            return;
+        }
         let Some(session) = session_of(notification.params.as_ref()) else {
             let frame = TransportFrame::Single(notification.into());
             for client in self.collect_initialized_clients() {
@@ -227,7 +288,7 @@ impl Hub {
             RawJsonRpcResponse::Result { result, .. } => Some(result),
             RawJsonRpcResponse::Error { .. } => None,
         };
-        match (kind, result) {
+        let joined = match (kind, result) {
             (ClientRequestKind::CreateSession, Some(result)) => {
                 let session = result.get("sessionId").and_then(Value::as_str).map(str::to_owned);
                 if let Some(created) = session.as_ref().map(|session| self.sessions.entry(session.clone()).or_default())
@@ -236,17 +297,21 @@ impl Hub {
                     let early = created.history.clone();
                     self.send_frames_to_client(client, early);
                 }
+                session
             }
+            (ClientRequestKind::ResumeSession(session), Some(_)) => Some(session),
             (ClientRequestKind::ResumeSession(session), None) => {
                 if let Some(watched) = self.sessions.get_mut(&session) {
                     watched.subscribers.remove(&client);
                 }
+                None
             }
             (ClientRequestKind::CloseSession(session), Some(_)) => {
                 if self.sessions.get(&session).is_some_and(|closed| closed.subscribers.is_empty()) {
                     self.sessions.remove(&session);
                     self.session_parents.retain(|_, parent| *parent != session);
                 }
+                None
             }
             (ClientRequestKind::SetSessionConfigOption(session), Some(result)) => {
                 if let Some(options) = result.get("configOptions") {
@@ -261,10 +326,14 @@ impl Hub {
                         Some(client),
                     );
                 }
+                None
             }
-            _ => {}
-        }
+            _ => None,
+        };
         self.send_to_client(client, TransportFrame::Single(response.into()));
+        if let Some(session) = joined {
+            self.deliver_pending_agent_requests(client, &session);
+        }
     }
 
     fn publish_session_frame(
@@ -284,10 +353,25 @@ impl Hub {
         }
     }
 
+    fn deliver_pending_agent_requests(&mut self, client: ClientId, session: &str) {
+        let mut pending_frames = Vec::new();
+        for pending in
+            self.pending_agent_requests.values_mut().filter(|pending| pending.session.as_deref() == Some(session))
+        {
+            if pending.recipients.insert(client) {
+                pending_frames.push(TransportFrame::Single(pending.request.clone().into()));
+            }
+        }
+        self.send_frames_to_client(client, pending_frames);
+    }
+
     fn on_client_disconnected(&mut self, client: ClientId) {
         self.clients.remove(&client);
         for session in self.sessions.values_mut() {
             session.subscribers.remove(&client);
+        }
+        for pending in self.pending_agent_requests.values_mut() {
+            pending.recipients.remove(&client);
         }
     }
 
