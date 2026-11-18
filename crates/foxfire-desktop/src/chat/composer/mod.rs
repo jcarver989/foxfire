@@ -7,7 +7,7 @@ use crate::app::chord;
 use crate::platform::{PathPrompt, Platform};
 use crate::tasks::spawn_in;
 use crate::threads::{Thread, ThreadEvent, ThreadStatus};
-use crate::ui::tokens::{COMPOSER_POPUP_HEIGHT, ICON_SIZE, ROW_HEIGHT, Radius};
+use crate::ui::tokens::{COMPOSER_POPUP_HEIGHT, ICON_SIZE, ROW_HEIGHT, Radius, Space};
 use crate::ui::typography::READING;
 use crate::ui::{
     Hint, Icon, IconName, Material, MaterialExt, PickerItem, SearchPickerEvent, SearchPickerHandle, Theme, UI_FONT,
@@ -144,14 +144,14 @@ impl Composer {
         let completion = memo(move || self.completion());
         let search = memo(move || self.popup.with(|popup| matches!(popup, Popup::Search(_))));
         let editor = view! {
-            <div w_full flex col gap=4.0 focusable_glass={move || self.focus.is_focused()}>
+            <div w_full flex col gap=Space::X1 focusable_glass={move || self.focus.is_focused()}>
                 <dynamic>{self.attachments()}</dynamic>
                 {self.input()}
                 {self.actions()}
             </div>
         };
         view! {
-            <div test_id="composer" mt=8.0 flex col gap=8.0>
+            <div test_id="composer" mt=Space::X2 flex col gap=Space::X2>
                 <dynamic>{queued.get().map(|prompts| queued_prompts(&prompts))}</dynamic>
                 <dynamic>{search.get().then(|| untrack(|| self.search_view()))}</dynamic>
                 <dynamic>{completion.get().map(|menu| untrack(|| self.completion_view(&menu)))}</dynamic>
@@ -188,8 +188,8 @@ impl Composer {
             .relative()
             .w_full()
             .min_w(0.0)
-            .px(12.0)
-            .pt(8.0)
+            .px(Space::X3)
+            .pt(Space::X2)
             .cursor(Cursor::Text)
             .bind_key(chord(SEARCH_PROMPTS_KEYS), SearchPrompts)
             .on_action(move |_: &SearchPrompts| self.open_search())
@@ -201,7 +201,7 @@ impl Composer {
         let empty = memo(move || self.text.with(|text| text.trim().is_empty()) && self.media.with(Vec::is_empty));
         let running = memo(move || running(thread.status()));
         view! {
-            <div px=8.0 pb=8.0 flex items_center gap=4.0>
+            <div px=Space::X2 pb=Space::X2 flex items_center gap=Space::X1>
                 <icon_button test_id="attach-files" icon=IconName::Paperclip label="Attach files"
                              on_click={move || self.pick_files()}/>
                 <div flex_1/>
@@ -231,7 +231,7 @@ impl Composer {
             };
             chip(id, thumbnail, &attachment.display_name).py(0.0).pr(0.0).child(remove)
         });
-        Some(view! { <div px=8.0 pt=8.0 flex flex_wrap gap=4.0>{..chips}</div> }.into_any())
+        Some(view! { <div px=Space::X2 pt=Space::X2 flex flex_wrap gap=Space::X1>{..chips}</div> }.into_any())
     }
 
     fn completion_view(self, menu: &CompletionMenu) -> AnyView {

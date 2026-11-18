@@ -17,7 +17,7 @@ use crate::ui::DEFAULT_INTERFACE_SIZE;
 use crate::ui::tokens::{GUTTER, HEADER_HEIGHT, MODAL_WIDTH, PICKER_LIST_HEIGHT};
 use crate::ui::{
     ActiveReviewTheme, FoxfireMotion, IconName, InterfaceSize, Material, PickerItem, SearchPickerHandle, StyledExt,
-    UI_FONT, UiStyles, appearance, backdrop, empty_state, picker_closed, search_picker,
+    Toasts, UI_FONT, UiStyles, appearance, backdrop, empty_state, picker_closed, search_picker,
 };
 use clankerdiff_core::RepoPath;
 use clankerdiff_remote::Remotes;
@@ -82,6 +82,7 @@ pub struct DesktopApp {
     clock: Stored<Arc<dyn Clock>>,
     restore: Stored<Option<SessionKey>>,
     window: WindowHandle,
+    toasts: Toasts,
     scope: Scope,
 }
 
@@ -107,6 +108,7 @@ impl DesktopApp {
     pub fn new(config: DesktopConfig) -> Self {
         let DesktopConfig { connector, clock, agents, remotes, remotes_file, sessions, platform, storage, saved } =
             config;
+        let toasts = Toasts::install();
         let registry = Registry::restore(saved, storage);
         let preference = memo(move || registry.with(|state| state.theme.clone()));
         let active = ActiveReviewTheme::install(preference.get_untracked().theme(appearance().get_untracked()));
@@ -143,6 +145,7 @@ impl DesktopApp {
             clock: stored(clock),
             restore: stored(registry.with(|state| state.last_selected.clone())),
             window: window_handle(),
+            toasts,
             scope: Scope::new(),
         };
         app.observe();
@@ -183,6 +186,7 @@ impl DesktopApp {
                     }}</dynamic>
                 </div>
                 <dynamic>{self.modal.get().map(|modal| untrack(|| self.render_modal(modal)))}</dynamic>
+                {self.toasts}
             </div>
         };
         InterfaceSize::current().bind(self.bind(root))

@@ -1,0 +1,26 @@
+# Local only: build against the unreleased Rouge design system in ~/code/rouge and the
+# matching clankerdiff crates in ~/code/diff. Delete once both are released and the versions are bumped.
+[patch.crates-io]
+rouge = { path = "/Users/josh/code/rouge/crates/rouge" }
+rouge-core = { path = "/Users/josh/code/rouge/crates/rouge-core" }
+rouge-macros = { path = "/Users/josh/code/rouge/crates/rouge-macros" }
+rouge-markdown = { path = "/Users/josh/code/rouge/crates/rouge-markdown" }
+rouge-reactive = { path = "/Users/josh/code/rouge/crates/rouge-reactive" }
+rouge-render = { path = "/Users/josh/code/rouge/crates/rouge-render" }
+rouge-syntax = { path = "/Users/josh/code/rouge/crates/rouge-syntax" }
+rouge-theme = { path = "/Users/josh/code/rouge/crates/rouge-theme" }
+rouge-widgets = { path = "/Users/josh/code/rouge/crates/rouge-widgets" }
+clankerdiff-fingerprint = { path = "/Users/josh/code/diff/crates/util/fingerprint" }
+clankerdiff-remote = { path = "/Users/josh/code/diff/crates/util/remote" }
+clankerdiff-lspd = { path = "/Users/josh/code/diff/crates/util/lspd" }
+clankerdiff-ui-core = { path = "/Users/josh/code/diff/crates/ui/core" }
+clankerdiff-core = { path = "/Users/josh/code/diff/crates/diff/core" }
+clankerdiff-protocol = { path = "/Users/josh/code/diff/crates/diff/protocol" }
+clankerdiff-client = { path = "/Users/josh/code/diff/crates/diff/client" }
+clankerdiff-git = { path = "/Users/josh/code/diff/crates/diff/git" }
+clankerdiff-watch = { path = "/Users/josh/code/diff/crates/diff/watch" }
+clankerdiff-server = { path = "/Users/josh/code/diff/crates/diff/server" }
+clankerdiff-markdown = { path = "/Users/josh/code/diff/crates/diff/markdown" }
+clankerdiff-symbols = { path = "/Users/josh/code/diff/crates/diff/symbols" }
+clankerdiff-rouge = { path = "/Users/josh/code/diff/crates/diff/rouge" }
+clankerdiff-ratatui = { path = "/Users/josh/code/diff/crates/diff/ratatui" }

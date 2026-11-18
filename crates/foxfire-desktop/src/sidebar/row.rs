@@ -2,7 +2,7 @@ use super::Sidebar;
 use super::listing::{Row, RowKind};
 use crate::remotes::{InstanceState, Lifecycle};
 use crate::threads::ThreadStatus;
-use crate::ui::tokens::{ICON_SIZE, ROW_HEIGHT, Radius, TWO_LINE_ROW_HEIGHT, UNREAD_DOT_SIZE};
+use crate::ui::tokens::{HAIRLINE, ICON_SIZE, ROW_HEIGHT, Radius, Space, TWO_LINE_ROW_HEIGHT, UNREAD_DOT_SIZE};
 use crate::ui::{
     FoxfireState, Icon, IconName, SelectionState, UiStyles, foxfire, hint, icon_button, icon_slot, list_row,
 };
@@ -60,7 +60,7 @@ pub(super) fn row(sidebar: &Sidebar, row: &Row) -> AnyView {
         let dot = view! { <div size=UNREAD_DOT_SIZE rounded=Radius::Full bg=Role::Accent/> };
         hint(format!("{selector}-unread"), "Unread response", dot)
     });
-    let title = view! { <div min_w=0.0 flex items_center gap=4.0>{title}{unread}</div> };
+    let title = view! { <div min_w=0.0 flex items_center gap=Space::X1>{title}{unread}</div> };
     let icon = match row.icon {
         RowIcon::Status(status) => status_icon(&selector, status),
         RowIcon::Instance(state) => instance_icon(&selector, state),
@@ -73,7 +73,7 @@ pub(super) fn row(sidebar: &Sidebar, row: &Row) -> AnyView {
         RowKind::Cloud { subtitle, expiring, .. } => {
             let color = if *expiring { Role::Warning } else { Role::TextMuted };
             let body = view! {
-                <div flex_1 min_w=0.0 py=4.0 flex col>
+                <div flex_1 min_w=0.0 py=Space::X1 flex col>
                     {title}
                     <div test_id={format!("{selector}-subtitle")} min_w=0.0 overflow_hidden>
                         <text caption no_wrap color=color>{subtitle.clone()}</text>
@@ -102,7 +102,7 @@ pub(super) fn row(sidebar: &Sidebar, row: &Row) -> AnyView {
         <list_row test_id={selector.clone()} depth={usize::from(!two_line)} selection=state on_click=open
                   h={if two_line { TWO_LINE_ROW_HEIGHT } else { ROW_HEIGHT }}>
             {icon_slot()}
-            {icon_slot().when(two_line, |slot| slot.self_start().mt(8.0)).child(icon)}
+            {icon_slot().when(two_line, |slot| slot.self_start().mt(Space::X2)).child(icon)}
             {body}
             {trailing}
         </list_row>
@@ -214,9 +214,9 @@ fn rename_editor(sidebar: &Sidebar) -> AnyView {
         .test_id("rename-input")
         .w_full()
         .min_w(0.0)
-        .px(4.0)
+        .px(Space::X1)
         .rounded(Radius::Inner)
-        .border(1.0)
+        .border(HAIRLINE)
         .border_color(Role::Accent)
         .bg(Role::Canvas)
         .body()
@@ -243,7 +243,7 @@ fn trailing(selector: &str, age: Option<String>, actions: Vec<AnyView>, selected
     view! {
         <div flex_none relative flex items_center justify_end>
             {age}
-            <div absolute right=0.0 top=0.0 bottom=0.0 pl=4.0 flex items_center bg=background
+            <div absolute right=0.0 top=0.0 bottom=0.0 pl=Space::X1 flex items_center bg=background
                  opacity={move || if hovered.get() { 1.0 } else { 0.0 }}>
                 {..actions}
             </div>

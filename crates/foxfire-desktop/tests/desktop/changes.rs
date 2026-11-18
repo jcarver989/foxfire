@@ -80,6 +80,17 @@ fn a_clean_working_tree_is_browsed_and_its_diff_shows_no_changes_in_whichever_sc
 }
 
 #[test]
+fn copying_a_review_is_confirmed_with_a_toast() {
+    let (mut harness, _, _) = with_changes(&["src/main.rs"]);
+    harness.click("tab-files").unwrap();
+    comment(&mut harness, "rename this");
+
+    harness.click("review-copy").unwrap();
+
+    assert!(harness.bounds("toast-0").is_some());
+}
+
+#[test]
 fn the_review_pill_floats_over_the_diff_counting_its_comments_and_submits_them() {
     let (mut harness, thread, _) = with_changes(&["src/main.rs"]);
     harness.click("tab-files").unwrap();

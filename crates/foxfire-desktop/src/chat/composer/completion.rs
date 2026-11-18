@@ -1,4 +1,4 @@
-use crate::ui::tokens::COMPOSER_POPUP_HEIGHT;
+use crate::ui::tokens::{COMPOSER_POPUP_HEIGHT, Space};
 use crate::ui::{Material, MaterialExt, PickerItem, picker_list};
 use clankerdiff_ui_core::{PickerOption, PickerState};
 use foxfire_core::composer::attachment::PromptAttachment;
@@ -83,7 +83,7 @@ impl CompletionMenu {
             .collect();
         let highlighted = self.highlighted;
         view! {
-            <div test_id="completion-menu" material=Material::Glass p=4.0>
+            <div test_id="completion-menu" material=Material::Glass p=Space::X1>
                 <picker_list test_id="completion" items highlighted={Some(highlighted)} empty=empty
                              max_h={px(COMPOSER_POPUP_HEIGHT)} on_choose=on_choose/>
             </div>

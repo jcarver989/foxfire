@@ -23,6 +23,7 @@ use rouge::core::{Clipboard, ClipboardMedia, PasteRequest, Point, Rect, Size, wi
 use rouge::persist::{FileStorage, MemoryStorage, Storage};
 use rouge::reactive::{Entered, ReadSignal, Runtime as Reactive, Signal, set_tokio};
 use rouge_widgets::testing::component_test;
+use rouge_widgets::tokens::MotionScale;
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::fs;
@@ -270,6 +271,7 @@ impl DesktopHarnessBuilder {
         let handle = runtime.handle().clone();
         let (mut ui, (app, focused, zoom, theme)) = component_test().size(width, height).build_with(move || {
             set_tokio(handle);
+            MotionScale::None.provide();
             let app = DesktopApp::new(config);
             (app.view(), (app, window_focused(), zoom(), ActiveReviewTheme::current()))
         });

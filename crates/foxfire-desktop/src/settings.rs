@@ -2,7 +2,8 @@ use crate::registry::Registry;
 use crate::theme;
 use crate::ui::{
     ButtonVariant, ControlSize, Material, MaterialExt, ThemePickerEvent, UiStyles, backdrop, button, theme_picker,
-    theme_picker_view, tokens::MODAL_WIDTH_COMPACT,
+    theme_picker_view,
+    tokens::{MODAL_WIDTH_COMPACT, Space},
 };
 use clankerdiff_ui_core::{Appearance, AppearanceMode, ReviewTheme, ThemeChoice};
 use rouge::core::{AnyView, Div, Styled, View, div, dynamic, pct, text, view};
@@ -17,7 +18,7 @@ pub(crate) fn settings(registry: Registry, on_close: impl Fn() + 'static) -> imp
     };
     view! {
         <backdrop test_id="settings-backdrop" on_dismiss=close>
-            <div test_id="settings" w=MODAL_WIDTH_COMPACT max_w=pct(100.0) p=16.0 flex col gap=8.0
+            <div test_id="settings" w=MODAL_WIDTH_COMPACT max_w=pct(100.0) p=Space::X4 flex col gap=Space::X2
                  overflow_hidden material=Material::Glass>
                 <text heading primary>"Settings"</text>
                 <text small muted>"Esc to close"</text>
@@ -43,7 +44,7 @@ fn motion(registry: Registry) -> AnyView {
                         on_click={move || registry.update(|state| state.reduced_motion = value)}/>
             }
         });
-        view! { <div flex gap=4.0>{..buttons}</div> }
+        view! { <div flex gap=Space::X1>{..buttons}</div> }
     })
     .into_any()
 }
@@ -67,7 +68,7 @@ fn mode(registry: Registry) -> AnyView {
                         }}/>
             }
         });
-        view! { <div flex gap=4.0>{..buttons}</div> }
+        view! { <div flex gap=Space::X1>{..buttons}</div> }
     })
     .into_any()
 }
@@ -124,7 +125,7 @@ fn theme_name(id: &str) -> String {
 
 fn row(label: &'static str, detail: &'static str, control: AnyView) -> Div {
     view! {
-        <div py=8.0 flex items_center justify_between gap=16.0>
+        <div py=Space::X2 flex items_center justify_between gap=Space::X4>
             <div min_w=0.0 flex col>
                 <text body primary>{label}</text>
                 <text small muted>{detail}</text>

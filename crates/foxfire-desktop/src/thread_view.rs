@@ -10,9 +10,12 @@ use crate::platform::Platform;
 use crate::registry::Registry;
 use crate::sidebar::toggle_button;
 use crate::threads::{Thread, ThreadStatus};
-use crate::ui::tokens::{GROUP_HEIGHT, GUTTER, HEADER_HEIGHT, ICON_SIZE_SMALL, PANEL_INSET, ROW_HEIGHT, Radius};
+use crate::ui::tokens::{
+    GROUP_HEIGHT, GUTTER, HEADER_HEIGHT, ICON_SIZE_SMALL, PANEL_INSET, ROW_HEIGHT, Radius, Space, TINT_ALPHA,
+};
 use crate::ui::{
-    FoxfireState, Icon, IconName, Material, MaterialExt, StyledExt, Theme, UiStyles, foxfire, kindling, scroll_edge,
+    ButtonVariant, ControlSize, FoxfireState, Icon, IconName, Material, MaterialExt, StyledExt, Theme, UiStyles,
+    button, foxfire, kindling, scroll_edge,
 };
 use agent_client_protocol::v2::schema as acp;
 use clankerdiff_core::RepoPath;
@@ -136,10 +139,10 @@ impl ThreadView {
         });
         view! {
             <div test_id="thread-header" absolute top=0.0 left=0.0 right=0.0 h=HEADER_HEIGHT px=GUTTER
-                 flex items_center gap=12.0 pass_through>
+                 flex items_center gap=Space::X3 pass_through>
                 {scroll_edge(true, PANEL_INSET, HEADER_HEIGHT)}
                 <div flex_1 min_w=0.0 flex pass_through>
-                    <div test_id="thread-heading" min_w=0.0 h=GROUP_HEIGHT px=12.0 flex items_center gap=8.0
+                    <div test_id="thread-heading" min_w=0.0 h=GROUP_HEIGHT px=Space::X3 flex items_center gap=Space::X2
                          material=Material::GlassControl>
                         <dynamic>{sidebar_collapsed.get().then(|| toggle_button(false))}</dynamic>
                         <div test_id="thread-title" min_w=0.0 overflow_hidden>
@@ -182,7 +185,7 @@ impl ThreadView {
             }))
             .child(dynamic(move || unseen.get().then(|| corner_dot("changes-unseen", Role::Accent))));
         view! {
-            <div test_id="view-switch" flex_none h=GROUP_HEIGHT p=4.0 flex items_center gap=4.0
+            <div test_id="view-switch" flex_none h=GROUP_HEIGHT p=Space::X1 flex items_center gap=Space::X1
                  material=Material::GlassControl small>
                 {chat}
                 {files_tab}
@@ -220,7 +223,7 @@ impl ThreadView {
         let kindle = memo(move || chat.get() && thread.is_fresh());
         view! {
             <div relative size_full on_file_drop=drop track_bounds={self.stage}
-                 bg={move || if dropping.get() { theme.get().accent.with_alpha(DROP_TINT) } else { Color::TRANSPARENT }}>
+                 bg={move || if dropping.get() { theme.get().accent.with_alpha(TINT_ALPHA) } else { Color::TRANSPARENT }}>
                 {content}
                 {self.review_pill()}
                 <show when={move || kindle.get()}>{self.kindling(reveal)}</show>
@@ -240,7 +243,7 @@ impl ThreadView {
         let spacer = move || view! { <show when={move || fresh.get()}><div flex_1/></show> };
         view! {
             <div absolute left=0.0 right=0.0 bottom=0.0 top={move || if fresh.get() { px(0.0) } else { auto() }}
-                 px=16.0 pb=12.0 flex col pass_through track_bounds={self.dock}>
+                 px=Space::X4 pb=Space::X3 flex col pass_through track_bounds={self.dock}>
                 <show when={move || !fresh.get()}>{scroll_edge(false, DOCK_EDGE_SOLID, DOCK_EDGE_REACH)}</show>
                 {spacer()}
                 <div content_width flex col>
@@ -249,11 +252,11 @@ impl ThreadView {
                             <text display align=TextAlign::Center>{NEW_THREAD_HEADING}</text>
                         </div>
                     </show>
-                    <dynamic>{unreachable.get().and_then(|status| reconnect_banner(thread, status)).map(|banner| banner.mt(8.0))}</dynamic>
+                    <dynamic>{unreachable.get().and_then(|status| reconnect_banner(thread, status)).map(|banner| banner.mt(Space::X2))}</dynamic>
                     {self.elicitation.view()}
                     <div track_bounds={self.composer_bounds} opacity=reveal>{self.composer.view()}</div>
                     <div flex col opacity=reveal>
-                        <div test_id="composer-bar" h=ROW_HEIGHT mt=4.0 px=8.0 flex items_center gap=16.0>
+                        <div test_id="composer-bar" h=ROW_HEIGHT mt=Space::X1 px=Space::X2 flex items_center gap=Space::X4>
                             {self.options.view()}
                             {self.status.view()}
                             <show when={move || connecting.get()}>{connecting_message()}</show>
@@ -294,9 +297,9 @@ impl ThreadView {
                 let label = if comments == 1 { "1 comment".to_owned() } else { format!("{comments} comments") };
                 view! {
                     <div absolute left=0.0 right=0.0 bottom=16.0 flex justify_center>
-                        <div test_id="review-pill" h=GROUP_HEIGHT p=4.0 pl=12.0 flex items_center gap=4.0 material=Material::Glass
+                        <div test_id="review-pill" h=GROUP_HEIGHT p=Space::X1 pl=Space::X3 flex items_center gap=Space::X1 material=Material::Glass
                              rounded=Radius::Control small>
-                            <div test_id="review-comments" mr=8.0><text no_wrap secondary>{label}</text></div>
+                            <div test_id="review-comments" mr=Space::X2><text no_wrap secondary>{label}</text></div>
                             {pill_button("review-copy", "Copy", false, Callback::from(move || files.copy()))}
                             {pill_button("review-submit", "Submit review", true, Callback::from(move || files.submit()))}
                         </div>
@@ -346,9 +349,9 @@ fn segment(view: &ThreadView, id: &'static str, icon: IconName, label: &'static 
         if selected.get() || hovered.get() { theme.get().text } else { theme.get().text_secondary }
     };
     view! {
-        <div test_id=id relative h_full px=12.0 flex items_center gap=4.0 rounded=Radius::Inner
+        <div test_id=id relative h_full px=Space::X3 flex items_center gap=Space::X1 rounded=Radius::Inner
              cursor=Cursor::Pointer text_color=foreground
-             bg={move || if selected.get() { theme.get().text.with_alpha(SELECTED_TINT) } else { Color::TRANSPARENT }}
+             bg={move || if selected.get() { theme.get().text.with_alpha(TINT_ALPHA) } else { Color::TRANSPARENT }}
              on_hover={move |inside| {
                  hovered.set_if_changed(inside);
              }}
@@ -375,27 +378,9 @@ fn corner_dot(id: &'static str, color: Role) -> AnyView {
 }
 
 fn pill_button(id: &'static str, label: &'static str, primary: bool, on_click: Callback) -> AnyView {
-    let theme = Theme::current();
-    let hovered = signal(false);
-    view! {
-        <div test_id=id h_full px=12.0 flex items_center rounded=Radius::Inner cursor=Cursor::Pointer
-             bg={move || match (primary, hovered.get()) {
-                 (true, false) => theme.get().accent,
-                 (true, true) => theme.get().accent.with_alpha(PILL_HOVER_OPACITY),
-                 (false, true) => theme.get().text.with_alpha(SELECTED_TINT),
-                 (false, false) => Color::TRANSPARENT,
-             }}
-             on_hover={move |inside| {
-                 hovered.set_if_changed(inside);
-             }}
-             on_click={move |event| {
-                 event.stop_propagation();
-                 on_click.call();
-             }}>
-            <text no_wrap color={move || if primary { theme.get().accent_foreground } else { theme.get().text }}>{label}</text>
-        </div>
-    }
-    .into_any()
+    let variant = if primary { ButtonVariant::Primary } else { ButtonVariant::Ghost };
+    view! { <button test_id=id label variant=variant control_size=ControlSize::Small rounded=Radius::Inner on_click=on_click/> }
+        .into_any()
 }
 
 fn changed_files(thread: Thread) -> Option<usize> {
@@ -406,7 +391,7 @@ fn changed_files(thread: Thread) -> Option<usize> {
 fn connecting_message() -> impl View {
     let muted = Role::TextMuted;
     view! {
-        <div test_id="new-thread-connecting" flex_none flex items_center gap=8.0>
+        <div test_id="new-thread-connecting" flex_none flex items_center gap=Space::X2>
             {foxfire(ICON_SIZE_SMALL, muted, || FoxfireState::Connecting)}
             <text body muted>"Connecting…"</text>
         </div>
@@ -419,12 +404,9 @@ fn unreachable(thread: Thread) -> Option<ThreadStatus> {
     (status.problem().is_some() && has_items).then_some(status)
 }
 
-const DROP_TINT: f32 = 0.08;
-const SELECTED_TINT: f32 = 0.12;
 const DOCK_EDGE_SOLID: f32 = 40.0;
 const DOCK_EDGE_REACH: f32 = 40.0;
 const CORNER_DOT_SIZE: f32 = 8.0;
-const PILL_HOVER_OPACITY: f32 = 0.85;
 const NEW_THREAD_HEADING: &str = "What do you want to build?";
 /// Room above a fresh thread's composer for the tall flames off its top edge; below it they only lick.
 const HEADING_GAP: f32 = 56.0;

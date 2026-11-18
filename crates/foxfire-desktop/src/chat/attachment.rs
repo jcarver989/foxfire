@@ -1,10 +1,10 @@
-use crate::ui::tokens::{ICON_SIZE_SMALL, Radius};
+use crate::ui::tokens::{HAIRLINE, ICON_SIZE_SMALL, Radius, Space};
 use crate::ui::{Icon, IconName, UiStyles};
 use agent_client_protocol::v2::schema as acp;
 use base64::Engine;
 use base64::engine::general_purpose::STANDARD as BASE64;
 use foxfire_core::composer::attachment::{AttachmentKind, PromptAttachment, classify_attachment};
-use rouge::core::{AnyView, Div, Fit, ImageSource, Role, Styled, View, div, image, px, text, view};
+use rouge::core::{AnyView, Div, Fit, ImageSource, Role, Styled, View, div, image, text, view};
 use std::sync::Arc;
 
 #[derive(Clone, PartialEq)]
@@ -31,7 +31,7 @@ impl Attachment {
 
 pub(crate) fn chip(id: String, preview: impl View, name: &str) -> Div {
     view! {
-        <div test_id=id flex items_center gap=4.0 min_w=0.0 px=8.0 py=4.0 rounded=Radius::Inner
+        <div test_id=id flex items_center gap=Space::X1 min_w=0.0 px=Space::X2 py=Space::X1 rounded=Radius::Inner
              bg=Role::SurfaceSelected unselectable>
             {preview}
             <div min_w=0.0 overflow_hidden><text small secondary no_wrap>{name.to_owned()}</text></div>
@@ -45,7 +45,7 @@ pub(crate) fn chip_icon(icon: IconName) -> Icon {
 
 pub(crate) fn thumbnail(id: String, source: ImageSource, size: f32) -> Div {
     view! {
-        <div test_id=id flex_none size=size rounded=Radius::Inner overflow_hidden border=px(1.0)
+        <div test_id=id flex_none size=size rounded=Radius::Inner overflow_hidden border=HAIRLINE
              border_color=Role::Border>
             {image(source).fit(Fit::Cover).size_full()}
         </div>

@@ -1,5 +1,5 @@
 use crate::threads::{Thread, ThreadEvent};
-use crate::ui::{ActiveReviewTheme, IconName, empty_state};
+use crate::ui::{ActiveReviewTheme, IconName, NoticeTone, Toasts, empty_state, toast};
 use clankerdiff_core::{DiffReviewCommand, DiffReviewEvent, DiffSide, FilesMode, RepoPath, SourcePath, TargetLocation};
 use clankerdiff_rouge::{DiffClientView, DiffViewerOptions, ReviewHandle, ReviewOutput};
 use rouge::core::{Styled, View, WindowHandle, div, dynamic, view, window_handle};
@@ -13,6 +13,7 @@ pub(crate) struct Files {
     comments: Memo<usize>,
     on_dismissed: Callback,
     window: WindowHandle,
+    on_copied: Callback,
     scope: Scope,
 }
 
@@ -25,12 +26,14 @@ impl Files {
                 client.review().with(|review| review.session().review().len())
             })
         });
+        let toasts = Toasts::current();
         let files = Self {
             thread,
             client,
             comments,
             on_dismissed: Callback::from(on_dismissed),
             window: window_handle(),
+            on_copied: Callback::from(move || toasts.show(toast("Review copied").tone(NoticeTone::Positive))),
             scope: Scope::new(),
         };
         let review = memo(move || thread.review().map(|state| Arc::as_ptr(&state) as usize));
@@ -128,7 +131,10 @@ impl Files {
                 self.thread.update_core(|core| core.submit_review(&submission.formatted));
             }
             DiffReviewEvent::Cancel => self.on_dismissed.call(),
-            DiffReviewEvent::CopyFormattedReview(text) => self.window.copy_text(text),
+            DiffReviewEvent::CopyFormattedReview(text) => {
+                self.window.copy_text(text);
+                self.on_copied.call();
+            }
             event => self.thread.update_core(|core| core.send_review_event(event)),
         }
     }

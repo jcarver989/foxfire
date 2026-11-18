@@ -1,6 +1,6 @@
 use crate::tasks::spawn_in;
 use crate::threads::{Thread, ThreadStatus};
-use crate::ui::tokens::{ICON_SIZE, ICON_SIZE_SMALL, ROW_HEIGHT, Radius};
+use crate::ui::tokens::{HAIRLINE, ICON_SIZE, ICON_SIZE_SMALL, ROW_HEIGHT, Radius, Space};
 use crate::ui::{FoxfireMotion, FoxfireState, Hint, Icon, IconName, Theme, UiStyles, foxfire};
 use agent_client_protocol::v2::schema as acp;
 use foxfire_acp::conversation::{Activity, Conversation, ConversationContent, ToolStatus, is_plan_entry_finished};
@@ -106,7 +106,7 @@ impl StatusLine {
                 move || shown.get(),
                 move || {
                     view! {
-                        <div flex items_center gap=8.0 min_w=0.0 flex_shrink={if index == 0 { 1.0 } else { 0.0 }}>
+                        <div flex items_center gap=Space::X2 min_w=0.0 flex_shrink={if index == 0 { 1.0 } else { 0.0 }}>
                             <show when={move || separated.get()}>
                                 <div flex_none><text muted>"·"</text></div>
                             </show>
@@ -117,7 +117,7 @@ impl StatusLine {
             )
         });
         view! {
-            <div test_id="status" flex_1 min_w=0.0 h=ROW_HEIGHT flex items_center justify_end gap=8.0 body secondary>
+            <div test_id="status" flex_1 min_w=0.0 h=ROW_HEIGHT flex items_center justify_end gap=Space::X2 body secondary>
                 {..parts}
             </div>
         }
@@ -148,7 +148,7 @@ impl StatusLine {
         );
         let detail = memo(move || activity_detail(self.thread, doing, plan));
         let trigger = view! {
-            <div test_id="activity-details-trigger" min_w=0.0 flex items_center gap=8.0
+            <div test_id="activity-details-trigger" min_w=0.0 flex items_center gap=Space::X2
                  on_activate=open_details
                  on_focus={move |event| {
                      // Popover dismissal restores focus; that must not reopen it.
@@ -177,7 +177,7 @@ impl StatusLine {
         let trigger = trigger.focus_visible(move |style| style.bg(Role::SurfaceHover));
         popover(details, trigger, move || {
             view! {
-                <div test_id="activity-details" w=PLAN_PANEL_WIDTH p=12.0 flex col gap=8.0>
+                <div test_id="activity-details" w=PLAN_PANEL_WIDTH p=Space::X3 flex col gap=Space::X2>
                     <div test_id="activity-detail-state"><text label primary>{move || {
                         doing.get().map_or("Turn ended", |doing| doing.describe().0)
                     }}</text></div>
@@ -205,7 +205,7 @@ impl StatusLine {
             let share = |count: usize| pct(count as f32 / total as f32 * 100.0);
             let chevron = if open.get() { IconName::ChevronDown } else { IconName::ChevronRight };
             view! {
-                <div test_id="plan-toggle" flex_none flex items_center gap=8.0 cursor=Cursor::Pointer
+                <div test_id="plan-toggle" flex_none flex items_center gap=Space::X2 cursor=Cursor::Pointer
                      on_click={move |event| {
                          event.stop_propagation();
                          open.update(bool::toggle);
@@ -319,7 +319,7 @@ fn indicator(doing: Memo<Option<Doing>>, plan: Memo<Option<Vec<acp::PlanEntry>>>
                     .absolute()
                     .inset(0.0)
                     .rounded(Radius::Full)
-                    .border(1.0)
+                    .border(HAIRLINE)
                     .border_color(Role::Info)
                     .pass_through()
                     .animate(
@@ -383,7 +383,7 @@ fn plan_entries(entries: &[acp::PlanEntry]) -> Div {
         };
         let done = is_plan_entry_finished(&entry.status);
         view! {
-            <div test_id={format!("plan-entry-{index}")} flex items_center gap=8.0>
+            <div test_id={format!("plan-entry-{index}")} flex items_center gap=Space::X2>
                 {Icon::new(icon, color).size(ICON_SIZE_SMALL)}
                 <div flex_1 min_w=0.0>
                     <text color={if done { Role::TextMuted } else { Role::TextSecondary }}>{entry.content.clone()}</text>
@@ -392,7 +392,7 @@ fn plan_entries(entries: &[acp::PlanEntry]) -> Div {
         }
     });
     view! {
-        <div test_id="plan-panel" w=PLAN_PANEL_WIDTH px=12.0 py=8.0 flex col gap=4.0>{..rows}</div>
+        <div test_id="plan-panel" w=PLAN_PANEL_WIDTH px=Space::X3 py=Space::X2 flex col gap=Space::X1>{..rows}</div>
     }
 }
 
@@ -442,7 +442,7 @@ fn context_meter(usage: Memo<Option<acp::UsageUpdate>>) -> impl View {
         .size_full();
         Some(
             view! {
-                <div test_id="context-meter" flex_none flex items_center gap=8.0>
+                <div test_id="context-meter" flex_none flex items_center gap=Space::X2>
                     <div test_id="context-ring" size=ICON_SIZE flex_none>{ring}</div>
                     {counts}
                 </div>

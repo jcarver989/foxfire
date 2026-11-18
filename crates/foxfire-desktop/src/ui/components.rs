@@ -1,10 +1,8 @@
-use super::tokens::{BAR_HEIGHT, CONTENT_MAX_WIDTH, GUTTER, ICON_SIZE, Radius};
-use super::{Hint, SearchPickerEvent, UI_FONT};
+use super::tokens::{BAR_HEIGHT, CONTENT_MAX_WIDTH, GUTTER, ICON_SIZE};
+use super::{Hint, SearchPickerEvent, SelectionState};
 use rouge::core::{
-    AnyView, Div, Mask, MenuItem as WindowMenuItem, Point, Role, Styled, View, auto, div, editable, px, text, view,
-    window_handle,
+    AnyView, Div, Mask, MenuItem as WindowMenuItem, Point, Role, Styled, View, auto, div, text, view, window_handle,
 };
-use rouge::reactive::Signal;
 use std::any::Any;
 
 pub(crate) trait StyledExt: Styled {
@@ -47,12 +45,9 @@ pub(crate) fn hint(id: impl Into<String>, label: &'static str, child: impl View)
     div().test_id(id).flex_none().flex().items_center().child(child).tooltip(label).into_any()
 }
 
-pub(crate) fn text_field(id: impl Into<String>, value: Signal<String>, on_submit: impl Fn(&str) + 'static) -> Div {
-    view! {
-        <div min_w=0.0 px=8.0 py=4.0 rounded=Radius::Control border=px(1.0) border_color=Role::Border bg=Role::Canvas>
-            <editable value test_id=id font=UI_FONT text_size=13.0 color=Role::Text w_full on_submit=on_submit/>
-        </div>
-    }
+/// How a trigger looks while the panel it opens is showing.
+pub(crate) fn selection(open: bool) -> SelectionState {
+    if open { SelectionState::Selected } else { SelectionState::None }
 }
 
 pub(crate) fn picker_closed(event: &SearchPickerEvent, on_chose: impl FnOnce(usize)) -> bool {

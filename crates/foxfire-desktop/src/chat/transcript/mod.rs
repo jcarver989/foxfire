@@ -9,7 +9,7 @@ pub(crate) use message::reconnect_banner;
 use super::attachment::Attachment;
 use crate::platform::Platform;
 use crate::threads::{Thread, ThreadStatus};
-use crate::ui::tokens::{GUTTER, HEADER_HEIGHT, ROW_HEIGHT, SCROLLBAR_WIDTH};
+use crate::ui::tokens::{GUTTER, HEADER_HEIGHT, ROW_HEIGHT, SCROLLBAR_WIDTH, Space};
 use crate::ui::{
     ActiveReviewTheme, Hint, Icon, IconName, Material, MaterialExt, StyledExt, UiStyles, empty_state,
     vertical_scrollbar,
@@ -184,7 +184,7 @@ impl Transcript {
         let scroll = list.scroll_state();
         let jump = move || {
             view! {
-            <div test_id="jump-to-latest" flex_none h=ROW_HEIGHT px=12.0 flex items_center
+            <div test_id="jump-to-latest" flex_none h=ROW_HEIGHT px=Space::X3 flex items_center
                  material=Material::GlassControl cursor=Cursor::Pointer
                  on_click={move |event| {
                      event.stop_propagation();
@@ -309,7 +309,7 @@ impl Transcript {
         let content = (!folded).then(|| {
             let indented = group.as_ref().is_some_and(|(group, _)| group.kind == GroupKind::Run);
             let item = self.item(index, kind, hovered);
-            if indented { div().pl(16.0).child(item) } else { div().child(item) }
+            if indented { div().pl(Space::X4).child(item) } else { div().child(item) }
         });
         let turn_header = header.is_some() && group.as_ref().is_some_and(|(group, _)| group.kind == GroupKind::Turn);
         let top = if index == 0 { HEADER_HEIGHT } else { 0.0 };
@@ -320,7 +320,7 @@ impl Transcript {
             _ => (8.0, 8.0),
         };
         view! {
-            <div test_id={format!("transcript-row-{index}")} w_full px=16.0 pt={padding.0 + top} pb=padding.1
+            <div test_id={format!("transcript-row-{index}")} w_full px=Space::X4 pt={padding.0 + top} pb=padding.1
                  on_hover={move |inside| {
                      hovered.set_if_changed(inside);
                  }}>
@@ -487,7 +487,7 @@ impl Transcript {
                 let detail = error.unwrap_or_else(|| "Reconnect to pick up where it left off".to_owned());
                 let color = if status == ThreadStatus::Errored { Role::Destructive } else { Role::Warning };
                 return view! {
-                    <div size_full p=24.0 flex col items_center justify_center gap=12.0>
+                    <div size_full p=Space::X6 flex col items_center justify_center gap=Space::X3>
                         <text heading color=color align=TextAlign::Center>{problem}</text>
                         <text body muted align=TextAlign::Center>{detail}</text>
                         {reconnect_button(thread)}

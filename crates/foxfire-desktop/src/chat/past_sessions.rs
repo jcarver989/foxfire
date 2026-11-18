@@ -4,14 +4,14 @@ use crate::history::{History, Listing, SavedSession};
 use crate::registry::Registry;
 use crate::target::SessionTarget;
 use crate::threads::{Thread, ThreadManager};
-use crate::ui::tokens::{COMPOSER_POPUP_HEIGHT, GUTTER, ICON_SIZE_SMALL, ROW_HEIGHT, Radius};
+use crate::ui::tokens::{COMPOSER_POPUP_HEIGHT, GUTTER, ICON_SIZE_SMALL, Pace, ROW_HEIGHT, Space};
 use crate::ui::{
     FoxfireMotion, FoxfireState, Hint, Icon, IconName, Material, MaterialExt, PickerItem, SearchPickerEvent,
-    SearchPickerHandle, Theme, UiStyles, foxfire, search_picker, segment, segmented_control,
+    SearchPickerHandle, UiStyles, foxfire, list_row, search_picker, segment, segmented_control, selection,
 };
 use chrono::{DateTime, Utc};
 use clankerdiff_core::format_age;
-use rouge::core::{AnyView, Color, Cursor, Ease, Role, Styled, Tween, View, div, dynamic, motion, pct, px, text, view};
+use rouge::core::{AnyView, Role, Styled, View, div, dynamic, motion, pct, px, text, view};
 use rouge::reactive::{Signal, Stored, effect, memo, signal, stored, untrack};
 use std::sync::Arc;
 
@@ -68,8 +68,7 @@ impl PastSessions {
     }
 
     pub(crate) fn toggle_view(self) -> impl View {
-        let theme = Theme::current();
-        let (open, hovered) = (self.open, signal(false));
+        let open = self.open;
         let turn = motion(0.0);
         let reduced = FoxfireMotion::current();
         effect(move || {
@@ -77,32 +76,15 @@ impl PastSessions {
             if reduced.reduced() {
                 turn.set(target);
             } else {
-                turn.animate_to(target, Tween::ms(TURN_MS).ease(Ease::Out));
+                turn.animate_to(target, Pace::Move);
             }
         });
-        let color = move || if open.get() || hovered.get() { theme.get().text } else { theme.get().text_secondary };
         view! {
-            <div test_id="past-sessions-toggle" flex_none h=ROW_HEIGHT flex items_center gap=6.0 pl=8.0 pr=6.0 mr=GUTTER
-                 rounded=Radius::Inner cursor=Cursor::Pointer
-                 bg={move || {
-                     if open.get() {
-                         theme.get().surface_selected
-                     } else if hovered.get() {
-                         theme.get().surface_hover
-                     } else {
-                         Color::TRANSPARENT
-                     }
-                 }}
-                 on_hover={move |inside| {
-                     hovered.set_if_changed(inside);
-                 }}
-                 on_click={move |event| {
-                     event.stop_propagation();
-                     self.toggle();
-                 }}>
-                <div test_id="past-sessions-toggle-label"><text no_wrap color=color>"Past sessions"</text></div>
+            <list_row test_id="past-sessions-toggle" flex_none mr=GUTTER selection={move || selection(open.get())}
+                      on_click={move || self.toggle()}>
+                <div test_id="past-sessions-toggle-label"><text no_wrap>"Past sessions"</text></div>
                 <div flex rotate=turn>{Icon::new(IconName::ChevronDown, Role::TextMuted).size(ICON_SIZE_SMALL)}</div>
-            </div>
+            </list_row>
         }
         .tooltip("Pick up a past session")
     }
@@ -136,7 +118,7 @@ impl PastSessions {
             _ => "",
         });
         view! {
-            <div test_id="past-sessions" flex col gap=8.0 mt=4.0 p=8.0 material=Material::Glass>
+            <div test_id="past-sessions" flex col gap=Space::X2 mt=Space::X1 p=Space::X2 material=Material::Glass>
                 <dynamic>{self.header(agent.get(), listing.get())}</dynamic>
                 <dynamic>{{
                     let empty = empty.get();
@@ -179,7 +161,7 @@ impl PastSessions {
         let badge = status(&agent?.name, listing);
         (scope.is_some() || badge.is_some()).then(|| {
             view! {
-                <div flex items_center gap=8.0 min_h=ROW_HEIGHT px=4.0>
+                <div flex items_center gap=Space::X2 min_h=ROW_HEIGHT px=Space::X1>
                     {scope}
                     <div flex_1/>
                     {badge}
@@ -251,7 +233,7 @@ fn status(agent: &str, listing: Option<Listing>) -> Option<AnyView> {
         Listing::Listed => return None,
     };
     let row = view! {
-        <div test_id="past-sessions-status" flex_none flex items_center gap=6.0>
+        <div test_id="past-sessions-status" flex_none flex items_center gap=Space::X2>
             {mark}
             <div test_id="past-sessions-status-label"><text small no_wrap color=color>{label}</text></div>
         </div>
@@ -280,4 +262,3 @@ fn age(at: DateTime<Utc>, now: DateTime<Utc>) -> String {
 
 const EARLIER: &str = "Earlier";
 const HALF_TURN: f32 = 180.0;
-const TURN_MS: f32 = 180.0;

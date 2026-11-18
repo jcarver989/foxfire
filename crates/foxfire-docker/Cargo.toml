@@ -1,0 +1,39 @@
+[package]
+name = "foxfire-docker"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Runs isolated, warm-built Foxfire Cloud workspaces on a local Docker engine"
+keywords = ["acp", "foxfire", "docker", "agent", "workspace"]
+categories = ["command-line-utilities", "development-tools"]
+publish = false
+autotests = false
+
+[[bin]]
+name = "foxfire-docker"
+path = "src/main.rs"
+
+[[test]]
+name = "foxfire_docker"
+path = "tests/main.rs"
+required-features = ["docker-tests"]
+
+[features]
+# Enables the tests, which need a running Docker engine.
+docker-tests = []
+
+[lints]
+workspace = true
+
+[dependencies]
+clap = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tempfile = { workspace = true }
+thiserror = { workspace = true }
+
+[dev-dependencies]
+clankerdiff-git = { workspace = true, features = ["test-support"] }
+uuid = { workspace = true }

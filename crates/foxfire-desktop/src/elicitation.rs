@@ -1,10 +1,11 @@
 use crate::platform::Platform;
 use crate::threads::Thread;
-use crate::ui::{ButtonVariant, Material, MaterialExt, UiStyles, button, text_field};
+use crate::ui::tokens::{HAIRLINE, Space};
+use crate::ui::{ButtonVariant, Material, MaterialExt, UiStyles, button, field, text_input};
 use foxfire_core::elicitation::{
     Elicitation, ElicitationAnswer, ElicitationId, FieldInput, FormError, FormField, FormFieldKind, accept_content,
 };
-use rouge::core::{AnyView, Role, Styled, View, div, dynamic, px, text, view};
+use rouge::core::{AnyView, Role, Styled, View, div, dynamic, text, view};
 use rouge::reactive::{Callback, Scope, Signal, Stored, effect, memo, signal, stored, untrack};
 use std::rc::Rc;
 
@@ -78,7 +79,7 @@ impl ElicitationCard {
                     let (fields, error) = fields.unwrap_or_default();
                     let fields =
                         fields.iter().enumerate().map(|(index, field)| self.field(index, field, error.as_ref()));
-                    view! { <div flex col gap=12.0>{..fields.collect::<Vec<_>>()}</div> }
+                    view! { <div flex col gap=Space::X3>{..fields.collect::<Vec<_>>()}</div> }
                 })
                 .into_any()
             }
@@ -89,7 +90,7 @@ impl ElicitationCard {
             }
         };
         view! {
-            <div test_id="elicitation" mt=8.0 p=16.0 flex col gap=16.0 material=Material::Glass border=px(1.0) border_color=Role::Accent>
+            <div test_id="elicitation" mt=Space::X2 p=Space::X4 flex col gap=Space::X4 material=Material::Glass border=HAIRLINE border_color=Role::Accent>
                 <div test_id="elicitation-title"><text title primary>{elicitation.question()}</text></div>
                 {body}
                 {self.actions(elicitation)}
@@ -115,7 +116,7 @@ impl ElicitationCard {
                 }
             });
             return view! {
-                <div flex justify_end flex_wrap gap=8.0>
+                <div flex justify_end flex_wrap gap=Space::X2>
                     {..choices.collect::<Vec<_>>()}
                     {decline("Dismiss")}
                 </div>
@@ -124,7 +125,7 @@ impl ElicitationCard {
         }
         let (primary_id, primary_label) = primary(elicitation);
         view! {
-            <div flex justify_end gap=8.0>
+            <div flex justify_end gap=Space::X2>
                 <button test_id=primary_id label=primary_label variant=ButtonVariant::Primary
                         on_click={move || self.primary_action()}/>
                 {decline("Decline")}
@@ -134,12 +135,13 @@ impl ElicitationCard {
     }
 
     fn field(self, index: usize, draft: &DraftField, refused: Option<&FormError>) -> AnyView {
-        let field = &draft.field;
-        let name = field.name.clone();
-        let label = if field.required { format!("{} *", field.label) } else { field.label.clone() };
-        let control = match (&draft.answer, &field.kind) {
+        let form = &draft.field;
+        let name = form.name.clone();
+        let label = if form.required { format!("{} *", form.label) } else { form.label.clone() };
+        let control = match (&draft.answer, &form.kind) {
             (FieldAnswer::Typed(value), _) => {
-                text_field(format!("elicitation-field-{name}"), *value, move |_| self.submit()).into_any()
+                let id = format!("elicitation-field-{name}");
+                view! { <text_input value={*value} test_id=id on_submit={move |_: String| self.submit()}/> }.into_any()
             }
             (FieldAnswer::Picked(FieldInput::Boolean(checked)), _) => {
                 let label = if *checked { "Yes" } else { "No" };
@@ -150,27 +152,16 @@ impl ElicitationCard {
                     let id = format!("elicitation-option-{name}-{option}");
                     self.pick_button(id, choice.title.clone(), input.is_selected(option), (index, option))
                 });
-                view! { <div flex flex_wrap gap=4.0>{..buttons.collect::<Vec<_>>()}</div> }.into_any()
+                view! { <div flex flex_wrap gap=Space::X1>{..buttons.collect::<Vec<_>>()}</div> }.into_any()
             }
             (FieldAnswer::Picked(_), _) => ().into_any(),
         };
-        let error = refused.filter(|refused| refused.index == index).map(|refused| {
-            view! {
-                <div test_id={format!("elicitation-error-{name}")}>
-                    <text small color=Role::Destructive>{refused.to_string()}</text>
-                </div>
-            }
-        });
-        let description = field.description.clone().map(|description| view! { <text small muted>{description}</text> });
-        view! {
-            <div flex col gap=4.0>
-                <text label primary>{label}</text>
-                {description}
-                {control}
-                {error}
-            </div>
+        let error = refused.filter(|refused| refused.index == index).map(ToString::to_string);
+        let form_field = field(label, control).test_id(format!("elicitation-{name}")).error(error);
+        match form.description.clone() {
+            Some(description) => form_field.hint(description).into_any(),
+            None => form_field.into_any(),
         }
-        .into_any()
     }
 
     fn pick_button(self, id: String, label: String, selected: bool, (index, option): (usize, usize)) -> AnyView {
