@@ -310,6 +310,11 @@ impl SessionCore {
                     self.effects.push(Effect::GitReviewChanged);
                 }
             }
+            CommandResult::ElicitationWithdrawn(request) => {
+                if self.elicitation.as_ref().is_some_and(|pending| pending.asked_as(&request)) {
+                    self.dismiss_elicitation();
+                }
+            }
             CommandResult::Reply(reply) => self.reply(reply),
         }
     }

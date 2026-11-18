@@ -4,12 +4,12 @@ pub use form::{
     FieldError, FieldInput, FormError, FormField, FormFieldKind, SelectOption, accept_content, form_fields,
 };
 
-use agent_client_protocol::Responder;
 use agent_client_protocol::v2::schema::{
     CancelledPermissionOutcome, CreateElicitationResponse, ElicitationAcceptAction, ElicitationAction,
     ElicitationContentValue, PermissionOptionKind, RequestPermissionOutcome, RequestPermissionRequest,
     RequestPermissionResponse, SelectedPermissionOutcome,
 };
+use agent_client_protocol::{RawJsonRpcId, Responder};
 pub use foxfire_acp::artifact_review::{ArtifactReviewElicitationMeta, ArtifactReviewSubmission};
 use std::collections::BTreeMap;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -137,6 +137,14 @@ pub(crate) enum Reply {
 impl PendingElicitation {
     pub(crate) fn new(id: ElicitationId, elicitation: Elicitation, reply: Reply) -> Self {
         Self { id, elicitation, reply: Some(reply) }
+    }
+
+    pub(crate) fn asked_as(&self, request: &RawJsonRpcId) -> bool {
+        match &self.reply {
+            Some(Reply::Elicitation(responder)) => responder.raw_id() == request,
+            Some(Reply::Permission(responder)) => responder.raw_id() == request,
+            None => false,
+        }
     }
 
     pub(crate) fn answer(mut self, answer: ElicitationAnswer) {

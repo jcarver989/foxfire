@@ -18,7 +18,7 @@ use agent_client_protocol::v2::schema::{
 };
 use agent_client_protocol::{
     self as acp, Agent, Client, ConnectionTo, Dispatch, HandleDispatchFrom, Handled, JsonRpcRequest, NullRun,
-    Responder, v2,
+    RequestCancellationHandle, Responder, v2,
 };
 use serde::Serialize;
 use std::any::{Any, TypeId};
@@ -296,13 +296,24 @@ impl QueuedTurns {
 
     pub fn ask<T: JsonRpcRequest>(&self, request: T) -> oneshot::Receiver<Result<T::Response, acp::Error>> {
         let (answer, answered) = oneshot::channel();
-        let cx = self.0.lock().unwrap().cx.clone().expect("the client connected");
-        let connection = cx.clone();
+        let (cx, sent) = {
+            let mut queue = self.0.lock().unwrap();
+            let cx = queue.cx.clone().expect("the client connected");
+            let sent = cx.send_request(request);
+            queue.asked = Some(sent.cancellation_handle());
+            (cx, sent)
+        };
         let _ = cx.spawn(async move {
-            let _ = answer.send(connection.send_request(request).block_task().await);
+            let _ = answer.send(sent.block_task().await);
             Ok(())
         });
         answered
+    }
+
+    pub fn withdraw(&self) {
+        if let Some(asked) = self.0.lock().unwrap().asked.take() {
+            let _ = asked.cancel();
+        }
     }
 
     fn connect(&self, cx: ConnectionTo<Client>) {
@@ -672,6 +683,7 @@ struct TurnQueue {
     refusal: Option<acp::Error>,
     taken: usize,
     script: Option<Arc<Turn>>,
+    asked: Option<RequestCancellationHandle>,
 }
 
 struct RunningTurn {
