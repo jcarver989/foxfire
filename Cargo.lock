@@ -1526,6 +1526,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "166880a3aa94758d7b7af62fe846355fef060cccc39e2d97715abb30509dc8d7"
 dependencies = [
  "clankerdiff-core",
+ "tempfile",
  "thiserror 2.0.21",
  "tokio",
 ]
@@ -2534,6 +2535,31 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "uuid",
+]
+
+[[package]]
+name = "foxfire-relay"
+version = "0.1.0"
+dependencies = [
+ "agent-client-protocol",
+ "clankerdiff-core",
+ "clankerdiff-git",
+ "clankerdiff-lspd",
+ "clankerdiff-protocol",
+ "clankerdiff-server",
+ "clap",
+ "foxfire-acp",
+ "foxfire-core",
+ "futures",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror 2.0.21",
+ "tokio",
+ "tokio-tungstenite 0.30.0",
+ "tokio-util",
+ "tracing",
+ "tracing-subscriber",
 ]
 
 [[package]]
