@@ -1,8 +1,10 @@
 use crate::wire::{self, field, session_of};
+use crate::workspace::{DiffBridge, Workspace};
 use agent_client_protocol::{
     Error, RawJsonRpcId, RawJsonRpcMessage, RawJsonRpcNotification, RawJsonRpcParams, RawJsonRpcRequest,
     RawJsonRpcResponse, TransportFrame,
 };
+use foxfire_acp::aether::GitDiffCommandPayload;
 use futures::StreamExt;
 use futures::channel::mpsc::{UnboundedReceiver, UnboundedSender};
 use serde_json::{Value, json};
@@ -22,6 +24,7 @@ pub(crate) enum ClientEvent {
 pub(crate) struct Hub {
     agent: UnboundedSender<TransportFrame>,
     initialize: Value,
+    workspace: Workspace,
     clients: HashMap<ClientId, Client>,
     sessions: HashMap<String, Session>,
     session_parents: HashMap<String, String>,
@@ -33,6 +36,7 @@ pub(crate) struct Hub {
 struct Client {
     outgoing: UnboundedSender<TransportFrame>,
     initialized: bool,
+    reviews: HashMap<String, DiffBridge>,
 }
 
 #[derive(Default)]
@@ -63,10 +67,11 @@ struct PendingAgentRequest {
 }
 
 impl Hub {
-    pub(crate) fn create(agent: UnboundedSender<TransportFrame>, initialize: Value) -> Self {
+    pub(crate) fn create(agent: UnboundedSender<TransportFrame>, initialize: Value, workspace: Workspace) -> Self {
         Self {
             agent,
             initialize,
+            workspace,
             clients: HashMap::new(),
             sessions: HashMap::new(),
             session_parents: HashMap::new(),
@@ -101,7 +106,7 @@ impl Hub {
     }
 
     fn on_client_connected(&mut self, client: ClientId, outgoing: UnboundedSender<TransportFrame>) {
-        self.clients.insert(client, Client { outgoing, initialized: false });
+        self.clients.insert(client, Client { outgoing, initialized: false, reviews: HashMap::new() });
     }
 
     fn on_client_frame(&mut self, client: ClientId, frame: TransportFrame) {
@@ -134,6 +139,15 @@ impl Hub {
             ("session/set_config_option", Some(session)) => {
                 self.forward_client_request(client, request, ClientRequestKind::SetSessionConfigOption(session))
             }
+            ("_aether/workspace_status", _) => {
+                if let Some(connected) = self.clients.get(&client) {
+                    self.workspace.report_status(request.id, connected.outgoing.clone());
+                }
+            }
+            ("_aether/session_preview", session) => {
+                let preview = self.workspace.preview(session.unwrap_or_default());
+                self.send_to_client(client, wire::result(request.id, preview));
+            }
             _ => self.forward_client_request(client, request, ClientRequestKind::Other),
         }
     }
@@ -154,6 +168,9 @@ impl Hub {
     }
 
     fn on_client_close_session(&mut self, client: ClientId, request: RawJsonRpcRequest, session: String) {
+        if let Some(connected) = self.clients.get_mut(&client) {
+            connected.reviews.remove(&session);
+        }
         let watched = self.sessions.get_mut(&session).is_some_and(|watched| {
             watched.subscribers.remove(&client);
             !watched.subscribers.is_empty()
@@ -166,8 +183,15 @@ impl Hub {
     }
 
     fn on_client_notification(&mut self, client: ClientId, notification: RawJsonRpcNotification) {
-        match &*notification.method {
-            "$/cancel_request" => {
+        let session = session_of(notification.params.as_ref());
+        match (&*notification.method, session) {
+            ("_aether/git_diff", Some(_)) => self.on_client_git_diff(client, notification.params.as_ref()),
+            ("_aether/git_diff_close", Some(session)) => {
+                if let Some(connected) = self.clients.get_mut(&client) {
+                    connected.reviews.remove(&session);
+                }
+            }
+            ("$/cancel_request", _) => {
                 let requested = field(notification.params.as_ref(), "requestId").cloned();
                 let requested = requested.and_then(|id| serde_json::from_value::<RawJsonRpcId>(id).ok());
                 let matching_request = self
@@ -195,6 +219,25 @@ impl Hub {
         self.send_to_agent(TransportFrame::Single(wire::readdress(response, pending.agent_request_id).into()));
         for other in pending.recipients.into_iter().filter(|other| *other != client) {
             self.send_to_client(other, wire::cancel(id));
+        }
+    }
+
+    fn on_client_git_diff(&mut self, client: ClientId, params: Option<&RawJsonRpcParams>) {
+        let payload = serde_json::to_value(params).ok().and_then(|params| serde_json::from_value(params).ok());
+        let (Some(GitDiffCommandPayload { session_id, mut command }), Some(connected)) =
+            (payload, self.clients.get_mut(&client))
+        else {
+            return;
+        };
+        if let Some(bridge) = connected.reviews.get(&session_id) {
+            match bridge.send(command) {
+                Ok(()) => return,
+                Err(unsent) => command = unsent.0,
+            }
+        }
+        if let Some(bridge) = self.workspace.bridge(&session_id, connected.outgoing.clone()) {
+            let _ = bridge.send(command);
+            connected.reviews.insert(session_id, bridge);
         }
     }
 

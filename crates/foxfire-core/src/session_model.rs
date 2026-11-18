@@ -41,7 +41,7 @@ pub fn initial_workspace_status(cwd: &Path) -> WorkspaceStatus {
 }
 
 /// What the client can tell about a working directory on this machine by itself.
-pub(crate) fn local_status(cwd: &Path) -> WorkspaceStatus {
+pub fn local_status(cwd: &Path) -> WorkspaceStatus {
     WorkspaceStatus { display_dir: home_relative_path(cwd), git_ref: current_ref(cwd) }
 }
 

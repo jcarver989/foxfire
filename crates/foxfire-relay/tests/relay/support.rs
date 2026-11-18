@@ -3,10 +3,12 @@ use agent_client_protocol::v2::schema::{
     ContentBlock, NewSessionRequest, PromptRequest, ReplayFrom, ReplayFromStart, ResumeSessionRequest, SessionUpdate,
     StateUpdate,
 };
+use clankerdiff_git::testing::RepoFixtureBuilder;
 use foxfire_acp::client::{AcpClient, AcpClientError, AcpEvent, connect_acp_client};
 use foxfire_acp::testing::{FakeAgent, FakeAgentRequests, initialize_request};
 use foxfire_acp::websocket::WebSocketTransport;
 use foxfire_relay::{Relay, RelayError};
+use std::any::Any;
 use std::io;
 use std::path::{Path, PathBuf};
 use tempfile::TempDir;
@@ -33,25 +35,36 @@ pub(crate) enum TestError {
 
 pub(crate) struct RelayBuilder {
     agent: FakeAgent,
+    repository: bool,
 }
 
 pub(crate) struct TestRelay {
     pub(crate) agent: FakeAgentRequests,
     url: String,
     cwd: PathBuf,
-    _workspace: TempDir,
+    _workspace: Box<dyn Any>,
     served: JoinHandle<Result<(), RelayError>>,
     agent_task: JoinHandle<()>,
 }
 
 impl RelayBuilder {
     pub(crate) fn new(agent: FakeAgent) -> Self {
-        Self { agent }
+        Self { agent, repository: false }
+    }
+
+    pub(crate) fn repository(mut self) -> Self {
+        self.repository = true;
+        self
     }
 
     pub(crate) async fn build(self) -> Result<TestRelay, TestError> {
-        let workspace = TempDir::new()?;
-        let cwd = workspace.path().to_path_buf();
+        let (cwd, workspace): (PathBuf, Box<dyn Any>) = if self.repository {
+            let repository = RepoFixtureBuilder::new().file("README.md", "first\n").committed().build();
+            (repository.root().to_path_buf(), Box::new(repository))
+        } else {
+            let directory = TempDir::new()?;
+            (directory.path().to_path_buf(), Box::new(directory))
+        };
         let (agent, requests) = self.agent.capture();
         let (relay_end, agent_end) = tokio::io::duplex(1 << 20);
         let (from_relay, to_relay) = tokio::io::split(agent_end);
