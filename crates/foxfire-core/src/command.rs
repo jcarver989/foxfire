@@ -1,5 +1,6 @@
 use crate::composer::attachment::{AttachmentOutcome, PromptAttachment};
 use crate::session_model::{WorkspaceAccess, WorkspaceStatus};
+use agent_client_protocol::RawJsonRpcId;
 use agent_client_protocol::v2::schema::{
     AuthStatusResponse, ContentBlock, LoginAuthResponse, NewSessionResponse, ResumeSessionResponse,
     SessionConfigOptionValue, SessionId, SessionInfo, SetSessionConfigOptionResponse,
@@ -136,6 +137,7 @@ pub enum CommandResult {
         status: WorkspaceStatus,
     },
     BackgroundFailed(JoinError),
+    ElicitationWithdrawn(RawJsonRpcId),
     Reply(Reply),
 }
 

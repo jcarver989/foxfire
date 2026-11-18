@@ -25,6 +25,8 @@ pub(crate) enum TestError {
     Client(#[from] AcpClientError),
     #[error(transparent)]
     Io(#[from] std::io::Error),
+    #[error(transparent)]
+    Connection(#[from] ConnectionError),
 }
 
 impl LiveSession {

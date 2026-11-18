@@ -1,4 +1,4 @@
-use crate::support::{LiveSession, deliver, notices, offline, receive, run_local};
+use crate::support::{LiveSession, TestError, deliver, notices, offline, receive, run_local};
 use agent_client_protocol::v2::schema::{
     self as acp, ContentBlock, CreateElicitationRequest, CreateElicitationResponse, ElicitationAction,
     ElicitationFormMode, ElicitationSchema, ElicitationSessionScope, ImageContent, NewSessionResponse,
@@ -471,6 +471,24 @@ fn a_dismissed_permission_request_is_cancelled() {
         assert!(answer.contains("cancelled"), "{answer}");
         live.shutdown().await;
     });
+}
+
+#[test]
+fn a_question_the_agent_withdraws_stops_waiting_for_the_user() -> Result<(), TestError> {
+    run_local(async {
+        let options = vec![acp::PermissionOption::new("allow", "Allow once", acp::PermissionOptionKind::AllowOnce)];
+        let agent = FakeAgent::new("asking").prompt_asks("Run rm?", Question::Permission(options));
+        let (agent, requests) = agent.capture();
+        let mut live = LiveSession::connect(agent, "/workspace", None).await?;
+        live.core.submit(Submission::from("clean up"));
+        live.run_until(|core| core.elicitation().is_some()).await;
+
+        requests.turns.withdraw();
+
+        live.run_until(|core| core.elicitation().is_none()).await;
+        live.shutdown().await;
+        Ok(())
+    })
 }
 
 #[test]

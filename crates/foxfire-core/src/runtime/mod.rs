@@ -5,6 +5,7 @@ use crate::command::{Command, CommandResult};
 use crate::composer::attachment::build_attachments;
 use crate::session_model::local_status;
 use agent::Requests;
+use agent_client_protocol::{RawJsonRpcId, RequestCancellation};
 use foxfire_acp::client::{AcpClientHandle, AcpEvent};
 use futures::StreamExt;
 use git_review::GitReviewRuntime;
@@ -24,6 +25,7 @@ pub struct SessionRuntime {
     requests: Requests,
     tasks: JoinSet<CommandResult>,
     preparing: Option<AbortHandle>,
+    watching: Option<AbortHandle>,
     git_review: GitReviewRuntime,
     ready: VecDeque<CommandResult>,
 }
@@ -38,6 +40,7 @@ impl SessionRuntime {
             requests: Requests::new(),
             tasks: JoinSet::new(),
             preparing: None,
+            watching: None,
             ready: VecDeque::new(),
         }
     }
@@ -112,9 +115,27 @@ impl SessionRuntime {
         match event {
             AcpEvent::GitDiffEvent(params) => {
                 self.git_review.forward(&params.session_id, params.event);
-                None
+                return None;
             }
-            event => Some(event),
+            AcpEvent::PermissionRequest { ref responder, .. } => {
+                self.watch(responder.cancellation(), responder.raw_id());
+            }
+            AcpEvent::ElicitationRequest { ref responder, .. } => {
+                self.watch(responder.cancellation(), responder.raw_id());
+            }
+            _ => {}
+        }
+        Some(event)
+    }
+
+    fn watch(&mut self, cancellation: RequestCancellation, id: &RawJsonRpcId) {
+        let id = id.clone();
+        let watching = self.tasks.spawn(async move {
+            cancellation.cancelled().await;
+            CommandResult::ElicitationWithdrawn(id)
+        });
+        if let Some(superseded) = self.watching.replace(watching) {
+            superseded.abort();
         }
     }
 }
