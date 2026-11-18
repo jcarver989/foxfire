@@ -19,6 +19,7 @@ The terminal binary is `foxfire`; the desktop binary is `foxfire-desktop`. The d
 - `foxfire`: the terminal client binary (`cargo install foxfire`).
 - `foxfire-tui`: embeddable terminal UI.
 - `foxfire-desktop`: native desktop client.
+- `foxfire-relay`: serves a stdio ACP agent, and review of its workspace, to several Foxfire clients over one WebSocket each.
 
 ## Configuration
 
