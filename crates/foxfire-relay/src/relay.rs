@@ -1,5 +1,6 @@
 use crate::hub::{ClientEvent, ClientId, Hub};
 use crate::wire;
+use crate::workspace::Workspace;
 use agent_client_protocol::schema::ProtocolVersion;
 use agent_client_protocol::v2::schema::{Implementation, InitializeResponse};
 use agent_client_protocol::{
@@ -70,12 +71,13 @@ impl Relay {
             tasks.spawn(driver);
         }
         let initialized = initialize_agent(&mut from_agent, &to_agent).await?;
-        let advertised = serde_json::to_value(initialized).unwrap_or(Value::Null);
-        tracing::info!(cwd = %self.cwd.display(), address = ?listener.local_addr().ok(), "relaying the agent");
+        let workspace = Workspace::open(self.cwd).await;
+        let advertised = serde_json::to_value(workspace.advertise(initialized)).unwrap_or(Value::Null);
+        tracing::info!(cwd = %workspace.cwd().display(), address = ?listener.local_addr().ok(), "relaying the agent");
 
         let (events, received) = mpsc::unbounded_channel();
         let accepting = tokio::spawn(accept_clients(listener, events, tasks.clone()));
-        Hub::create(to_agent, advertised).run(from_agent, received).await;
+        Hub::create(to_agent, advertised, workspace).run(from_agent, received).await;
         accepting.abort();
         tasks.close();
         tasks.wait().await;
