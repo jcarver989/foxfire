@@ -1,18 +1,17 @@
 use crate::tasks::spawn_in;
 use crate::threads::{Thread, ThreadStatus};
-use crate::ui::tokens::{ICON_SIZE, ICON_SIZE_SMALL, ROW_HEIGHT, Radius};
+use crate::ui::tokens::{HAIRLINE, ICON_SIZE_SMALL, Pace, ROW_HEIGHT, Radius, Space, UNIT};
 use crate::ui::{FoxfireMotion, FoxfireState, Hint, Icon, IconName, Theme, UiStyles, foxfire};
 use agent_client_protocol::v2::schema as acp;
 use foxfire_acp::conversation::{Activity, Conversation, ConversationContent, ToolStatus, is_plan_entry_finished};
 use foxfire_core::format::token_count;
 use rouge::core::{
-    AnyView, Cursor, Div, Ease, Keyframes, PaintRegion, Path, Point, Pose, Role, Styled, TextAlign, Tween, View,
-    canvas, div, dynamic, pct, show, switch, text, view, window_focused,
+    AnyView, Cursor, Div, Ease, Keyframes, PaintRegion, Pose, Role, Styled, TextAlign, View, div, dynamic, show,
+    switch, text, view, window_focused,
 };
 use rouge::reactive::{Memo, Scope, Signal, effect, memo, signal, sleep, stored, untrack};
-use rouge::widgets::{Placement, popover};
+use rouge::widgets::{Placement, popover, progress, progress_ring};
 use std::cell::Cell;
-use std::f32::consts::TAU;
 use std::time::{Duration, Instant};
 
 #[derive(Clone, Copy)]
@@ -106,7 +105,7 @@ impl StatusLine {
                 move || shown.get(),
                 move || {
                     view! {
-                        <div flex items_center gap=8.0 min_w=0.0 flex_shrink={if index == 0 { 1.0 } else { 0.0 }}>
+                        <div flex items_center gap=Space::X2 min_w=0.0 flex_shrink={if index == 0 { 1.0 } else { 0.0 }}>
                             <show when={move || separated.get()}>
                                 <div flex_none><text muted>"·"</text></div>
                             </show>
@@ -117,7 +116,7 @@ impl StatusLine {
             )
         });
         view! {
-            <div test_id="status" flex_1 min_w=0.0 h=ROW_HEIGHT flex items_center justify_end gap=8.0 body secondary>
+            <div test_id="status" flex_1 min_w=0.0 h=ROW_HEIGHT flex items_center justify_end gap=Space::X2 body secondary>
                 {..parts}
             </div>
         }
@@ -139,16 +138,12 @@ impl StatusLine {
             move || motion.reduced(),
             move |reduced| {
                 let mark = show(busy, move || indicator(doing, plan));
-                if reduced {
-                    mark
-                } else {
-                    mark.enter(UNSUMMONED, Tween::ms(180.0).ease(Ease::Out)).exit(UNSUMMONED, Tween::ms(DISPEL_MS))
-                }
+                if reduced { mark } else { mark.enter(UNSUMMONED, Pace::Enter).exit(UNSUMMONED, Pace::Exit) }
             },
         );
         let detail = memo(move || activity_detail(self.thread, doing, plan));
         let trigger = view! {
-            <div test_id="activity-details-trigger" min_w=0.0 flex items_center gap=8.0
+            <div test_id="activity-details-trigger" min_w=0.0 flex items_center gap=Space::X2
                  on_activate=open_details
                  on_focus={move |event| {
                      // Popover dismissal restores focus; that must not reopen it.
@@ -177,7 +172,7 @@ impl StatusLine {
         let trigger = trigger.focus_visible(move |style| style.bg(Role::SurfaceHover));
         popover(details, trigger, move || {
             view! {
-                <div test_id="activity-details" w=PLAN_PANEL_WIDTH p=12.0 flex col gap=8.0>
+                <div test_id="activity-details" w=PLAN_PANEL_WIDTH p=Space::X3 flex col gap=Space::X2>
                     <div test_id="activity-detail-state"><text label primary>{move || {
                         doing.get().map_or("Turn ended", |doing| doing.describe().0)
                     }}</text></div>
@@ -200,21 +195,16 @@ impl StatusLine {
             let entries = plan.get().unwrap_or_default();
             let total = entries.len().max(1);
             let done = entries.iter().filter(|entry| is_plan_entry_finished(&entry.status)).count();
-            let started = entries.iter().filter(|entry| entry.status == acp::PlanEntryStatus::InProgress).count();
             #[allow(clippy::cast_precision_loss, reason = "A plan's entries are far fewer than f32 counts exactly.")]
-            let share = |count: usize| pct(count as f32 / total as f32 * 100.0);
+            let share = done as f32 / total as f32;
             let chevron = if open.get() { IconName::ChevronDown } else { IconName::ChevronRight };
             view! {
-                <div test_id="plan-toggle" flex_none flex items_center gap=8.0 cursor=Cursor::Pointer
+                <div test_id="plan-toggle" flex_none flex items_center gap=Space::X2 cursor=Cursor::Pointer
                      on_click={move |event| {
                          event.stop_propagation();
                          open.update(bool::toggle);
                      }}>
-                    <div flex_none w=PLAN_BAR_WIDTH h=PLAN_BAR_HEIGHT flex rounded=Radius::Full
-                         overflow_hidden bg=Role::BorderSubtle>
-                        <div h_full w={share(done)} bg=Role::Positive/>
-                        <div h_full w={share(started)} bg=Role::Accent/>
-                    </div>
+                    <progress value=share flex_none w=PLAN_BAR_WIDTH/>
                     <text>{format!("{done}/{}", entries.len())}</text>
                     {Icon::new(chevron, Role::TextMuted).size(ICON_SIZE_SMALL)}
                 </div>
@@ -319,7 +309,7 @@ fn indicator(doing: Memo<Option<Doing>>, plan: Memo<Option<Vec<acp::PlanEntry>>>
                     .absolute()
                     .inset(0.0)
                     .rounded(Radius::Full)
-                    .border(1.0)
+                    .border(HAIRLINE)
                     .border_color(Role::Info)
                     .pass_through()
                     .animate(
@@ -383,7 +373,7 @@ fn plan_entries(entries: &[acp::PlanEntry]) -> Div {
         };
         let done = is_plan_entry_finished(&entry.status);
         view! {
-            <div test_id={format!("plan-entry-{index}")} flex items_center gap=8.0>
+            <div test_id={format!("plan-entry-{index}")} flex items_center gap=Space::X2>
                 {Icon::new(icon, color).size(ICON_SIZE_SMALL)}
                 <div flex_1 min_w=0.0>
                     <text color={if done { Role::TextMuted } else { Role::TextSecondary }}>{entry.content.clone()}</text>
@@ -392,7 +382,7 @@ fn plan_entries(entries: &[acp::PlanEntry]) -> Div {
         }
     });
     view! {
-        <div test_id="plan-panel" w=PLAN_PANEL_WIDTH px=12.0 py=8.0 flex col gap=4.0>{..rows}</div>
+        <div test_id="plan-panel" w=PLAN_PANEL_WIDTH px=Space::X3 py=Space::X2 flex col gap=Space::X1>{..rows}</div>
     }
 }
 
@@ -405,7 +395,6 @@ fn elapsed(elapsed: Signal<Duration>) -> impl View {
 }
 
 fn context_meter(usage: Memo<Option<acp::UsageUpdate>>) -> impl View {
-    let theme = Theme::current();
     dynamic(move || {
         let usage = usage.get()?;
         #[allow(
@@ -428,49 +417,16 @@ fn context_meter(usage: Memo<Option<acp::UsageUpdate>>) -> impl View {
         let counts = (fraction >= NEARLY_FULL).then(|| {
             view! { <div test_id="context-tokens"><text no_wrap color=color>{label.clone()}</text></div> }
         });
-        let ring = canvas(move |painter| {
-            let size = painter.size();
-            let radius = size.width.min(size.height) / 2.0;
-            let stroke = size.width * (RING_STROKE_WIDTH / ICON_SIZE);
-            let center = Point::new(size.width / 2.0, size.height / 2.0);
-            let inner = radius - stroke / 2.0;
-            painter.stroke(&arc(center, inner, 1.0), stroke, theme.with(|palette| palette.border));
-            if fraction > 0.0 {
-                painter.stroke(&arc(center, inner, fraction), stroke, theme.with(|palette| *palette.get(color)));
-            }
-        })
-        .size_full();
         Some(
             view! {
-                <div test_id="context-meter" flex_none flex items_center gap=8.0>
-                    <div test_id="context-ring" size=ICON_SIZE flex_none>{ring}</div>
+                <div test_id="context-meter" flex_none flex items_center gap=Space::X2>
+                    {progress_ring(fraction, color).test_id("context-ring")}
                     {counts}
                 </div>
             }
             .tooltip(label),
         )
     })
-}
-
-#[allow(
-    clippy::cast_possible_truncation,
-    clippy::cast_precision_loss,
-    clippy::cast_sign_loss,
-    reason = "An arc has at most ARC_STEPS steps, which f32 counts exactly."
-)]
-fn arc(center: Point, radius: f32, sweep: f32) -> Path {
-    let steps = (ARC_STEPS as f32 * sweep).ceil().max(1.0) as usize;
-    let point = |step: usize| {
-        let angle = TAU * sweep * step as f32 / steps as f32 - TAU / 4.0;
-        (center.x + radius * angle.cos(), center.y + radius * angle.sin())
-    };
-    let (x, y) = point(0);
-    (1..=steps)
-        .fold(Path::builder().move_to(x, y), |path, step| {
-            let (x, y) = point(step);
-            path.line_to(x, y)
-        })
-        .build()
 }
 
 fn clock(duration: Duration) -> String {
@@ -485,14 +441,10 @@ fn visible_plan(conversation: &Conversation) -> Option<Vec<acp::PlanEntry>> {
 }
 
 const TICK: Duration = Duration::from_secs(1);
-const PLAN_BAR_WIDTH: f32 = 32.0;
-const PLAN_PANEL_WIDTH: f32 = 360.0;
-const PLAN_BAR_HEIGHT: f32 = 4.0;
-const RING_STROKE_WIDTH: f32 = 2.0;
-const ARC_STEPS: usize = 48;
+const PLAN_BAR_WIDTH: f32 = 10.0 * UNIT;
+const PLAN_PANEL_WIDTH: f32 = 90.0 * UNIT;
 const NEARLY_FULL: f32 = 0.75;
 const FULL: f32 = 0.9;
-const ELAPSED_MIN_WIDTH: f32 = 36.0;
+const ELAPSED_MIN_WIDTH: f32 = 9.0 * UNIT;
 
 const UNSUMMONED: Pose = Pose::new().scale(0.96).opacity(0.0);
-const DISPEL_MS: f32 = 260.0;

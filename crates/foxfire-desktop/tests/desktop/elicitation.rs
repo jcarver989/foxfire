@@ -15,7 +15,7 @@ fn a_typed_answer_reaches_the_agent_once_every_required_field_is_filled() {
     assert!(harness.bounds("elicitation").is_some(), "the question shows as a card");
 
     harness.click("elicitation-submit").unwrap();
-    assert!(harness.bounds("elicitation-error-name").is_some(), "an empty required field is flagged");
+    assert!(harness.bounds("elicitation-name-note").is_some(), "an empty required field is flagged");
     assert_eq!(thread.status(), ThreadStatus::NeedsInput);
 
     harness.click("elicitation-field-name").unwrap();
@@ -42,7 +42,7 @@ fn a_question_that_replaces_another_starts_with_a_fresh_answer() {
     harness.run_until(|_| thread.elicitation().map(|(id, _)| id) != first);
     harness.click("elicitation-submit").unwrap();
 
-    assert!(harness.bounds("elicitation-error-name").is_some(), "the new question's field starts empty");
+    assert!(harness.bounds("elicitation-name-note").is_some(), "the new question's field starts empty");
     assert_eq!(thread.status(), ThreadStatus::NeedsInput);
 }
 

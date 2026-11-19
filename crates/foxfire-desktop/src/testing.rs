@@ -23,6 +23,7 @@ use rouge::core::{Clipboard, ClipboardMedia, PasteRequest, Point, Rect, Size, wi
 use rouge::persist::{FileStorage, MemoryStorage, Storage};
 use rouge::reactive::{Entered, ReadSignal, Runtime as Reactive, Signal, set_tokio};
 use rouge_widgets::testing::component_test;
+use rouge_widgets::tokens::MotionScale;
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::fs;
@@ -36,6 +37,7 @@ use tempfile::TempDir;
 use tokio::runtime::{Builder, Runtime};
 use tokio::sync::mpsc::UnboundedReceiver;
 use tokio::sync::oneshot;
+use tokio::sync::watch;
 use tokio::task::AbortHandle;
 
 pub const FAKE_AGENT_LOCK_FILE: &str = "agent.lock";
@@ -54,6 +56,7 @@ pub struct DesktopHarnessBuilder {
     cli_agent: Option<CommandLine>,
     user_agents_file: Option<PathBuf>,
     platform: FakePlatform,
+    motion: MotionScale,
 }
 
 #[derive(Clone, Default)]
@@ -72,6 +75,7 @@ struct FakeSessionsState {
     saved: Vec<(String, SessionInfo)>,
     failing: HashSet<String>,
     asked: Vec<(String, PathBuf)>,
+    held: Option<watch::Sender<bool>>,
 }
 
 #[derive(Clone, Default)]
@@ -128,11 +132,18 @@ impl Default for DesktopHarnessBuilder {
             cli_agent: Some(CommandLine::new(TEST_AGENT)),
             user_agents_file: None,
             platform: FakePlatform::default(),
+            motion: MotionScale::None,
         }
     }
 }
 
 impl DesktopHarnessBuilder {
+    /// Widget motion is off unless a test asks for it, so no test waits for a panel to settle.
+    pub fn motion(mut self, motion: MotionScale) -> Self {
+        self.motion = motion;
+        self
+    }
+
     pub fn window_size(mut self, width: f32, height: f32) -> Self {
         self.window_size = Some((width, height));
         self
@@ -267,9 +278,10 @@ impl DesktopHarnessBuilder {
             storage,
             saved: state,
         };
-        let handle = runtime.handle().clone();
+        let (handle, motion) = (runtime.handle().clone(), self.motion);
         let (mut ui, (app, focused, zoom, theme)) = component_test().size(width, height).build_with(move || {
             set_tokio(handle);
+            motion.provide();
             let app = DesktopApp::new(config);
             (app.view(), (app, window_focused(), zoom(), ActiveReviewTheme::current()))
         });
@@ -377,6 +389,18 @@ impl FakeSessions {
         self.lock().failing.insert(agent.to_owned());
     }
 
+    /// Leaves list requests unanswered until `release`.
+    pub fn hold(&self) {
+        self.lock().held = Some(watch::channel(false).0);
+    }
+
+    /// Answers the list requests `hold` kept waiting.
+    pub fn release(&self) {
+        if let Some(held) = self.lock().held.take() {
+            held.send_replace(true);
+        }
+    }
+
     /// Each agent asked for its sessions, by name and workspace, in the order they were asked.
     pub fn asked(&self) -> Vec<(String, PathBuf)> {
         self.lock().asked.clone()
@@ -397,7 +421,13 @@ impl SessionSource for FakeSessions {
         }
         let listed = |(name, session): &(String, SessionInfo)| *name == agent.name && session.cwd.0 == agent.workspace;
         let saved = state.saved.iter().filter(|saved| listed(saved)).map(|(_, session)| session.clone()).collect();
-        Box::pin(future::ready(Ok(saved)))
+        let held = state.held.as_ref().map(watch::Sender::subscribe);
+        Box::pin(async move {
+            if let Some(mut held) = held {
+                let _ = held.wait_for(|released| *released).await;
+            }
+            Ok(saved)
+        })
     }
 }
 

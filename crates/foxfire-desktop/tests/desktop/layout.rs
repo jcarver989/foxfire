@@ -1,9 +1,13 @@
-use crate::support::{Edges, replying};
+use crate::support::{Edges, asked, asking_name, replying};
 use foxfire_desktop::sidebar::MIN_MAIN_WIDTH;
 use foxfire_desktop::testing::{DesktopHarness, DesktopHarnessBuilder};
 use foxfire_desktop::threads::{Thread, ThreadStatus};
-use foxfire_desktop::ui::tokens::{CONTENT_MAX_WIDTH, GUTTER, SCROLLBAR_WIDTH};
+use foxfire_desktop::ui::tokens::{
+    BASE_SIZE, CONTENT_MAX_WIDTH, GRID_COLUMNS, GRID_GUTTER, GRID_MARGIN, SCROLLBAR_WIDTH, UNIT,
+};
 use rouge::core::Point;
+use rouge::core::testing::TestError;
+use rouge::widgets::tokens::MotionScale;
 
 #[test]
 fn widening_the_sidebar_leaves_room_for_the_thread() {
@@ -14,6 +18,20 @@ fn widening_the_sidebar_leaves_room_for_the_thread() {
 
     let main = harness.bounds("main").expect("the main region is painted");
     assert!((main.size.width - min_main).abs() < 0.5, "{main:?}");
+}
+
+#[test]
+fn a_dragged_sidebar_edge_settles_on_the_unit() -> Result<(), TestError> {
+    for x in [301.0, 302.0, 303.0] {
+        let mut harness = at_base_size(DesktopHarnessBuilder::default().window_size(1000.0, 480.0).build());
+
+        harness.drag("panel-resize-handle", Point::new(x, 240.0))?;
+
+        let sidebar = harness.bounds("sidebar").expect("the sidebar is painted");
+        assert_eq!(sidebar.size.width % UNIT, 0.0, "dragged to {x}: {sidebar:?}");
+        assert!((sidebar.size.width - x).abs() <= UNIT, "the edge stays under the pointer at {x}: {sidebar:?}");
+    }
+    Ok(())
 }
 
 #[test]
@@ -127,9 +145,7 @@ fn the_jump_to_latest_button_sits_at_the_right_edge_of_the_content_above_the_com
         let jump = harness.bounds("jump-to-latest").expect("scrolling up shows the jump button");
         let viewport = harness.bounds("transcript-view").unwrap();
         let composer = harness.bounds("composer").unwrap();
-        let content_width = (viewport.size.width - 2.0 * GUTTER).min(CONTENT_MAX_WIDTH);
-        let content_right = viewport.center().x + content_width / 2.0;
-        assert!((jump.right() - content_right).abs() < 0.5, "{jump:?} should align with {content_right}");
+        assert!((jump.right() - composer.right()).abs() < 0.5, "{jump:?} should end where {composer:?} does");
         assert!(jump.left() > viewport.center().x, "the button leaves the middle of the text clear");
         assert!(jump.right() < viewport.right(), "the button leaves a gap before the scrollbar");
         assert!(jump.bottom() < composer.top(), "the button clears the composer");
@@ -137,6 +153,94 @@ fn the_jump_to_latest_button_sits_at_the_right_edge_of_the_content_above_the_com
         harness.click("jump-to-latest").unwrap();
         assert!(harness.bounds("jump-to-latest").is_none(), "the right-aligned button still jumps to latest");
     }
+}
+
+#[test]
+fn the_reading_column_spans_whole_columns_and_lines_the_reply_up_with_the_composer() {
+    let (mut harness, _) = long_thread();
+    for (width, height) in [(900.0, 600.0), (1280.0, 800.0), (1600.0, 900.0), (2400.0, 1200.0)] {
+        harness.resize(width, height);
+        let main = harness.bounds("main").unwrap();
+        let reply = harness.bounds("reply-1").unwrap();
+        let composer = harness.bounds("composer").unwrap();
+        let column = (main.size.width - SCROLLBAR_WIDTH) / f32::from(GRID_COLUMNS);
+        let before = (composer.left() - main.left() - GRID_MARGIN.px()) / column;
+        let spanned = (composer.size.width + GRID_GUTTER.px()) / column;
+
+        assert!((before - before.round()).abs() < 0.01, "at {width} the column starts {before} columns in");
+        assert!((spanned - spanned.round()).abs() < 0.01, "at {width} the column spans {spanned} columns");
+        assert!((before * 2.0 + spanned - f32::from(GRID_COLUMNS)).abs() < 0.01, "at {width} the column is centred");
+        assert!(composer.size.width <= CONTENT_MAX_WIDTH, "at {width} lines stay readable: {composer:?}");
+        assert!((reply.left() - composer.left()).abs() < 0.5, "at {width}: {reply:?} {composer:?}");
+        assert!((reply.right() - composer.right()).abs() < 0.5, "at {width}: {reply:?} {composer:?}");
+    }
+}
+
+#[test]
+fn the_header_controls_sit_on_the_outer_columns_of_the_grid_the_transcript_is_laid_out_on() {
+    let (mut harness, _) = long_thread();
+    for (width, height) in [(900.0, 600.0), (1600.0, 900.0)] {
+        harness.resize(width, height);
+        let main = harness.bounds("main").unwrap();
+        let track = harness.bounds("scroll-track-vertical").unwrap();
+        let heading = harness.bounds("thread-heading").unwrap();
+        let switch = harness.bounds("view-switch").unwrap();
+
+        assert!((heading.left() - main.left() - GRID_MARGIN.px()).abs() < 0.5, "at {width}: {heading:?}");
+        assert!((track.left() - switch.right() - GRID_MARGIN.px()).abs() < 0.5, "at {width}: {switch:?} {track:?}");
+    }
+}
+
+#[test]
+fn a_long_prompt_ends_with_the_reading_column_and_stays_out_of_its_first_column() {
+    let (mut harness, thread) = DesktopHarness::alpha(replying("alpha-session", "ok"));
+    harness.send(thread, &"a prompt long enough to wrap ".repeat(40));
+    for (width, height) in [(900.0, 600.0), (1600.0, 900.0)] {
+        harness.resize(width, height);
+        let main = harness.bounds("main").unwrap();
+        let gutter = harness.bounds("scroll-track-vertical").map_or(0.0, |track| track.size.width);
+        let column = (main.size.width - gutter) / f32::from(GRID_COLUMNS);
+        let prompt = harness.bounds("prompt-0").unwrap();
+        let composer = harness.bounds("composer").unwrap();
+
+        assert!(prompt.left() >= composer.left() + column - 0.5, "at {width}: {prompt:?} {composer:?}");
+        assert!(prompt.left() < composer.left() + 2.0 * column, "at {width}: {prompt:?} {composer:?}");
+        assert!((prompt.right() - composer.right()).abs() < 0.5, "at {width}: {prompt:?} {composer:?}");
+    }
+}
+
+#[test]
+fn the_sidebar_slides_back_in_unless_motion_is_reduced() -> Result<(), TestError> {
+    for reduced in [false, true] {
+        let mut harness = DesktopHarnessBuilder::default().motion(MotionScale::Full).build();
+        harness.registry().update(|state| state.reduced_motion = reduced);
+        harness.press("secondary-b");
+        harness.ui().run(1.0);
+
+        harness.press("secondary-b");
+        harness.ui().draw()?;
+
+        assert!(harness.bounds("sidebar").is_some());
+        let frames = harness.ui().compositor_frames(1.0)?;
+        assert_eq!(frames == 0, reduced, "the sidebar returned over {frames} frames with reduced motion {reduced}");
+    }
+    Ok(())
+}
+
+#[test]
+fn a_shortcut_draws_the_column_grid_over_the_thread_and_leaves_the_scrollbar_clear() {
+    let (mut harness, _) = long_thread();
+    assert!(harness.bounds("grid-overlay").is_none());
+
+    harness.press("secondary-alt-g");
+
+    let overlay = harness.bounds("grid-overlay").expect("the shortcut shows the grid");
+    let main = harness.bounds("main").unwrap();
+    let track = harness.bounds("scroll-track-vertical").unwrap();
+    assert_eq!((overlay.left(), overlay.right()), (main.left(), track.left()));
+
+    harness.press("secondary-alt-g");
+    assert!(harness.bounds("grid-overlay").is_none());
 }
 
 #[test]
@@ -150,8 +254,48 @@ fn the_first_prompt_clears_the_header_when_the_transcript_is_scrolled_to_its_sta
     assert!(prompt.top() >= heading.bottom(), "{heading:?} {prompt:?}");
 }
 
+#[test]
+fn every_named_part_of_the_window_is_a_whole_number_of_units_tall() {
+    for scene in ["a question", "a long thread", "settings"] {
+        let mut harness = at_base_size(showing(scene));
+        let astray: Vec<String> = harness
+            .ui()
+            .named_bounds()
+            .into_iter()
+            .filter(|(name, bounds)| {
+                !FLOWS_WITH_TEXT.iter().any(|prefix| name.starts_with(prefix)) && bounds.size.height % UNIT != 0.0
+            })
+            .map(|(name, bounds)| format!("{name}: {} tall", bounds.size.height))
+            .collect();
+        assert!(astray.is_empty(), "off the unit in {scene}: {astray:#?}");
+    }
+}
+
 fn long_thread() -> (DesktopHarness, Thread) {
     let (mut harness, thread) = DesktopHarness::alpha(replying("alpha-session", &"A long reply.\n\n".repeat(80)));
     harness.send(thread, "go");
     (harness, thread)
 }
+
+fn showing(scene: &str) -> DesktopHarness {
+    match scene {
+        "a question" => asked(asking_name()).0,
+        "a long thread" => long_thread().0,
+        _ => {
+            let mut harness = DesktopHarness::alpha(replying("alpha-session", "hello")).0;
+            harness.press("secondary-,");
+            harness
+        }
+    }
+}
+
+/// Linux starts at a larger interface size than macOS; the unit is only whole pixels at the size the UI is drawn at.
+fn at_base_size(mut harness: DesktopHarness) -> DesktopHarness {
+    while harness.interface_size() > BASE_SIZE {
+        harness.press("secondary--");
+    }
+    harness
+}
+
+/// A reply's height follows its Markdown, whose block rhythm is not on the unit.
+const FLOWS_WITH_TEXT: [&str; 2] = ["reply-", "transcript-row-"];

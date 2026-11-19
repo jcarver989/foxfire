@@ -1,4 +1,4 @@
-use crate::ui::tokens::ICON_SIZE_SMALL;
+use crate::ui::tokens::{ICON_SIZE_SMALL, Space};
 use crate::ui::{Icon, IconName, Material, MaterialExt, UiStyles};
 use foxfire_core::session_core::QueuedPrompt;
 use rouge::core::{AnyView, Div, Role, Styled, View, div, text, view};
@@ -11,7 +11,7 @@ pub(crate) fn queued_prompts(prompts: &[QueuedPrompt]) -> Div {
         .map(|prompt| {
             let first = prompt.submission.text.lines().next().unwrap_or_default().to_owned();
             view! {
-                <div flex items_center gap=8.0 min_w=0.0>
+                <div flex items_center gap=Space::X2 min_w=0.0>
                     {Icon::new(IconName::ChevronRight, muted).size(ICON_SIZE_SMALL)}
                     <div flex_none><text small muted>"Queued"</text></div>
                     <div flex_1 min_w=0.0 overflow_hidden><text small secondary no_wrap>{first}</text></div>
@@ -24,7 +24,7 @@ pub(crate) fn queued_prompts(prompts: &[QueuedPrompt]) -> Div {
         view! { <div><text small muted>{format!("{} more queued", prompts.len() - shown)}</text></div> }
     });
     view! {
-        <div test_id="queued-prompts" px=12.0 py=8.0 flex col gap=4.0 material=Material::Glass>
+        <div test_id="queued-prompts" px=Space::X3 py=Space::X2 flex col gap=Space::X1 material=Material::Glass>
             {..rows}
             {more}
         </div>

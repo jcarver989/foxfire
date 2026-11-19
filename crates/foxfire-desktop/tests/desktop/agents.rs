@@ -286,6 +286,25 @@ fn an_agents_file_that_cannot_be_read_is_offered_for_fixing_in_the_new_thread_me
 }
 
 #[test]
+fn the_new_thread_menu_labels_its_agents_apart_from_its_problems() {
+    let project = Project::new(&json!({ "claude": { "type": "stdio", "command": "claude-code-acp" } }));
+    let user_file = project.user_file();
+    fs::create_dir_all(user_file.parent().expect("the user's file is in a home")).unwrap();
+    fs::write(user_file, "{ not json").unwrap();
+    let mut harness = project.harness(&[]);
+
+    harness.click("project-alpha-new-thread").unwrap();
+
+    let start = harness.ui().text_bounds("Start with").expect("the agents are labelled");
+    let agent = harness.bounds("new-thread-agent-claude").expect("the agent");
+    let problems = harness.ui().text_bounds("Problems").expect("the problems are labelled");
+    let problem = harness.bounds("new-thread-problem-0").expect("the problem");
+    assert!(
+        start.origin.y < agent.origin.y && agent.origin.y < problems.origin.y && problems.origin.y < problem.origin.y
+    );
+}
+
+#[test]
 fn aether_found_on_path_is_added_to_the_users_agents_and_becomes_the_default() {
     let project = Project::new(&json!({}));
     let user_file = project.user_file();

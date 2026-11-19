@@ -5,6 +5,7 @@ use foxfire_desktop::history::{Listing, SavedSession};
 use foxfire_desktop::sessions::SessionKey;
 use foxfire_desktop::testing::{DesktopHarnessBuilder, TEST_AGENT};
 use rouge::core::testing::TestResult;
+use rouge::widgets::tokens::MotionScale;
 use serde_json::json;
 use std::path::{Path, PathBuf};
 
@@ -124,6 +125,43 @@ fn switching_agents_lists_and_resumes_the_selected_agents_session_even_when_its_
     assert_eq!(resumed.session_id(), Some(SessionId::new("shared")));
     assert_eq!(texts(resumed), ["from claude"]);
     assert_eq!(harness.next(&mut requests.resume).cwd, AbsolutePath::new(root));
+    Ok(())
+}
+
+#[test]
+fn placeholder_rows_stand_in_for_the_sessions_until_the_agent_has_answered() -> TestResult {
+    let (mut harness, _) =
+        DesktopHarnessBuilder::default().agent("/alpha", replying("fresh", "unused")).start("/alpha");
+    let agent = harness.threads().default_agent(Path::new("/alpha")).expect("configured agent");
+    let history = harness.history();
+    harness.sessions().hold();
+
+    harness.click("past-sessions-toggle")?;
+    assert!(harness.bounds("past-sessions-loading").is_some());
+
+    harness.sessions().release();
+    harness.run_until(|_| history.listing(&agent) == Some(Listing::Listed));
+    assert!(harness.bounds("past-sessions-loading").is_none());
+    Ok(())
+}
+
+#[test]
+fn the_tray_follows_reduced_motion_chosen_after_the_thread_was_built() -> TestResult {
+    let (mut harness, _) = DesktopHarnessBuilder::default()
+        .motion(MotionScale::Full)
+        .agent("/alpha", replying("fresh", "unused"))
+        .start("/alpha");
+    harness.registry().update(|state| state.reduced_motion = true);
+    harness.advance();
+    harness.ui().run(2.0);
+
+    for shown in [true, false] {
+        harness.click("past-sessions-toggle")?;
+        harness.ui().draw()?;
+
+        assert_eq!(harness.bounds("past-sessions").is_some(), shown);
+        assert_eq!(harness.ui().compositor_frames(1.0)?, 0, "the tray moved while {shown}");
+    }
     Ok(())
 }
 

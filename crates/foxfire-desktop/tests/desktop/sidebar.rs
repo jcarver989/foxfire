@@ -43,6 +43,20 @@ fn removing_a_project_hides_it() {
 }
 
 #[test]
+fn a_removed_project_can_be_put_back_from_its_toast() {
+    let mut harness = DesktopHarnessBuilder::default().project("/alpha").project("/beta").build();
+    harness.click("project-alpha-actions").unwrap();
+    harness.click("menu-remove-project").unwrap();
+    assert!(harness.bounds("project-alpha").is_none());
+
+    harness.click("toast-0-action").unwrap();
+
+    assert!(harness.bounds("project-alpha").is_some());
+    assert_eq!(harness.projects(), [PathBuf::from("/alpha"), PathBuf::from("/beta")]);
+    assert!(harness.bounds("toast-0").is_none(), "undoing dismisses the toast");
+}
+
+#[test]
 fn a_rows_archive_button_stops_its_thread_and_removes_it_from_the_sidebar() {
     let (mut harness, _) = DesktopHarness::alpha(replying("alpha-session", "hello"));
 

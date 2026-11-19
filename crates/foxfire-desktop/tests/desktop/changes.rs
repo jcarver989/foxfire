@@ -9,13 +9,13 @@ use serde_json::json;
 #[test]
 fn the_files_tab_counts_the_files_the_agent_reports_as_they_change() {
     let (mut harness, thread, git) = with_changes(&["src/main.rs", "README.md"]);
-    assert!(harness.shows("changes-count", "2"));
+    assert!(harness.shows("tab-files-detail", "2"));
     harness.click("tab-files").unwrap();
 
     git.add_file("src/lib.rs", "pub fn lib() {}\n");
 
     wait_for_changes(&mut harness, thread, 3);
-    assert!(harness.shows("changes-count", "3"), "no refresh is needed");
+    assert!(harness.shows("tab-files-detail", "3"), "no refresh is needed");
 }
 
 #[test]
@@ -70,13 +70,24 @@ fn a_clean_working_tree_is_browsed_and_its_diff_shows_no_changes_in_whichever_sc
     assert!(harness.bounds("changes-unseen").is_none(), "there is nothing new to see");
 
     harness.press("secondary-2");
-    assert!(!harness.shows("changes-count", "0"), "a clean working tree counts nothing");
+    assert!(!harness.shows("tab-files-detail", "0"), "a clean working tree counts nothing");
     assert_eq!(files_mode(&harness, thread), Some(FilesMode::Browse), "with nothing to review, the files are browsed");
     harness.click("files-mode-diff").unwrap();
     assert!(viewer_says(&mut harness, "No changes"));
 
     harness.click("scope-Staged").unwrap();
     harness.run_until(|_| scope(thread) == Some(DiffScope::Staged));
+}
+
+#[test]
+fn copying_a_review_is_confirmed_with_a_toast() {
+    let (mut harness, _, _) = with_changes(&["src/main.rs"]);
+    harness.click("tab-files").unwrap();
+    comment(&mut harness, "rename this");
+
+    harness.click("review-copy").unwrap();
+
+    assert!(harness.bounds("toast-0").is_some());
 }
 
 #[test]

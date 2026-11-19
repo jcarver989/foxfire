@@ -1,8 +1,11 @@
 use super::code::highlights;
 use super::groups::{GroupKind, Work};
-use crate::ui::tokens::{ICON_SIZE_SMALL, ROW_HEIGHT};
+use crate::ui::tokens::{HAIRLINE, ICON_SIZE_SMALL, ROW_HEIGHT, Space};
 use crate::ui::typography::BODY_STRONG;
-use crate::ui::{ButtonVariant, CODE_FONT, ControlSize, FoxfireState, Hint, Icon, IconName, UiStyles, button, foxfire};
+use crate::ui::{
+    ButtonVariant, CODE_FONT, ControlSize, FoxfireState, Hint, Icon, IconName, UiStyles, button, foxfire, indent,
+    separator,
+};
 use agent_client_protocol::v2::schema as acp;
 use clankerdiff_core::{DiffDocument, LineStat};
 use clankerdiff_rouge::PatchPreview;
@@ -13,7 +16,7 @@ use foxfire_acp::conversation::{
     ConversationItem, ConversationItemId, Revision, SubAgent, ToolCall, ToolStatus, diff_change_label,
 };
 use rouge::core::{
-    AnyView, Cursor, Div, FocusHandle, Role, SpanStyle, Styled, TextBreak, View, div, px, rich_text, text, view,
+    AnyView, Cursor, Div, FocusHandle, Role, SpanStyle, Styled, TextBreak, View, div, rich_text, text, view,
 };
 use rouge::reactive::{Callback, ReadSignal};
 use rouge::syntax::{SourceSyntax, analyze};
@@ -96,7 +99,7 @@ pub(crate) fn fold_header(
             Some(view! { <text no_wrap>{summary}</text> }.into_any()),
             failed,
         );
-        let content = view! { <div flex items_center gap=8.0 min_w=0.0>{icon}{title}{summary}</div> };
+        let content = view! { <div flex items_center gap=Space::X2 min_w=0.0>{icon}{title}{summary}</div> };
         return disclosure_row(format!("tool-group-{row}"), expanded, on_toggle, content).into_any();
     }
     let done = match work.tools {
@@ -106,13 +109,13 @@ pub(crate) fn fold_header(
     };
     let label = std::iter::once(done).chain(work.details()).collect::<Vec<_>>().join(" · ");
     let chevron = if expanded { IconName::ChevronDown } else { IconName::ChevronRight };
-    let hairline = || view! { <div flex_1 border_t=1.0 border_color=Role::BorderSubtle/> };
+    let hairline = || separator().flex_1().border_color(Role::BorderSubtle);
     let color = if failed { Role::Destructive } else { Role::TextMuted };
     view! {
-        <div test_id={format!("turn-summary-{row}")} h=ROW_HEIGHT flex items_center gap=12.0 body text_color=color
+        <div test_id={format!("turn-summary-{row}")} h=ROW_HEIGHT flex items_center gap=Space::X3 body text_color=color
              on_activate={move || on_toggle.call()}>
             {hairline()}
-            <div flex_none flex items_center gap=4.0>
+            <div flex_none flex items_center gap=Space::X1>
                 <text>{label}</text>
                 {Icon::new(chevron, Role::TextMuted).size(ICON_SIZE_SMALL)}
             </div>
@@ -151,14 +154,14 @@ impl ToolCard<'_> {
         let [icon, title, summary] =
             tool_line(status_icon(tool.status, tool.id()), title, summary, tool.status == ToolStatus::Failed);
         let changes = (!diffs.is_empty()).then(|| self.change_summary(tool, index));
-        let content = view! { <div flex items_center gap=8.0 min_w=0.0>{icon}{title}{summary}{changes}</div> };
+        let content = view! { <div flex items_center gap=Space::X2 min_w=0.0>{icon}{title}{summary}{changes}</div> };
         let header = disclosure_row(format!("tool-card-{index}"), expanded, on_toggle, content).track_focus(focus);
         let body = (expanded || !tool.sub_agents.is_empty()).then(|| {
             let details = expanded.then(|| self.details(tool, index, fold == ToolFold::Full, on_show_all));
             let changes = (expanded && !diffs.is_empty()).then(|| self.changes(&diffs, index));
             let agents = (!tool.sub_agents.is_empty()).then(|| self.sub_agent_tree(&tool.sub_agents));
             view! {
-                <div flex col gap=12.0 ml=8.0 mt=4.0 mb=8.0 pl=16.0 pr=8.0 py=4.0 border_l=px(1.0)
+                <div flex col gap=Space::X3 ml=Space::X2 mt=Space::X1 mb=Space::X2 pl=Space::X4 pr=Space::X2 py=Space::X1 border_l=HAIRLINE
                      border_color=Role::BorderSubtle>
                     {details}
                     {changes}
@@ -227,7 +230,7 @@ impl ToolCard<'_> {
                 .then(|| show_all(format!("tool-{}-more-{index}", label.to_lowercase()), hidden, on_show_all));
             section(label, body.selection_break(TextBreak::Paragraph).into_any()).child(more)
         });
-        view! { <div test_id={format!("tool-details-{index}")} flex col gap=12.0>{..sections}</div> }
+        view! { <div test_id={format!("tool-details-{index}")} flex col gap=Space::X3>{..sections}</div> }
     }
 
     fn changes(&self, diffs: &[&acp::Diff], index: usize) -> Div {
@@ -258,7 +261,7 @@ impl ToolCard<'_> {
             }
         });
         view! {
-            <div test_id={format!("tool-changes-{index}")} flex col gap=8.0 font=CODE_FONT small unselectable>
+            <div test_id={format!("tool-changes-{index}")} flex col gap=Space::X2 font=CODE_FONT small unselectable>
                 {..changes}
             </div>
         }
@@ -284,7 +287,7 @@ impl ToolCard<'_> {
         });
         let badges = changed_lines.then(|| stat_badges(LineStat { added, deleted: removed, files }, self.theme));
         view! {
-            <div test_id={format!("tool-change-summary-{index}")} flex flex_none items_center gap=8.0 caption>
+            <div test_id={format!("tool-change-summary-{index}")} flex flex_none items_center gap=Space::X2 caption>
                 {count}
                 {badges}
             </div>
@@ -301,12 +304,13 @@ impl ToolCard<'_> {
                 |status| status_icon(status, &agent_id),
             );
             let name = agent.title().unwrap_or("sub-agent").to_owned();
-            rows.push(view! { <div flex items_center gap=8.0>{icon}<text label>{name}</text></div> }.into_any());
+            rows.push(view! { <div flex items_center gap=Space::X2>{icon}<text label>{name}</text></div> }.into_any());
             let tool_calls: Vec<&ToolCall> = agent.tool_calls().collect();
             let hidden = tool_calls.len().saturating_sub(SUB_AGENT_VISIBLE_TOOLS);
             if hidden > 0 {
                 rows.push(
-                    view! { <div pl=24.0><text muted>{format!("{hidden} earlier tool calls")}</text></div> }.into_any(),
+                    view! { <div pl={indent(SUB_AGENT_TOOL_DEPTH)}><text muted>{format!("{hidden} earlier tool calls")}</text></div> }
+                        .into_any(),
                 );
             }
             for tool in &tool_calls[hidden..] {
@@ -315,15 +319,18 @@ impl ToolCard<'_> {
                 let title = view! { <div flex_none><text>{title(tool)}</text></div> };
                 let [icon, title, summary] = tool_line(icon, title, self.summary(tool), failed);
                 rows.push(
-                    view! { <div pl=24.0 flex items_center gap=8.0 min_w=0.0>{icon}{title}{summary}</div> }.into_any(),
+                    view! { <div pl={indent(SUB_AGENT_TOOL_DEPTH)} flex items_center gap=Space::X2 min_w=0.0>{icon}{title}{summary}</div> }
+                        .into_any(),
                 );
             }
         }
-        view! { <div flex col gap=4.0 small unselectable>{..rows}</div> }
+        view! { <div flex col gap=Space::X1 small unselectable>{..rows}</div> }
     }
 }
 
 const SUB_AGENT_VISIBLE_TOOLS: usize = 3;
+
+const SUB_AGENT_TOOL_DEPTH: usize = 2;
 
 const SECTION_MAX_LINES: usize = 200;
 
@@ -387,7 +394,7 @@ fn detail_sections(tool: &ToolCall, full: bool) -> impl Iterator<Item = (&'stati
 
 fn section(label: &'static str, content: AnyView) -> Div {
     view! {
-        <div flex col gap=4.0>
+        <div flex col gap=Space::X1>
             <text label muted unselectable>{label}</text>
             <div text_color=Role::TextSecondary font=CODE_FONT small>{content}</div>
         </div>
@@ -416,7 +423,7 @@ fn status_icon(status: ToolStatus, id: &str) -> AnyView {
     let (icon, color) = match status {
         ToolStatus::Running => {
             return view! {
-                <div test_id={format!("tool-status-{id}")} flex_none flex items_center gap=4.0>
+                <div test_id={format!("tool-status-{id}")} flex_none flex items_center gap=Space::X1>
                     {foxfire(ICON_SIZE_SMALL, Role::Info, || FoxfireState::Working).test_id(format!("tool-foxfire-{id}"))}
                     <text small muted>"Running"</text>
                 </div>
@@ -433,7 +440,7 @@ fn status_icon(status: ToolStatus, id: &str) -> AnyView {
 fn disclosure_row(id: String, expanded: bool, on_toggle: Callback, content: impl View) -> Div {
     let chevron = if expanded { IconName::ChevronDown } else { IconName::ChevronRight };
     view! {
-        <div test_id=id h=ROW_HEIGHT overflow_hidden flex items_center gap=8.0 on_activate={move || on_toggle.call()}>
+        <div test_id=id h=ROW_HEIGHT overflow_hidden flex items_center gap=Space::X2 on_activate={move || on_toggle.call()}>
             {Icon::new(chevron, Role::TextMuted).size(ICON_SIZE_SMALL)}
             <div>{content}</div>
         </div>

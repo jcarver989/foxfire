@@ -3,7 +3,7 @@ use clap::Parser;
 use foxfire_desktop::branding::APP_NAME;
 use foxfire_desktop::ui::{
     ActiveReviewTheme, ButtonVariant, ControlSize, FoxfireMotion, FoxfireState, Icon, IconName, UI_FONT, UiStyles,
-    button, foxfire,
+    button, foxfire, tokens::Space,
 };
 use rouge::core::{Color, Styled, View, div, scroll, text, view};
 use rouge::reactive::{Runtime, signal, sleep, spawn};
@@ -92,7 +92,7 @@ fn preview(reduced: bool) -> impl View {
         }
     });
     let controls = view! {
-        <div flex flex_wrap gap=8.0>
+        <div flex flex_wrap gap=Space::X2>
             <button test_id="toggle-motion" label={move || if motion.reduced() { "Use full motion" } else { "Reduce motion" }}
                     on_click={move || motion.set_reduced(!motion.reduced())}/>
             <button test_id="rapid-transitions" label="Rapid transitions"
@@ -110,34 +110,34 @@ fn preview(reduced: bool) -> impl View {
         </div>
     };
     let sandbox = view! {
-        <div flex col gap=12.0>
+        <div flex col gap=Space::X3>
             <text heading>"State transitions"</text>
-            <div flex items_center gap=24.0 h=64.0>
+            <div flex items_center gap=Space::X6 h=64.0>
                 {foxfire(12.0, Color::rgb(0x0038_7ccf), move || selected.get())}
                 {foxfire(48.0, Color::rgb(0x0038_7ccf), move || selected.get())}
                 <text>{move || selected.get().label()}</text>
             </div>
-            <div flex flex_wrap gap=8.0>{..choices}</div>
+            <div flex flex_wrap gap=Space::X2>{..choices}</div>
             {controls}
         </div>
     };
     view! {
         <div size_full bg=0x00f6_f8fa text_color=0x001f_2328 font=UI_FONT body>
             <scroll size_full>
-                <div p=24.0 flex col gap=20.0>
+                <div p=Space::X6 flex col gap=Space::X6>
                     <text heading>"Activity, not progress"</text>
                     <text>"12 / 16 / 48 px · waiting is always still"</text>
-                    <div flex gap=16.0>{palette(false)}{palette(true)}</div>
+                    <div flex gap=Space::X4>{palette(false)}{palette(true)}</div>
                     {sandbox}
                     <text heading>"Completion is quiet and explicit"</text>
-                    <div flex gap=24.0>
+                    <div flex gap=Space::X6>
                         {outcome(IconName::Check, "Completed", 0x0024_753e)}
                         {outcome(IconName::CircleX, "Failed", 0x00b4_232c)}
                         {outcome(IconName::CircleSlash, "Cancelled", 0x0059_636e)}
                     </div>
                     <text heading>"32 compact indicators · scroll to check clipping"</text>
                     <scroll h=96.0 border=1.0 border_color=0x00d1_d9e0>
-                        <div flex col gap=8.0 p=8.0>{..(0..8).map(stress_row)}</div>
+                        <div flex col gap=Space::X2 p=Space::X2>{..(0..8).map(stress_row)}</div>
                     </scroll>
                     <text small>"Unfocus this window or choose reduced motion to suspend activity clocks. Hover clipping edges to check the halo."</text>
                 </div>
@@ -155,7 +155,7 @@ fn palette(dark: bool) -> impl View {
     let rows = STATES.map(|state| {
         let tint = Color::rgb(if state == FoxfireState::Waiting { warning } else { tint });
         view! {
-            <div flex items_center gap=24.0 h=48.0>
+            <div flex items_center gap=Space::X6 h=48.0>
                 <div w=144.0><text>{state.label()}</text></div>
                 {foxfire(12.0, tint, move || state)}
                 {foxfire(16.0, tint, move || state)}
@@ -164,7 +164,7 @@ fn palette(dark: bool) -> impl View {
         }
     });
     view! {
-        <div flex_1 min_w=0.0 p=16.0 bg=bg text_color=fg flex col gap=8.0>
+        <div flex_1 min_w=0.0 p=Space::X4 bg=bg text_color=fg flex col gap=Space::X2>
             <text label>{if dark { "Dark" } else { "Light" }}</text>
             {..rows}
         </div>
@@ -172,12 +172,12 @@ fn palette(dark: bool) -> impl View {
 }
 
 fn outcome(icon: IconName, label: &'static str, color: u32) -> impl View {
-    view! { <div flex items_center gap=8.0>{Icon::new(icon, Color::rgb(color)).size(12.0)}<text>{label}</text></div> }
+    view! { <div flex items_center gap=Space::X2>{Icon::new(icon, Color::rgb(color)).size(12.0)}<text>{label}</text></div> }
 }
 
 fn stress_row(row: usize) -> impl View {
     view! {
-        <div flex items_center gap=24.0 h=20.0>
+        <div flex items_center gap=Space::X6 h=20.0>
             {..(0..4).map(move |index| foxfire(12.0, Color::rgb(0x0038_7ccf), move || STATES[(row + index) % 5]))}
             <text>{format!("Tool group {}", row + 1)}</text>
         </div>

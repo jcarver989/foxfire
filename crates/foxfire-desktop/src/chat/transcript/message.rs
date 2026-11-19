@@ -1,11 +1,13 @@
 use crate::chat::attachment::{Attachment, chip, chip_icon, thumbnail};
 use crate::threads::{Thread, ThreadStatus};
+use crate::ui::tokens::{HAIRLINE, Pace, Space};
 use crate::ui::{
-    ButtonVariant, Icon, IconName, Material, MaterialExt, Theme, UiStyles, backdrop, button, disclosure, icon_button,
+    ButtonVariant, IconName, Material, MaterialExt, NoticeTone, UiStyles, backdrop, button, disclosure, icon_button,
+    notification,
 };
 use clankerdiff_rouge::{ReviewHandle, diff_view};
 use rouge::core::{
-    AnyView, Color, Cursor, Div, Fit, ImageSource, Role, Styled, View, WindowHandle, div, image, pct, px, text, view,
+    AnyView, Cursor, Div, Fit, ImageSource, Role, Styled, View, WindowHandle, div, image, pct, px, text, view,
 };
 use rouge::reactive::{Callback, Signal};
 use std::sync::Arc;
@@ -37,9 +39,10 @@ pub(crate) fn prompt(
         })
         .collect();
     let body = (!body.is_empty()).then(|| view! { <text reading>{body}</text> });
-    let files = (!attachments.is_empty()).then(|| view! { <div flex flex_wrap gap=8.0>{..attachments}</div> });
+    let files = (!attachments.is_empty()).then(|| view! { <div flex flex_wrap gap=Space::X2>{..attachments}</div> });
     view! {
-        <div test_id={format!("prompt-{row}")} max_w=pct(PROMPT_MAX_WIDTH) px=16.0 py=8.0 flex col gap=8.0 material=Material::Glass>
+        <div test_id={format!("prompt-{row}")} px={Space::X4.px() - HAIRLINE} py={Space::X2.px() - HAIRLINE} flex col gap=Space::X2
+             material=Material::Surface>
             {body}
             {files}
         </div>
@@ -48,7 +51,7 @@ pub(crate) fn prompt(
 
 pub(crate) fn message_actions(row: usize, text: String, hovered: Signal<bool>, window: WindowHandle) -> Div {
     view! {
-        <div pt=4.0 flex opacity={move || if hovered.get() { 1.0 } else { 0.0 }} unselectable>
+        <div pt=Space::X1 flex opacity={move || if hovered.get() { 1.0 } else { 0.0 }} transition=Pace::Move unselectable>
             <icon_button test_id={format!("copy-message-{row}")} icon=IconName::Copy label="Copy"
                          on_click={move || window.copy_text(text.clone())}/>
         </div>
@@ -69,7 +72,7 @@ pub(crate) fn full_diff(handle: &ReviewHandle, on_close: Callback) -> impl View 
     view! {
         <backdrop test_id="full-diff" on_dismiss=on_close>
             <div test_id="full-diff-panel" w=pct(100.0) h=pct(100.0) min_h=0.0 flex col overflow_hidden material=Material::Glass>
-                <div flex justify_end p=4.0>
+                <div flex justify_end p=Space::X1>
                     <icon_button test_id="close-full-diff" icon=IconName::X label="Close" on_click=on_close/>
                 </div>
                 <div flex_1 min_h=0.0>{diff_view(*handle)}</div>
@@ -87,13 +90,13 @@ pub(crate) fn thinking_block(
 ) -> AnyView {
     let body = expanded.then(|| {
         view! {
-            <div test_id={format!("thinking-text-{index}")} pl=12.0 border_l=px(2.0) border_color=Role::BorderSubtle>
+            <div test_id={format!("thinking-text-{index}")} pl=Space::X3 border_l=px(2.0) border_color=Role::BorderSubtle>
                 <text body muted>{thought}</text>
             </div>
         }
     });
     view! {
-        <div flex col gap=8.0>
+        <div flex col gap=Space::X2>
             <disclosure test_id={format!("thinking-{index}")} expanded on_toggle=on_toggle>
                 <text body muted>{if streaming { "Thinking…" } else { "Thought" }}</text>
             </disclosure>
@@ -104,24 +107,20 @@ pub(crate) fn thinking_block(
 }
 
 pub(crate) fn notice(text: &str) -> AnyView {
-    line(IconName::Info, Theme::current().get_untracked().text_muted, text).into_any()
+    notification(text.to_owned(), NoticeTone::Neutral, None).into_any()
 }
 
 pub(crate) fn error(index: usize, text: &str) -> AnyView {
-    line(IconName::TriangleAlert, Theme::current().get_untracked().destructive, text)
-        .test_id(format!("transcript-error-{index}"))
-        .into_any()
+    notification(text.to_owned(), NoticeTone::Error, None).test_id(format!("transcript-error-{index}")).into_any()
 }
 
 pub(crate) fn reconnect_banner(thread: Thread, status: ThreadStatus) -> Option<Div> {
     let problem = status.problem()?;
-    let warning = Theme::current().get_untracked().warning;
-    Some(view! {
-        <div px=12.0 py=8.0 flex items_center gap=8.0 material=Material::Surface bg=Role::Elevated>
-            {line(IconName::TriangleAlert, warning, problem).flex_1().min_w(0.0)}
-            {reconnect_button(thread)}
-        </div>
-    })
+    let banner = notification(problem.to_owned(), NoticeTone::Warning, None)
+        .material(Material::Surface)
+        .p(Space::X2.px() - HAIRLINE)
+        .child(reconnect_button(thread));
+    Some(banner)
 }
 
 pub(crate) fn reconnect_button(thread: Thread) -> AnyView {
@@ -132,15 +131,4 @@ pub(crate) fn reconnect_button(thread: Thread) -> AnyView {
     .into_any()
 }
 
-const THUMBNAIL_SIZE: f32 = 96.0;
-
-const PROMPT_MAX_WIDTH: f32 = 85.0;
-
-fn line(icon: IconName, color: Color, label: &str) -> Div {
-    view! {
-        <div flex items_start gap=8.0>
-            {Icon::new(icon, color)}
-            <div flex_1 min_w=0.0><text small color=color>{label.to_owned()}</text></div>
-        </div>
-    }
-}
+const THUMBNAIL_SIZE: f32 = Space::X24.px();

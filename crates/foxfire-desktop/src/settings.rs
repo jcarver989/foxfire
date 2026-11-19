@@ -1,11 +1,12 @@
 use crate::registry::Registry;
 use crate::theme;
+use crate::ui::tokens::{Space, UNIT};
 use crate::ui::{
-    ButtonVariant, ControlSize, Material, MaterialExt, ThemePickerEvent, UiStyles, backdrop, button, theme_picker,
-    theme_picker_view, tokens::MODAL_WIDTH_COMPACT,
+    ButtonVariant, InterfaceSize, Material, ModalSize, ThemePickerEvent, UiStyles, button, modal, number_field,
+    segment, segmented_control, theme_picker, theme_picker_view, toggle,
 };
 use clankerdiff_ui_core::{Appearance, AppearanceMode, ReviewTheme, ThemeChoice};
-use rouge::core::{AnyView, Div, Styled, View, div, dynamic, pct, text, view};
+use rouge::core::{AnyView, Div, Styled, View, div, dynamic, text, view};
 use rouge::reactive::{Callback, Signal, effect, memo, signal, untrack};
 use rouge::widgets::{Placement, popover};
 
@@ -16,60 +17,66 @@ pub(crate) fn settings(registry: Registry, on_close: impl Fn() + 'static) -> imp
         on_close.call();
     };
     view! {
-        <backdrop test_id="settings-backdrop" on_dismiss=close>
-            <div test_id="settings" w=MODAL_WIDTH_COMPACT max_w=pct(100.0) p=16.0 flex col gap=8.0
-                 overflow_hidden material=Material::Glass>
-                <text heading primary>"Settings"</text>
-                <text small muted>"Esc to close"</text>
-                <div flex col min_h=0.0>
-                    {row("Activity motion", "Still indicators keep every activity label", motion(registry))}
-                    {row("Appearance", "Follow the system, or always look light or dark", mode(registry))}
-                    {row("Light theme", "Shown when the app looks light", theme_choice(registry, Appearance::Light))}
-                    {row("Dark theme", "Shown when the app looks dark", theme_choice(registry, Appearance::Dark))}
-                </div>
-            </div>
-        </backdrop>
+        <modal test_id="settings" title="Settings" hint="Esc to close" modal_size=ModalSize::Compact on_dismiss=close>
+            {row("Reduce motion", "Stills the activity marks and every panel", motion(registry))}
+            {row("Interface size", "Scales everything in the window", interface_size())}
+            {row("Appearance", "Follow the system, or always look light or dark", mode(registry))}
+            {row("Light theme", "Shown when the app looks light", theme_choice(registry, Appearance::Light))}
+            {row("Dark theme", "Shown when the app looks dark", theme_choice(registry, Appearance::Dark))}
+        </modal>
     }
 }
 
 fn motion(registry: Registry) -> AnyView {
-    let reduced = memo(move || registry.with(|state| state.reduced_motion));
-    dynamic(move || {
-        let reduced = reduced.get();
-        let buttons = [(false, "Full"), (true, "Reduced")].map(|(value, label)| {
-            view! {
-                <button test_id={format!("motion-{}", label.to_lowercase())} label control_size=ControlSize::Small
-                        selected={value == reduced}
-                        on_click={move || registry.update(|state| state.reduced_motion = value)}/>
+    let reduced = signal(registry.with_untracked(|state| state.reduced_motion));
+    effect(move || {
+        reduced.set_if_changed(registry.with(|state| state.reduced_motion));
+    });
+    effect(move || {
+        let chosen = reduced.get();
+        if registry.with_untracked(|state| state.reduced_motion) != chosen {
+            registry.update(|state| state.reduced_motion = chosen);
+        }
+    });
+    view! { <toggle test_id="reduce-motion" checked=reduced/> }.into_any()
+}
+
+fn interface_size() -> AnyView {
+    let size = InterfaceSize::current();
+    let typed = signal(f64::from(untrack(|| size.get())));
+    effect(move || {
+        typed.set_if_changed(f64::from(size.get()));
+    });
+    effect(move || {
+        #[allow(clippy::cast_possible_truncation, reason = "An interface size is a few dozen px.")]
+        let chosen = typed.get() as f32;
+        untrack(|| {
+            if (size.get() - chosen).abs() >= 0.5 {
+                size.set(chosen);
+                typed.set_if_changed(f64::from(size.get()));
             }
         });
-        view! { <div flex gap=4.0>{..buttons}</div> }
-    })
-    .into_any()
+    });
+    view! { <number_field test_id="interface-size" value=typed suffix="px" w=INTERFACE_SIZE_WIDTH/> }.into_any()
 }
 
 fn mode(registry: Registry) -> AnyView {
     let current = memo(move || registry.with(|state| state.theme.mode));
-    dynamic(move || {
-        let current = current.get();
-        let buttons = [
-            (AppearanceMode::System, "System"),
-            (AppearanceMode::Light, "Light"),
-            (AppearanceMode::Dark, "Dark"),
-        ]
-        .map(|(mode, label)| {
-            view! {
-                <button test_id={format!("appearance-{}", label.to_lowercase())} label control_size=ControlSize::Small
-                        selected={mode == current}
-                        on_click={move || {
-                            registry.update(|state| state.theme.mode = mode);
-                            show_saved_theme(registry);
-                        }}/>
-            }
-        });
-        view! { <div flex gap=4.0>{..buttons}</div> }
-    })
-    .into_any()
+    let choices = [
+        (AppearanceMode::System, "System"),
+        (AppearanceMode::Light, "Light"),
+        (AppearanceMode::Dark, "Dark"),
+    ]
+    .map(|(mode, label)| {
+        view! {
+            <segment test_id={format!("appearance-{}", label.to_lowercase())} label selected={move || current.get() == mode}
+                     on_click={move || {
+                         registry.update(|state| state.theme.mode = mode);
+                         show_saved_theme(registry);
+                     }}/>
+        }
+    });
+    view! { <segmented_control flex_none>{..choices}</segmented_control> }.into_any()
 }
 
 fn theme_choice(registry: Registry, appearance: Appearance) -> AnyView {
@@ -124,7 +131,7 @@ fn theme_name(id: &str) -> String {
 
 fn row(label: &'static str, detail: &'static str, control: AnyView) -> Div {
     view! {
-        <div py=8.0 flex items_center justify_between gap=16.0>
+        <div py=Space::X2 flex items_center justify_between gap=Space::X4>
             <div min_w=0.0 flex col>
                 <text body primary>{label}</text>
                 <text small muted>{detail}</text>
@@ -133,3 +140,5 @@ fn row(label: &'static str, detail: &'static str, control: AnyView) -> Div {
         </div>
     }
 }
+
+const INTERFACE_SIZE_WIDTH: f32 = 30.0 * UNIT;

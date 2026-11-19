@@ -14,17 +14,17 @@ use crate::tasks::spawn_in;
 use crate::thread_view::{ThreadTab, ThreadView};
 use crate::threads::{Attention, Thread, ThreadEvent, ThreadManager};
 use crate::ui::DEFAULT_INTERFACE_SIZE;
-use crate::ui::tokens::{GUTTER, HEADER_HEIGHT, MODAL_WIDTH, PICKER_LIST_HEIGHT};
+use crate::ui::tokens::{HEADER_HEIGHT, MODAL_WIDTH, MotionScale, PANEL_GUTTER, PICKER_LIST_HEIGHT, Pace, Space};
 use crate::ui::{
     ActiveReviewTheme, FoxfireMotion, IconName, InterfaceSize, Material, PickerItem, SearchPickerHandle, StyledExt,
-    UI_FONT, UiStyles, appearance, backdrop, empty_state, picker_closed, search_picker,
+    Toasts, UI_FONT, UiStyles, appearance, backdrop, empty_state, key_hints, picker_closed, search_picker,
 };
 use clankerdiff_core::RepoPath;
 use clankerdiff_remote::Remotes;
 use clankerdiff_rouge::ReviewHandle;
 use rouge::core::{
-    AnyView, Chord, Div, Role, Styled, View, WindowHandle, div, dynamic, px, view, window_focused, window_handle,
-    window_size, zoom,
+    AnyView, Chord, Div, Motion, Role, Styled, View, WindowHandle, div, dynamic, motion, px, view, window_focused,
+    window_handle, window_size, zoom,
 };
 use rouge::persist::Storage;
 use rouge::reactive::{Scope, Signal, Stored, effect, memo, signal, spawn, stored, untrack};
@@ -76,12 +76,14 @@ pub struct DesktopApp {
     agents: Catalogs,
     fleet: Fleet,
     sidebar: Sidebar,
+    sidebar_entry: (Motion, Motion),
     views: Stored<HashMap<usize, (Scope, ThreadView)>>,
     modal: Signal<Option<Modal>>,
     platform: Stored<Rc<dyn Platform>>,
     clock: Stored<Arc<dyn Clock>>,
     restore: Stored<Option<SessionKey>>,
     window: WindowHandle,
+    toasts: Toasts,
     scope: Scope,
 }
 
@@ -107,12 +109,20 @@ impl DesktopApp {
     pub fn new(config: DesktopConfig) -> Self {
         let DesktopConfig { connector, clock, agents, remotes, remotes_file, sessions, platform, storage, saved } =
             config;
+        let toasts = Toasts::install();
         let registry = Registry::restore(saved, storage);
         let preference = memo(move || registry.with(|state| state.theme.clone()));
         let active = ActiveReviewTheme::install(preference.get_untracked().theme(appearance().get_untracked()));
         effect(move || active.apply(&preference.get()));
-        let motion = FoxfireMotion::install(registry.with_untracked(|state| state.reduced_motion));
-        effect(move || motion.set_reduced(registry.with(|state| state.reduced_motion)));
+        let activity = FoxfireMotion::install(registry.with_untracked(|state| state.reduced_motion));
+        effect(move || activity.set_reduced(registry.with(|state| state.reduced_motion)));
+        // The setting only ever takes motion away, so a window built without it stays still.
+        let inherited = MotionScale::current();
+        let scale = inherited.provide();
+        effect(move || {
+            let reduced = registry.with(|state| state.reduced_motion);
+            scale.set_if_changed(if reduced { MotionScale::None } else { inherited });
+        });
         let size = InterfaceSize::install(DEFAULT_INTERFACE_SIZE);
         if let Some(saved) = registry.with(|state| state.interface_size) {
             size.set(saved);
@@ -137,12 +147,14 @@ impl DesktopApp {
             agents,
             fleet,
             sidebar,
+            sidebar_entry: (motion(0.0), motion(1.0)),
             views: stored(HashMap::new()),
             modal: signal(None),
             platform,
             clock: stored(clock),
             restore: stored(registry.with(|state| state.last_selected.clone())),
             window: window_handle(),
+            toasts,
             scope: Scope::new(),
         };
         app.observe();
@@ -175,7 +187,10 @@ impl DesktopApp {
         let selected = memo(move || self.threads.selected());
         let root = view! {
             <div test_id="desktop" relative size_full flex bg=Role::Canvas text_color=Role::Text font=UI_FONT body>
-                <dynamic>{(!collapsed.get()).then(|| self.sidebar.view())}</dynamic>
+                <dynamic>{(!collapsed.get()).then(|| {
+                    let (slide, fade) = self.sidebar_entry;
+                    view! { <div h_full flex_none flex translate_x=slide opacity=fade>{self.sidebar.view()}</div> }
+                })}</dynamic>
                 <div test_id="main" flex_1 min_w=0.0 h_full>
                     <dynamic>{match selected.get() {
                         Some(thread) => untrack(|| self.view_of(thread).view(collapsed)).into_any(),
@@ -183,6 +198,7 @@ impl DesktopApp {
                     }}</dynamic>
                 </div>
                 <dynamic>{self.modal.get().map(|modal| untrack(|| self.render_modal(modal)))}</dynamic>
+                {self.toasts}
             </div>
         };
         InterfaceSize::current().bind(self.bind(root))
@@ -426,6 +442,14 @@ impl DesktopApp {
     }
 
     fn toggle_sidebar(self) {
+        let opening = self.registry.with_untracked(|state| state.sidebar_collapsed);
+        if opening {
+            let (slide, fade) = self.sidebar_entry;
+            slide.set(-SIDEBAR_ENTRY_SLIDE);
+            fade.set(0.0);
+            slide.animate_to(0.0, Pace::Enter);
+            fade.animate_to(1.0, Pace::Enter);
+        }
         self.registry.update(|state| state.sidebar_collapsed.toggle());
     }
 
@@ -452,7 +476,7 @@ impl DesktopApp {
                 view! {
                     <backdrop test_id="switcher-backdrop" align_top on_dismiss={move || self.close_modal()}>
                         <search_picker test_id="switcher" handle material={Material::Glass} searchable="Search threads…"
-                                       empty="No matching threads" footer=FOOTER w={px(MODAL_WIDTH)}
+                                       empty="No matching threads" footer={key_hints([("↑↓", "Move"), ("↵", "Open"), ("Esc", "Close")])} w={px(MODAL_WIDTH)}
                                        h={px(PICKER_LIST_HEIGHT)}/>
                     </backdrop>
                 }
@@ -492,7 +516,7 @@ fn auto_add_agent(mut agents: Agents, platform: &dyn Platform, registry: Registr
 
 fn no_thread(collapsed: bool) -> impl View {
     let header = collapsed.then(|| {
-        view! { <div top_bar h=HEADER_HEIGHT pr=GUTTER>{toggle_button(false)}</div> }
+        view! { <div top_bar h=HEADER_HEIGHT pr=PANEL_GUTTER>{toggle_button(false)}</div> }
     });
     view! {
         <div size_full flex col>
@@ -505,6 +529,6 @@ fn no_thread(collapsed: bool) -> impl View {
     }
 }
 
-const FOOTER: &str = "↑↓ Move    ↵ Open    Esc Close";
+const SIDEBAR_ENTRY_SLIDE: f32 = Space::X6.px();
 const TURN_FINISHED: &str = "The agent finished its turn";
 const NEEDS_INPUT: &str = "The agent needs your input";
