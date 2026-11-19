@@ -17,7 +17,11 @@ pub struct Cli {
     )]
     pub listen: SocketAddr,
 
-    #[arg(long, env = "FOXFIRE_RELAY_CWD", help = "The workspace the agent works in. Defaults to the current directory")]
+    #[arg(
+        long,
+        env = "FOXFIRE_RELAY_CWD",
+        help = "The workspace the agent works in. Defaults to the current directory"
+    )]
     pub cwd: Option<PathBuf>,
 
     #[arg(required = true, last = true, help = "The agent's command line, after `--`")]

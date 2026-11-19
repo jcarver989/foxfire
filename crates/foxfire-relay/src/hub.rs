@@ -137,7 +137,7 @@ impl Hub {
             ("session/resume", Some(session)) => self.on_client_resume_session(client, request, session),
             ("session/close", Some(session)) => self.on_client_close_session(client, request, session),
             ("session/set_config_option", Some(session)) => {
-                self.forward_client_request(client, request, ClientRequestKind::SetSessionConfigOption(session))
+                self.forward_client_request(client, request, ClientRequestKind::SetSessionConfigOption(session));
             }
             ("_aether/workspace_status", _) => {
                 if let Some(connected) = self.clients.get(&client) {
