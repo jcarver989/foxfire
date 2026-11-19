@@ -35,10 +35,14 @@
         "workspace.package.repository",
         "workspace.package.rust-version",
         "workspace.lints",
-        "profile.dev"
+        "profile.dev",
+        "profile.dist"
       ]
     },
     "clippy.toml": {
+      "kind": "managed"
+    },
+    "dist-workspace.toml": {
       "kind": "managed"
     },
     "justfile": {

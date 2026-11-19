@@ -1,6 +1,6 @@
 use framer::Project;
 use framer::github::Step;
-use framer_presets::{Ci, Rust, RustMonorepo, Rustfmt, Workspace};
+use framer_presets::{Ci, Dist, Release, Rust, RustMonorepo, Rustfmt, Workspace};
 use std::process::ExitCode;
 
 fn main() -> ExitCode {
@@ -15,7 +15,14 @@ fn main() -> ExitCode {
             .ci(Ci::new().setup(
                 Step::run("sudo apt-get update && sudo apt-get install --yes libfontconfig1-dev libxkbcommon-x11-dev mesa-vulkan-drivers")
                     .name("Install system libraries"),
-            )),
+            ))
+            .release(
+                Release::new().dist(
+                    Dist::new()
+                        .set("dependencies.apt.libfontconfig1-dev", "*")
+                        .set("dependencies.apt.libxkbcommon-x11-dev", "*"),
+                ),
+            ),
     );
     project.synth()
 }

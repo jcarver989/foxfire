@@ -40,6 +40,18 @@ framer:
 # Check generated files are up to date
 framer-check:
     cargo run --quiet --locked --manifest-path .framer/Cargo.toml -- --check
+
+# Preview what dist will build for the next release
+dist-plan:
+    dist plan
+
+# Regenerate the release workflow from dist-workspace.toml
+dist-generate:
+    dist generate
+
+# Check the release workflow matches dist-workspace.toml
+dist-check:
+    dist generate --check
 # framer:end rust-monorepo
 
 # Run the terminal UI against an ACP agent

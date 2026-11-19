@@ -37,6 +37,15 @@ name = "desktop"
 path = "tests/desktop/main.rs"
 required-features = ["testing"]
 
+[package.metadata.dist]
+dist = true
+
+# dist would otherwise expect the `fake-acp-agent` test fixture, which release builds don't compile.
+[package.metadata.dist.binaries]
+aarch64-apple-darwin = ["foxfire-desktop"]
+aarch64-unknown-linux-gnu = ["foxfire-desktop"]
+x86_64-unknown-linux-gnu = ["foxfire-desktop"]
+
 [lints]
 workspace = true
 

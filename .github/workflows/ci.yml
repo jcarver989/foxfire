@@ -84,3 +84,13 @@ jobs:
       - name: Install tools
         uses: jdx/mise-action@v5.2.0
       - run: just framer-check
+  dist:
+    name: Release workflow
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+      - name: Install tools
+        uses: jdx/mise-action@v5.2.0
+      - run: just dist-check

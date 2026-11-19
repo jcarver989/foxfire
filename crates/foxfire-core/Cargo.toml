@@ -30,6 +30,9 @@ testing = ["foxfire-acp/testing"]
 all-features = true
 rustdoc-args = ["--cfg", "docsrs"]
 
+[package.metadata.dist]
+dist = false
+
 [lints]
 workspace = true
 
