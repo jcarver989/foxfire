@@ -13,3 +13,6 @@ install-updater = false
 [dist.dependencies.apt]
 libfontconfig1-dev = "*"
 libxkbcommon-x11-dev = "*"
+
+[dist.github-custom-runners]
+aarch64-apple-darwin = "macos-15"
