@@ -2538,6 +2538,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "foxfire-docker"
+version = "0.1.0"
+dependencies = [
+ "clankerdiff-git",
+ "clap",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror 2.0.21",
+ "uuid",
+]
+
+[[package]]
 name = "foxfire-relay"
 version = "0.1.0"
 dependencies = [

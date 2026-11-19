@@ -1,0 +1,30 @@
+{
+  "remotes": [
+    {
+      "name": "foxfire",
+      "dir": "~/code/foxfire",
+      "env": { "PATH": "/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin" },
+      "list": ["~/.cargo/bin/foxfire-docker", "list", "$NAME"],
+      "launch": ["~/.cargo/bin/foxfire-docker", "launch", "$NAME", "--env-file", "$HOME/.foxfire/agent.env"],
+      "suspend": ["docker", "container", "stop", "$ID"],
+      "resume": ["docker", "container", "start", "$ID"],
+      "stop": ["~/.cargo/bin/foxfire-docker", "stop", "$NAME", "$ID"],
+      "logs": ["docker", "container", "logs", "$ID"],
+      "shell": ["docker", "container", "exec", "--interactive", "--tty", "$ID", "bash"],
+      "acp": { "websocket": ["~/.cargo/bin/foxfire-docker", "endpoint", "$NAME", "$ID"] }
+    },
+    {
+      "name": "rouge",
+      "dir": "~/code/rouge",
+      "env": { "PATH": "/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin" },
+      "list": ["~/.cargo/bin/foxfire-docker", "list", "$NAME"],
+      "launch": ["~/.cargo/bin/foxfire-docker", "launch", "$NAME", "--env-file", "$HOME/.foxfire/agent.env"],
+      "suspend": ["docker", "container", "stop", "$ID"],
+      "resume": ["docker", "container", "start", "$ID"],
+      "stop": ["~/.cargo/bin/foxfire-docker", "stop", "$NAME", "$ID"],
+      "logs": ["docker", "container", "logs", "$ID"],
+      "shell": ["docker", "container", "exec", "--interactive", "--tty", "$ID", "bash"],
+      "acp": { "websocket": ["~/.cargo/bin/foxfire-docker", "endpoint", "$NAME", "$ID"] }
+    }
+  ]
+}
