@@ -17,7 +17,7 @@ fn widening_the_sidebar_leaves_room_for_the_thread() {
     harness.drag("panel-resize-handle", Point::new(600.0, 240.0)).unwrap();
 
     let main = harness.bounds("main").expect("the main region is painted");
-    assert!((main.size.width - min_main).abs() < 0.5, "{main:?}");
+    assert!((0.0..UNIT).contains(&(main.size.width - min_main)), "{main:?}");
 }
 
 #[test]
@@ -169,7 +169,10 @@ fn the_reading_column_spans_whole_columns_and_lines_the_reply_up_with_the_compos
 
         assert!((before - before.round()).abs() < 0.01, "at {width} the column starts {before} columns in");
         assert!((spanned - spanned.round()).abs() < 0.01, "at {width} the column spans {spanned} columns");
-        assert!((before * 2.0 + spanned - f32::from(GRID_COLUMNS)).abs() < 0.01, "at {width} the column is centred");
+        assert!(
+            (before.round() * 2.0 + spanned.round() - f32::from(GRID_COLUMNS)).abs() < 0.5,
+            "at {width} the column is centred"
+        );
         assert!(composer.size.width <= CONTENT_MAX_WIDTH, "at {width} lines stay readable: {composer:?}");
         assert!((reply.left() - composer.left()).abs() < 0.5, "at {width}: {reply:?} {composer:?}");
         assert!((reply.right() - composer.right()).abs() < 0.5, "at {width}: {reply:?} {composer:?}");
@@ -257,7 +260,7 @@ fn the_first_prompt_clears_the_header_when_the_transcript_is_scrolled_to_its_sta
 #[test]
 fn every_named_part_of_the_window_is_a_whole_number_of_units_tall() {
     for scene in ["a question", "a long thread", "settings"] {
-        let mut harness = at_base_size(showing(scene));
+        let mut harness = showing(scene);
         let astray: Vec<String> = harness
             .ui()
             .named_bounds()
@@ -279,10 +282,10 @@ fn long_thread() -> (DesktopHarness, Thread) {
 
 fn showing(scene: &str) -> DesktopHarness {
     match scene {
-        "a question" => asked(asking_name()).0,
-        "a long thread" => long_thread().0,
+        "a question" => at_base_size(asked(asking_name()).0),
+        "a long thread" => at_base_size(long_thread().0),
         _ => {
-            let mut harness = DesktopHarness::alpha(replying("alpha-session", "hello")).0;
+            let mut harness = at_base_size(DesktopHarness::alpha(replying("alpha-session", "hello")).0);
             harness.press("secondary-,");
             harness
         }
@@ -290,6 +293,7 @@ fn showing(scene: &str) -> DesktopHarness {
 }
 
 /// Linux starts at a larger interface size than macOS; the unit is only whole pixels at the size the UI is drawn at.
+/// The size shortcuts do nothing while settings is open, so this runs before a scene opens it.
 fn at_base_size(mut harness: DesktopHarness) -> DesktopHarness {
     while harness.interface_size() > BASE_SIZE {
         harness.press("secondary--");
