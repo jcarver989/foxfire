@@ -246,7 +246,7 @@ impl RowKey {
     }
 }
 
-pub(super) fn project_name(root: &Path) -> String {
+pub(crate) fn project_name(root: &Path) -> String {
     root.file_name().map_or_else(|| root.display().to_string(), |name| name.to_string_lossy().into_owned())
 }
 

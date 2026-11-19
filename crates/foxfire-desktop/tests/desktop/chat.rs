@@ -5,6 +5,7 @@ use foxfire_acp::testing::{FakeAgent, FakeAgentRequests};
 use foxfire_core::testing::TestWorkspace;
 use foxfire_desktop::testing::{DesktopHarness, DesktopHarnessBuilder};
 use foxfire_desktop::threads::{Thread, ThreadStatus};
+use rouge::widgets::tokens::MotionScale;
 use std::path::PathBuf;
 
 #[test]
@@ -122,10 +123,26 @@ fn each_thread_keeps_its_own_transcript_and_draft_across_selection() {
     assert_eq!(texts(beta), ["two", "from beta"]);
 }
 
+#[test]
+fn a_light_travels_round_the_composer_while_the_agent_works_unless_motion_is_off() {
+    for (motion, lit) in [(MotionScale::Full, true), (MotionScale::None, false)] {
+        let (mut harness, thread, _requests) = working(DesktopHarnessBuilder::default().motion(motion), "/alpha");
+        assert_eq!(thread.status(), ThreadStatus::Running);
+        assert_eq!(harness.bounds("busy-rim").is_some(), lit, "{motion:?}");
+
+        harness.deactivate();
+        assert!(harness.bounds("busy-rim").is_none(), "a window in the background is still under {motion:?}");
+    }
+}
+
 fn working_thread(cwd: impl Into<PathBuf>) -> (DesktopHarness, Thread, FakeAgentRequests) {
+    working(DesktopHarnessBuilder::default(), cwd)
+}
+
+fn working(builder: DesktopHarnessBuilder, cwd: impl Into<PathBuf>) -> (DesktopHarness, Thread, FakeAgentRequests) {
     let cwd = cwd.into();
     let (agent, mut requests) = FakeAgent::new("alpha-session").hold::<PromptRequest>().capture();
-    let (mut harness, thread) = DesktopHarnessBuilder::default().agent(&cwd, agent).start(&cwd);
+    let (mut harness, thread) = builder.agent(&cwd, agent).start(&cwd);
     harness.type_text("work forever");
     harness.press("enter");
     harness.next(&mut requests.prompt);

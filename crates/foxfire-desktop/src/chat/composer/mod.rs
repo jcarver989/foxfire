@@ -10,8 +10,8 @@ use crate::threads::{Thread, ThreadEvent, ThreadStatus};
 use crate::ui::tokens::{COMPOSER_POPUP_HEIGHT, ICON_SIZE, ROW_HEIGHT, Radius, Space};
 use crate::ui::typography::READING;
 use crate::ui::{
-    Hint, Icon, IconName, Material, MaterialExt, PickerItem, SearchPickerEvent, SearchPickerHandle, Theme, UI_FONT,
-    icon_button, picker_closed, search_picker,
+    BusyExt, IconName, Material, MaterialExt, PickerItem, SearchPickerEvent, SearchPickerHandle, UI_FONT, icon_button,
+    picker_closed, popping, presence, search_picker,
 };
 use completion::{CompletionItem, CompletionMenu, active_token};
 use foxfire_core::composer::attachment::{AttachedFile, PromptAttachment, attach_missing, classify_paths};
@@ -24,8 +24,8 @@ use foxfire_core::session_model::WorkspaceAccess;
 use pasted::PastedImages;
 use queued::queued_prompts;
 use rouge::core::{
-    AnyView, ClipboardMedia, Cursor, FocusHandle, Key, KeyEvent, Modifiers, Role, Styled, View, div, dynamic, editable,
-    focus_handle, px, view,
+    AnyView, ClipboardMedia, Cursor, FocusHandle, FocusPolicy, Key, KeyEvent, Modifiers, Role, Styled, View, div,
+    dynamic, editable, focus_handle, px, view, window_focused,
 };
 use rouge::reactive::{Callback, Scope, Signal, Stored, batch, effect, memo, signal, stored, untrack};
 use std::ops::Range;
@@ -143,18 +143,21 @@ impl Composer {
             memo(move || thread.with_core(|core| core.queued_prompts().to_vec()).filter(|prompts| !prompts.is_empty()));
         let completion = memo(move || self.completion());
         let search = memo(move || self.popup.with(|popup| matches!(popup, Popup::Search(_))));
+        let focused = window_focused();
+        let working = memo(move || thread.status() == ThreadStatus::Running && focused.get());
         let editor = view! {
             <div w_full flex col gap=Space::X1 focusable_glass={move || self.focus.is_focused()}>
                 <dynamic>{self.attachments()}</dynamic>
                 {self.input()}
                 {self.actions()}
             </div>
-        };
+        }
+        .busy(move || working.get(), Radius::Floating);
         view! {
             <div test_id="composer" mt=Space::X2 flex col gap=Space::X2>
-                <dynamic>{queued.get().map(|prompts| queued_prompts(&prompts))}</dynamic>
-                <dynamic>{search.get().then(|| untrack(|| self.search_view()))}</dynamic>
-                <dynamic>{completion.get().map(|menu| untrack(|| self.completion_view(&menu)))}</dynamic>
+                {popping(queued, |prompts| queued_prompts(&prompts))}
+                {presence(move || search.get(), move || untrack(|| self.search_view()))}
+                {popping(completion, move |menu| self.completion_view(&menu))}
                 {editor}
             </div>
         }
@@ -207,10 +210,10 @@ impl Composer {
                 <div flex_1/>
                 <dynamic>{
                     if running.get() && empty.get() {
-                        round_button("stop", IconName::Square, "Stop (Esc)", true, Callback::from(move || self.cancel()))
+                        round_button("stop", IconName::Square, ("Stop", "escape"), true, Callback::from(move || self.cancel()))
                     } else {
                         let filled = !empty.get();
-                        round_button("send", IconName::ArrowUp, "Send", filled, Callback::from(move || self.send()))
+                        round_button("send", IconName::ArrowUp, ("Send", "enter"), filled, Callback::from(move || self.send()))
                     }
                 }</dynamic>
             </div>
@@ -546,31 +549,29 @@ fn running(status: ThreadStatus) -> bool {
     matches!(status, ThreadStatus::Running | ThreadStatus::Background | ThreadStatus::NeedsInput)
 }
 
-fn round_button(id: &'static str, icon: IconName, label: &'static str, filled: bool, on_click: Callback) -> AnyView {
-    let theme = Theme::current();
-    let (background, foreground) =
-        if filled { (Role::Text, Role::Canvas) } else { (Role::SurfaceHover, Role::TextMuted) };
-    let background = theme.color(background);
-    let hovered = signal(false);
-    view! {
-        <div test_id=id flex_none size=ROW_HEIGHT flex items_center justify_center rounded=Radius::Full
-             bg={move || {
-                 let color = background.get();
-                 if hovered.get() { color.with_alpha(color.a * HOVER_OPACITY) } else { color }
-             }}
-             cursor=Cursor::Pointer preserve_focus
-             on_hover={move |inside| {
-                 hovered.set_if_changed(inside);
-             }}
-             on_click={move |event| {
-                 event.stop_propagation();
-                 on_click.call();
-             }}>
-            {Icon::new(icon, foreground)}
-        </div>
-    }
-    .tooltip(label)
-    .into_any()
+fn round_button(
+    id: &'static str,
+    icon: IconName,
+    (label, keys): (&'static str, &'static str),
+    filled: bool,
+    on_click: Callback,
+) -> AnyView {
+    let (background, hovered, foreground) = if filled {
+        (Role::Text, Role::TextSecondary, Role::Canvas)
+    } else {
+        (Role::SurfaceHover, Role::SurfaceSelected, Role::TextMuted)
+    };
+    let button = icon_button(icon, label.to_owned())
+        .test_id(id)
+        .size(ROW_HEIGHT)
+        .rounded(Radius::Full)
+        .bg(background)
+        .color(foreground)
+        .hover(move |style| style.bg(hovered))
+        .shortcut(chord(keys))
+        .focus_policy(FocusPolicy::None)
+        .on_click(on_click);
+    div().flex_none().preserve_focus().child(button).into_any()
 }
 
 fn mention_text(file: &PromptAttachment) -> String {
@@ -597,6 +598,5 @@ fn floor_boundary(text: &str, index: usize) -> usize {
 
 const MIN_ROWS: usize = 1;
 const MAX_ROWS: usize = 12;
-const HOVER_OPACITY: f32 = 0.85;
 const SEARCH_PROMPTS_KEYS: &str = "secondary-r";
 const PLACEHOLDER: &str = "Message the agent…  / for commands, @ for files";

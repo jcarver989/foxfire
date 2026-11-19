@@ -13,13 +13,13 @@ fn renaming_a_thread_retitles_its_row_and_header_until_the_name_is_cleared() {
 
     assert!(harness.bounds("rename-input").is_none(), "Enter ends the edit");
     assert!(harness.shows("thread-row-0-title", "Renamed"));
-    assert!(harness.shows("thread-title", "Renamed"));
+    assert!(harness.shows("thread-path-current", "Renamed"));
 
     choose(&mut harness, "thread-row-0", "menu-item-Rename");
     harness.press("backspace enter");
 
     assert!(harness.shows("thread-row-0-title", "first prompt"));
-    assert!(harness.shows("thread-title", "first prompt"));
+    assert!(harness.shows("thread-path-current", "first prompt"));
 }
 
 #[test]

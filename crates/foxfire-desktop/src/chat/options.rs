@@ -1,5 +1,5 @@
 use crate::threads::Thread;
-use crate::ui::tokens::{COMPOSER_POPUP_HEIGHT, ICON_SIZE_SMALL, Space};
+use crate::ui::tokens::{COMPOSER_POPUP_HEIGHT, ICON_SIZE_SMALL, Space, UNIT};
 use crate::ui::{
     Icon, IconName, Material, PickerItem, SearchPickerHandle, UiStyles, list_row, picker_closed, search_picker,
     selection, with_middots,
@@ -89,7 +89,7 @@ impl SessionOptions {
 }
 
 const SEARCH_THRESHOLD: usize = 8;
-const PICKER_WIDTH: f32 = 288.0;
+const PICKER_WIDTH: f32 = 72.0 * UNIT;
 
 fn category_icon(option: &LocalConfigOption) -> Option<IconName> {
     match option.category.as_ref()? {

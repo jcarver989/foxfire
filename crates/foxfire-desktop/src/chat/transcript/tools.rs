@@ -2,7 +2,10 @@ use super::code::highlights;
 use super::groups::{GroupKind, Work};
 use crate::ui::tokens::{HAIRLINE, ICON_SIZE_SMALL, ROW_HEIGHT, Space};
 use crate::ui::typography::BODY_STRONG;
-use crate::ui::{ButtonVariant, CODE_FONT, ControlSize, FoxfireState, Hint, Icon, IconName, UiStyles, button, foxfire};
+use crate::ui::{
+    ButtonVariant, CODE_FONT, ControlSize, FoxfireState, Hint, Icon, IconName, UiStyles, button, foxfire, indent,
+    separator,
+};
 use agent_client_protocol::v2::schema as acp;
 use clankerdiff_core::{DiffDocument, LineStat};
 use clankerdiff_rouge::PatchPreview;
@@ -106,7 +109,7 @@ pub(crate) fn fold_header(
     };
     let label = std::iter::once(done).chain(work.details()).collect::<Vec<_>>().join(" · ");
     let chevron = if expanded { IconName::ChevronDown } else { IconName::ChevronRight };
-    let hairline = || view! { <div flex_1 border_t=HAIRLINE border_color=Role::BorderSubtle/> };
+    let hairline = || separator().flex_1().border_color(Role::BorderSubtle);
     let color = if failed { Role::Destructive } else { Role::TextMuted };
     view! {
         <div test_id={format!("turn-summary-{row}")} h=ROW_HEIGHT flex items_center gap=Space::X3 body text_color=color
@@ -306,7 +309,7 @@ impl ToolCard<'_> {
             let hidden = tool_calls.len().saturating_sub(SUB_AGENT_VISIBLE_TOOLS);
             if hidden > 0 {
                 rows.push(
-                    view! { <div pl=Space::X6><text muted>{format!("{hidden} earlier tool calls")}</text></div> }
+                    view! { <div pl={indent(SUB_AGENT_TOOL_DEPTH)}><text muted>{format!("{hidden} earlier tool calls")}</text></div> }
                         .into_any(),
                 );
             }
@@ -316,7 +319,7 @@ impl ToolCard<'_> {
                 let title = view! { <div flex_none><text>{title(tool)}</text></div> };
                 let [icon, title, summary] = tool_line(icon, title, self.summary(tool), failed);
                 rows.push(
-                    view! { <div pl=Space::X6 flex items_center gap=Space::X2 min_w=0.0>{icon}{title}{summary}</div> }
+                    view! { <div pl={indent(SUB_AGENT_TOOL_DEPTH)} flex items_center gap=Space::X2 min_w=0.0>{icon}{title}{summary}</div> }
                         .into_any(),
                 );
             }
@@ -326,6 +329,8 @@ impl ToolCard<'_> {
 }
 
 const SUB_AGENT_VISIBLE_TOOLS: usize = 3;
+
+const SUB_AGENT_TOOL_DEPTH: usize = 2;
 
 const SECTION_MAX_LINES: usize = 200;
 

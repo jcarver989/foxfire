@@ -2,6 +2,8 @@ use foxfire_desktop::AppearanceMode;
 use foxfire_desktop::registry::STATE_FILE;
 use foxfire_desktop::testing::{DesktopHarness, DesktopHarnessBuilder};
 use rouge::core::Point;
+use rouge::core::testing::TestError;
+use rouge::widgets::tokens::MotionScale;
 use std::fs;
 
 #[test]
@@ -13,6 +15,48 @@ fn the_shortcut_opens_settings_and_escape_closes_it() {
 
     harness.press("escape");
     assert!(harness.bounds("settings").is_none());
+}
+
+#[test]
+fn reduced_motion_stills_the_panels_opened_after_it_as_well_as_the_activity_marks() -> Result<(), TestError> {
+    for reduced in [false, true] {
+        let mut harness = DesktopHarnessBuilder::default().motion(MotionScale::Full).build();
+        harness.registry().update(|state| state.reduced_motion = reduced);
+        harness.advance();
+
+        harness.press("secondary-,");
+        harness.ui().draw()?;
+
+        let frames = harness.ui().compositor_frames(1.0)?;
+        assert_eq!(frames == 0, reduced, "Settings opened over {frames} frames with reduced motion {reduced}");
+    }
+    Ok(())
+}
+
+#[test]
+fn the_interface_size_steps_and_is_typed_from_settings() -> Result<(), TestError> {
+    let mut harness = DesktopHarnessBuilder::default().build();
+    let size = harness.interface_size();
+    harness.press("secondary-,");
+
+    harness.click("interface-size-input")?;
+    harness.press("up");
+    assert_eq!(harness.interface_size(), size + 1.0);
+    assert_eq!(harness.text("interface-size-input"), Some(format!("{}", size + 1.0)));
+
+    harness.press("down down");
+    assert_eq!(harness.interface_size(), size - 1.0);
+
+    harness.press("cmd-a");
+    harness.type_text("20");
+    harness.press("enter");
+    assert_eq!(harness.interface_size(), 20.0);
+
+    harness.press("cmd-a");
+    harness.type_text("400");
+    harness.press("enter");
+    assert_eq!(harness.text("interface-size-input").as_deref(), Some("32"), "a size past the largest settles on it");
+    Ok(())
 }
 
 #[test]
@@ -140,7 +184,7 @@ fn reduced_motion_is_live_and_remembered_after_restart() {
         DesktopHarnessBuilder::default().state_dir(dir.path()).agent("/alpha", agent).start("/alpha");
     let _turn = harness.start_turn(thread, &mut requests, "work");
     harness.press("secondary-,");
-    harness.click("motion-reduced").unwrap();
+    harness.click("reduce-motion").unwrap();
     harness.press("escape");
     harness.ui().run(2.0);
 
@@ -152,7 +196,7 @@ fn reduced_motion_is_live_and_remembered_after_restart() {
     let mut harness = DesktopHarnessBuilder::default().state_dir(dir.path()).build();
     assert!(harness.registry().with(|state| state.reduced_motion));
     harness.press("secondary-,");
-    harness.click("motion-full").unwrap();
+    harness.click("reduce-motion").unwrap();
     assert!(!harness.registry().with(|state| state.reduced_motion));
 }
 

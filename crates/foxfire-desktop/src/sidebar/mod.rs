@@ -1,7 +1,7 @@
 mod listing;
 mod row;
 
-pub(crate) use listing::SwitcherEntry;
+pub(crate) use listing::{SwitcherEntry, project_name};
 
 use crate::agents::{AGENTS_FILE, AgentProfile, Catalogs, KNOWN_AGENTS, KnownAgent};
 use crate::app::{OpenSettings, OpenThreadSwitcher, SETTINGS_KEYS, SWITCHER_KEYS, TOGGLE_SIDEBAR_KEYS, chord};
@@ -13,13 +13,13 @@ use crate::remotes::{Action, Fleet, RemoteSpec};
 use crate::sessions::SessionKey;
 use crate::tasks::spawn_in;
 use crate::threads::{Thread, ThreadManager};
-use crate::ui::tokens::{GUTTER, HEADER_HEIGHT, Space};
+use crate::ui::tokens::{HEADER_HEIGHT, PANEL_GUTTER, Pace, Space, UNIT};
 use crate::ui::{
-    Icon, IconName, ListRow, MenuItem, Side, StyledExt, Toasts, UiStyles, context_menu, dispatch, icon_button,
-    icon_slot, list_row, resizable_panel, section_header, toast, tree_row,
+    Icon, IconName, ListRow, MenuItem, NoticeTone, Side, StyledExt, Toasts, UiStyles, context_menu, dispatch,
+    icon_button, icon_slot, list_row, resizable_panel, section_header, toast, tree_row,
 };
 use foxfire_core::fs::write_json_atomic;
-use listing::{Listing, RemoteSection, Row, Section, project_name};
+use listing::{Listing, RemoteSection, Row, Section};
 use rouge::core::{AnyView, Div, Role, Styled, View, div, dynamic, each, scroll, show, text, view, window_size};
 use rouge::reactive::{Callback, Memo, ReadSignal, Scope, Signal, Stored, effect, memo, signal, stored, untrack};
 use serde_json::json;
@@ -28,7 +28,7 @@ use std::path::{Path, PathBuf};
 use std::rc::Rc;
 use std::sync::Arc;
 
-pub const MIN_MAIN_WIDTH: f32 = 320.0;
+pub const MIN_MAIN_WIDTH: f32 = 80.0 * UNIT;
 
 #[derive(Clone, Copy)]
 pub struct Sidebar {
@@ -50,13 +50,7 @@ struct Sources {
     registry: Registry,
     fleet: Fleet,
     clock: Stored<Arc<dyn Clock>>,
-    rename: Signal<Option<Rename>>,
-}
-
-#[derive(Clone, PartialEq)]
-struct Rename {
-    session_id: SessionKey,
-    value: Signal<String>,
+    rename: Signal<Option<SessionKey>>,
 }
 
 pub(crate) fn toggle_button(open: bool) -> AnyView {
@@ -134,7 +128,7 @@ impl Sidebar {
         let on_resize = move |requested: f32| {
             let available = window.get_untracked().width;
             let widest = (available - MIN_MAIN_WIDTH).clamp(MIN_SIDEBAR_WIDTH, MAX_SIDEBAR_WIDTH);
-            let chosen = requested.min(widest);
+            let chosen = (requested.min(widest) / UNIT).floor() * UNIT;
             width.set_if_changed(chosen);
             self.registry.update(|state| state.sidebar_width = Some(chosen));
         };
@@ -142,7 +136,7 @@ impl Sidebar {
         view! {
             <resizable_panel test_id="sidebar" edge=Side::Left size=width min_size=MIN_SIDEBAR_WIDTH
                              max_size=MAX_SIDEBAR_WIDTH on_resize=on_resize on_reset=on_reset h_full flex col bg=Role::Chrome>
-                <div top_bar h=HEADER_HEIGHT pr=GUTTER gap=Space::X1>
+                <div top_bar h=HEADER_HEIGHT pr=PANEL_GUTTER gap=Space::X1>
                     <div flex_1/>
                     <icon_button test_id="search-threads" icon=IconName::Search label="Search threads"
                                  shortcut={chord(SWITCHER_KEYS)} on_click={|| dispatch(OpenThreadSwitcher)}/>
@@ -184,7 +178,12 @@ impl Sidebar {
     fn add_agent(self, root: PathBuf, agent: KnownAgent) {
         match self.agents.add(agent) {
             Ok(()) => self.new_thread_in(root),
-            Err(error) => tracing::warn!(%error, agent = agent.name, "could not add an agent"),
+            Err(error) => {
+                tracing::warn!(%error, agent = agent.name, "could not add an agent");
+                self.toasts.show(
+                    toast(format!("Couldn't add {}", agent.name)).detail(error.to_string()).tone(NoticeTone::Error),
+                );
+            }
         }
     }
 
@@ -253,16 +252,14 @@ impl Sidebar {
         }
     }
 
-    fn start_rename(self, session_id: SessionKey, title: &str) {
-        let value = self.scope.run(|| signal(title.to_owned()));
-        self.sources.rename.set(Some(Rename { session_id, value }));
+    fn start_rename(self, session_id: SessionKey) {
+        self.sources.rename.set(Some(session_id));
     }
 
-    fn commit_rename(self) {
-        if let Some(Rename { session_id, value }) = self.sources.rename.get_untracked() {
-            let title = value.get_untracked();
+    fn commit_rename(self, title: &str) {
+        if let Some(session_id) = self.sources.rename.get_untracked() {
             self.sources.rename.set(None);
-            self.registry.update(|state| state.rename(session_id, &title));
+            self.registry.update(|state| state.rename(session_id, title));
         }
     }
 
@@ -503,7 +500,7 @@ impl Sidebar {
         let leading = view! { <div test_id=icon_id flex>{Icon::new(icon, muted)}</div> }.into_any();
         let row = view! {
             <tree_row test_id=id label expanded={!collapsed} leading=leading label_color=muted on_click=toggle on_toggle=toggle>
-                <div flex items_center opacity={move || if hovered.get() { 1.0 } else { 0.0 }}>
+                <div flex items_center opacity={move || if hovered.get() { 1.0 } else { 0.0 }} transition=Pace::Move>
                     <context_menu items dropdown><icon_button test_id=actions_id icon=IconName::Ellipsis label=actions_label/></context_menu>
                     {new_thread}
                 </div>
@@ -549,13 +546,7 @@ impl Sources {
         let now = self.clock.with(|clock| clock.now());
         self.registry.with(|state| {
             self.rename.with(|rename| {
-                read(&Listing {
-                    state,
-                    threads: self.threads,
-                    fleet: self.fleet,
-                    renaming: rename.as_ref().map(|rename| &rename.session_id),
-                    now,
-                })
+                read(&Listing { state, threads: self.threads, fleet: self.fleet, renaming: rename.as_ref(), now })
             })
         })
     }
@@ -571,9 +562,9 @@ struct Header {
     new_thread: AnyView,
 }
 
-const DEFAULT_SIDEBAR_WIDTH: f32 = 272.0;
-const MIN_SIDEBAR_WIDTH: f32 = 200.0;
-const MAX_SIDEBAR_WIDTH: f32 = 480.0;
+const DEFAULT_SIDEBAR_WIDTH: f32 = 68.0 * UNIT;
+const MIN_SIDEBAR_WIDTH: f32 = 50.0 * UNIT;
+const MAX_SIDEBAR_WIDTH: f32 = 120.0 * UNIT;
 
 const LOCAL: &str = "local";
 const CLOUD: &str = "cloud";

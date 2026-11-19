@@ -9,10 +9,10 @@ pub(crate) use message::reconnect_banner;
 use super::attachment::Attachment;
 use crate::platform::Platform;
 use crate::threads::{Thread, ThreadStatus};
-use crate::ui::tokens::{GUTTER, HEADER_HEIGHT, ROW_HEIGHT, SCROLLBAR_WIDTH, Space};
+use crate::ui::tokens::{CONTENT_MAX_WIDTH, GRID_COLUMNS, HAIRLINE, HEADER_HEIGHT, ROW_HEIGHT, SCROLLBAR_WIDTH, Space};
 use crate::ui::{
-    ActiveReviewTheme, Hint, Icon, IconName, Material, MaterialExt, StyledExt, UiStyles, empty_state,
-    vertical_scrollbar,
+    ActiveReviewTheme, IconName, Material, MaterialExt, UiStyles, column_grid, empty_state, grid_cell, icon_button,
+    reading_cell, reading_span, vertical_scrollbar,
 };
 use agent_client_protocol::v2::schema as acp;
 use clankerdiff_core::DiffDocument;
@@ -23,7 +23,7 @@ use foxfire_acp::conversation::{
 use groups::{Group, GroupKind, groups};
 use message::{error, full_diff, image_preview, message_actions, notice, prompt, reconnect_button, thinking_block};
 use rouge::core::{
-    Align, AnyView, Cursor, FocusHandle, KeyEvent, Rect, Role, RowKey, Styled, TextAlign, View, VirtualListHandle,
+    Align, AnyView, FocusHandle, KeyEvent, Rect, Role, RowKey, Styled, TextAlign, View, VirtualListHandle,
     WindowHandle, div, dynamic, focus_handle, px, show, text, view, virtual_list, virtual_list_handle, window_handle,
 };
 use rouge::markdown::MarkdownDocument;
@@ -44,6 +44,8 @@ pub(crate) struct Transcript {
     following: Signal<bool>,
     on_type: Callback<(String,)>,
     dock: Signal<Rect>,
+    gutter: Memo<f32>,
+    reading: Memo<u16>,
     unfolded: Signal<HashSet<Fold>>,
     preview: Signal<Option<Arc<[u8]>>>,
     full_diff: Signal<Option<ReviewHandle>>,
@@ -85,6 +87,7 @@ impl Transcript {
         thread: Thread,
         platform: Rc<dyn Platform>,
         dock: Signal<Rect>,
+        stage: Signal<Rect>,
         on_location: impl Fn(acp::ToolCallLocation) + 'static,
         on_type: impl Fn(String) + 'static,
     ) -> Self {
@@ -107,12 +110,21 @@ impl Transcript {
             let folds = unfolded.with(|unfolded| unfolded.iter().map(hash).fold(0, u64::wrapping_add));
             groups ^ folds
         });
+        let list = virtual_list_handle();
+        let scroll = list.scroll_state();
+        let gutter = memo(move || {
+            let overflows = scroll.with(|scroll| scroll.content.height > scroll.viewport.height + 0.5);
+            if overflows { SCROLLBAR_WIDTH } else { 0.0 }
+        });
+        let reading = memo(move || reading_span(stage.get().size.width - gutter.get(), CONTENT_MAX_WIDTH));
         let transcript = Self {
             thread,
-            list: virtual_list_handle(),
+            list,
             following: signal(true),
             on_type: Callback::from(on_type),
             dock,
+            gutter,
+            reading,
             unfolded,
             preview: signal(None),
             full_diff: signal(None),
@@ -148,6 +160,16 @@ impl Transcript {
         });
     }
 
+    /// The columns the reading column spans, for whatever shares the transcript's grid.
+    pub(crate) fn reading(self) -> Memo<u16> {
+        self.reading
+    }
+
+    /// The room the scrollbar takes beside the rows, which the grid leaves out.
+    pub(crate) fn gutter(self) -> Memo<f32> {
+        self.gutter
+    }
+
     pub(crate) fn view(self) -> impl View {
         let empty = memo(move || self.summary.with(|summary| summary.items.is_empty()));
         let close_preview = Callback::from(move || self.preview.set(None));
@@ -181,20 +203,18 @@ impl Transcript {
         .size_full();
         let following = self.following;
         let bottom_inset = move || px(dock.get().size.height);
-        let scroll = list.scroll_state();
+        let (reading, gutter) = (self.reading, self.gutter);
         let jump = move || {
+            let latest = move || {
+                following.set(true);
+                list.scroll_to_row(summary.with_untracked(|summary| summary.items.len()), Align::Bottom);
+            };
             view! {
-            <div test_id="jump-to-latest" flex_none h=ROW_HEIGHT px=Space::X3 flex items_center
-                 material=Material::GlassControl cursor=Cursor::Pointer
-                 on_click={move |event| {
-                     event.stop_propagation();
-                     following.set(true);
-                     list.scroll_to_row(summary.with_untracked(|summary| summary.items.len()), Align::Bottom);
-                 }}>
-                {Icon::new(IconName::ArrowDown, Role::TextSecondary)}
-            </div>
+                <div flex_none material=Material::GlassControl>
+                    <icon_button test_id="jump-to-latest" icon=IconName::ArrowDown label="Jump to latest" size=ROW_HEIGHT
+                                 on_click=latest/>
+                </div>
             }
-            .tooltip("Jump to latest")
         };
         view! {
             <div size_full flex>
@@ -202,14 +222,15 @@ impl Transcript {
                      on_key_down={move |event| self.type_into_composer(event)}>
                     {rows}
                     <div test_id="transcript-view" absolute left=0.0 right=0.0 top=HEADER_HEIGHT
-                         bottom=bottom_inset pb=FADE_HEIGHT px=GUTTER flex items_end
-                         pass_through>
-                        <div content_width flex justify_end pass_through>
-                            <show when={move || !following.get()}>{jump()}</show>
-                        </div>
+                         bottom=bottom_inset pb=FADE_HEIGHT flex items_end pass_through>
+                        <column_grid w_full pass_through>
+                            <reading_cell span=reading flex justify_end pass_through>
+                                <show when={move || !following.get()}>{jump()}</show>
+                            </reading_cell>
+                        </column_grid>
                     </div>
                 </div>
-                <show when={move || scroll.with(|scroll| scroll.content.height > scroll.viewport.height + 0.5)}>
+                <show when={move || gutter.get() > 0.0}>
                     <div test_id="transcript-scrollbar" relative flex_none w=SCROLLBAR_WIDTH h_full>
                         {vertical_scrollbar(list.scroll_state())}
                     </div>
@@ -299,11 +320,11 @@ impl Transcript {
             })
             .flatten()
         else {
-            return view! { <div h=px(1.0)/> }.into_any();
+            return view! { <div h=HAIRLINE/> }.into_any();
         };
         let (header, folded) = header.unwrap_or((None, false));
         if folded && header.is_none() {
-            return view! { <div h=px(1.0)/> }.into_any();
+            return view! { <div h=HAIRLINE/> }.into_any();
         }
         let hovered = signal(false);
         let content = (!folded).then(|| {
@@ -314,17 +335,27 @@ impl Transcript {
         let turn_header = header.is_some() && group.as_ref().is_some_and(|(group, _)| group.kind == GroupKind::Turn);
         let top = if index == 0 { HEADER_HEIGHT } else { 0.0 };
         let padding = match kind {
-            Kind::User => (24.0, 8.0),
+            Kind::User => (Space::X6.px(), Space::X2.px()),
             Kind::Tool if !turn_header => (0.0, 0.0),
             _ if group.is_some() && !turn_header => (0.0, 0.0),
-            _ => (8.0, 8.0),
+            _ => (Space::X2.px(), Space::X2.px()),
+        };
+        let reading = self.reading;
+        let cell = if kind == Kind::User {
+            view! {
+                <grid_cell span={move || reading.get() - 1} start={move || (GRID_COLUMNS - reading.get()) / 2 + 2}>
+                    {header}{content}
+                </grid_cell>
+            }
+        } else {
+            view! { <reading_cell span=reading>{header}{content}</reading_cell> }
         };
         view! {
-            <div test_id={format!("transcript-row-{index}")} w_full px=Space::X4 pt={padding.0 + top} pb=padding.1
+            <div test_id={format!("transcript-row-{index}")} w_full pt={padding.0 + top} pb=padding.1
                  on_hover={move |inside| {
                      hovered.set_if_changed(inside);
                  }}>
-                <div content_width>{header}{content}</div>
+                <column_grid>{cell}</column_grid>
             </div>
         }
         .into_any()
@@ -546,5 +577,5 @@ fn hash(value: &impl Hash) -> u64 {
     hasher.finish()
 }
 
-const FADE_HEIGHT: f32 = 24.0;
-const ROW_ESTIMATE: f32 = 48.0;
+const FADE_HEIGHT: f32 = Space::X6.px();
+const ROW_ESTIMATE: f32 = Space::X12.px();

@@ -4,7 +4,7 @@ mod kindling;
 pub mod tokens;
 
 pub(crate) use components::{
-    StyledExt, dispatch, hint, icon_slot, picker_closed, scroll_edge, selection, with_middots,
+    StyledExt, dispatch, hint, icon_slot, picker_closed, popping, presence, scroll_edge, selection, with_middots,
 };
 pub use foxfire::{FoxfireMotion, FoxfireState, foxfire};
 #[cfg(any(test, feature = "testing"))]

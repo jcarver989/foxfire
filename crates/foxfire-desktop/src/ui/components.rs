@@ -1,17 +1,16 @@
-use super::tokens::{BAR_HEIGHT, CONTENT_MAX_WIDTH, GUTTER, ICON_SIZE};
+use super::tokens::{BAR_HEIGHT, ICON_SIZE, MotionScale, PANEL_GUTTER, POP_SCALE, Pace};
 use super::{Hint, SearchPickerEvent, SelectionState};
 use rouge::core::{
-    AnyView, Div, Mask, MenuItem as WindowMenuItem, Point, Role, Styled, View, auto, div, text, view, window_handle,
+    AnyView, Div, Mask, MenuItem as WindowMenuItem, Point, Pose, Role, Styled, View, div, dynamic, show, text, view,
+    window_handle,
 };
+use rouge::reactive::{Memo, Signal, effect, signal, untrack, use_context};
 use std::any::Any;
+use std::rc::Rc;
 
 pub(crate) trait StyledExt: Styled {
-    fn content_width(self) -> Self {
-        self.w_full().max_w(CONTENT_MAX_WIDTH).mx(auto())
-    }
-
     fn top_bar(self) -> Self {
-        self.flex_none().h(BAR_HEIGHT).flex().items_center().pl(GUTTER)
+        self.flex_none().h(BAR_HEIGHT).flex().items_center().pl(PANEL_GUTTER)
     }
 }
 
@@ -24,6 +23,44 @@ pub(crate) fn scroll_edge(top: bool, solid: f32, reach: f32) -> Div {
     let edge = div().absolute().left(0.0).right(0.0).h(solid + reach).pass_through().bg(Role::Canvas).mask(fade);
     if top { edge.top(0.0) } else { edge.bottom(0.0) }
 }
+
+/// Shows what `render` makes of `value` while it has one, popping it in and out as a floating panel does.
+pub(crate) fn popping<T: Clone + PartialEq + 'static, U: View>(
+    value: Memo<Option<T>>,
+    render: impl Fn(T) -> U + 'static,
+) -> impl View {
+    let last = signal(value.get_untracked());
+    effect(move || {
+        if let Some(value) = value.get() {
+            last.set_if_changed(Some(value));
+        }
+    });
+    let render = Rc::new(render);
+    presence(
+        move || value.with(Option::is_some),
+        move || {
+            let render = render.clone();
+            dynamic(move || last.get().map(|value| untrack(|| render(value))))
+        },
+    )
+}
+
+/// Shows `children` while `when` holds, popping them in and out as a floating panel does. The pace is read again
+/// whenever the motion setting changes, so panels built before it changed follow it too.
+pub(crate) fn presence<T: View>(
+    when: impl Fn() -> bool + Clone + 'static,
+    children: impl Fn() -> T + Clone + 'static,
+) -> impl View {
+    let scale = use_context::<Signal<MotionScale>>();
+    dynamic(move || {
+        if let Some(scale) = scale {
+            scale.get();
+        }
+        show(when.clone(), children.clone()).enter(POPPED, Pace::Enter).exit(POPPED, Pace::Exit)
+    })
+}
+
+const POPPED: Pose = Pose::new().opacity(0.0).scale(POP_SCALE);
 
 pub(crate) fn icon_slot() -> Div {
     div().flex_none().size(ICON_SIZE).flex().items_center().justify_center()

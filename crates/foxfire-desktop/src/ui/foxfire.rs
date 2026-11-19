@@ -1,6 +1,6 @@
+use super::tokens::Pace;
 use rouge::core::{
-    Corners, Div, Fill, IntoProp, Keyframes, PaintRegion, Pose, Prop, Styled, Tween, View, div, each, switch,
-    window_focused,
+    Corners, Div, Fill, IntoProp, Keyframes, PaintRegion, Pose, Prop, Styled, View, div, each, switch, window_focused,
 };
 use rouge::reactive::{Signal, expect_context, memo, provide_context, signal, stored, use_context};
 use std::f32::consts::TAU;
@@ -49,7 +49,7 @@ pub fn foxfire<T>(size: f32, tint: impl IntoProp<Fill, T>, state: impl Fn() -> F
                         matrix(size, fill, |cell, column, row| moving(cell, state, size, column, row))
                     },
                 )
-                .enter(Pose::new().opacity(0.0), Tween::ms(FADE_IN_MS))
+                .enter(Pose::new().opacity(0.0), Pace::Enter)
                 .into_any()
             } else {
                 switch(
@@ -233,6 +233,5 @@ const PITCH: f32 = 1.5;
 const ROUNDNESS: f32 = 0.3;
 /// Unlit cells stay faintly visible so the grid reads as one mark rather than scattered specks.
 const UNLIT: f32 = 0.1;
-const FADE_IN_MS: f32 = 160.0;
 const WRITING_STEPS: u8 = 14;
 const TYPED: u8 = 10;

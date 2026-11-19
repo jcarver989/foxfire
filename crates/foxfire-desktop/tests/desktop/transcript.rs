@@ -54,14 +54,14 @@ fn a_prompt_or_reply_copies_its_text() {
 }
 
 #[test]
-fn a_prompt_is_frosted_glass_like_the_composer() {
+fn a_prompt_is_an_opaque_card_in_the_flow_of_the_page_not_another_pane_of_glass() {
     let (mut harness, thread) = DesktopHarness::alpha(replying("alpha-session", "ok"));
     let before = harness.ui().draw().unwrap().backdrop_passes;
 
     harness.send(thread, "go");
 
     assert!(harness.bounds("prompt-0").is_some());
-    assert_eq!(harness.ui().draw().unwrap().backdrop_passes, before + 1, "the prompt blurs what is behind it");
+    assert_eq!(harness.ui().draw().unwrap().backdrop_passes, before, "the prompt blurs nothing behind it");
 }
 
 #[test]

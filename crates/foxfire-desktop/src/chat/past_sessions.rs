@@ -4,14 +4,15 @@ use crate::history::{History, Listing, SavedSession};
 use crate::registry::Registry;
 use crate::target::SessionTarget;
 use crate::threads::{Thread, ThreadManager};
-use crate::ui::tokens::{COMPOSER_POPUP_HEIGHT, GUTTER, ICON_SIZE_SMALL, Pace, ROW_HEIGHT, Space};
+use crate::ui::tokens::{COMPOSER_POPUP_HEIGHT, ICON_SIZE_SMALL, PANEL_GUTTER, Pace, ROW_HEIGHT, Space};
 use crate::ui::{
-    FoxfireMotion, FoxfireState, Hint, Icon, IconName, Material, MaterialExt, PickerItem, SearchPickerEvent,
-    SearchPickerHandle, UiStyles, foxfire, list_row, search_picker, segment, segmented_control, selection,
+    FoxfireState, Hint, Icon, IconName, Material, MaterialExt, NoticeTone, PickerItem, SearchPickerEvent,
+    SearchPickerHandle, UiStyles, badge, foxfire, list_row, search_picker, segment, segmented_control, selection,
+    skeleton,
 };
 use chrono::{DateTime, Utc};
 use clankerdiff_core::format_age;
-use rouge::core::{AnyView, Role, Styled, View, div, dynamic, motion, pct, px, text, view};
+use rouge::core::{AnyView, Role, Styled, View, div, dynamic, motion, pct, px, show, text, view};
 use rouge::reactive::{Signal, Stored, effect, memo, signal, stored, untrack};
 use std::sync::Arc;
 
@@ -70,17 +71,11 @@ impl PastSessions {
     pub(crate) fn toggle_view(self) -> impl View {
         let open = self.open;
         let turn = motion(0.0);
-        let reduced = FoxfireMotion::current();
         effect(move || {
-            let target = if open.get() { HALF_TURN } else { 0.0 };
-            if reduced.reduced() {
-                turn.set(target);
-            } else {
-                turn.animate_to(target, Pace::Move);
-            }
+            turn.animate_to(if open.get() { HALF_TURN } else { 0.0 }, Pace::Move);
         });
         view! {
-            <list_row test_id="past-sessions-toggle" flex_none mr=GUTTER selection={move || selection(open.get())}
+            <list_row test_id="past-sessions-toggle" flex_none mr=PANEL_GUTTER selection={move || selection(open.get())}
                       on_click={move || self.toggle()}>
                 <div test_id="past-sessions-toggle-label"><text no_wrap>"Past sessions"</text></div>
                 <div flex rotate=turn>{Icon::new(IconName::ChevronDown, Role::TextMuted).size(ICON_SIZE_SMALL)}</div>
@@ -117,9 +112,11 @@ impl PastSessions {
             (true, Some(Listing::Listed)) => "No past sessions",
             _ => "",
         });
+        let loading = memo(move || rows.with(Vec::is_empty) && listing.get() == Some(Listing::Listing));
         view! {
             <div test_id="past-sessions" flex col gap=Space::X2 mt=Space::X1 p=Space::X2 material=Material::Glass>
                 <dynamic>{self.header(agent.get(), listing.get())}</dynamic>
+                <show when={move || loading.get()}>{loading_rows()}</show>
                 <dynamic>{{
                     let empty = empty.get();
                     untrack(|| view! {
@@ -216,32 +213,35 @@ impl PastSessions {
     }
 }
 
+fn loading_rows() -> impl View {
+    let rows = LOADING_ROW_WIDTHS.map(|width| {
+        view! { <div h=ROW_HEIGHT px=Space::X2 flex items_center><skeleton w=pct(width)/></div> }
+    });
+    view! { <div test_id="past-sessions-loading" flex col>{..rows}</div> }
+}
+
+const LOADING_ROW_WIDTHS: [f32; 3] = [60.0, 80.0, 45.0];
+
 fn status(agent: &str, listing: Option<Listing>) -> Option<AnyView> {
-    let (mark, label, color, detail) = match listing? {
-        Listing::Listing => (
-            foxfire(ICON_SIZE_SMALL, Role::TextMuted, || FoxfireState::Connecting).into_any(),
-            format!("Asking {agent}…"),
-            Role::TextMuted,
-            None,
+    match listing? {
+        Listing::Listing => Some(
+            view! {
+                <div test_id="past-sessions-status" flex_none flex items_center gap=Space::X2>
+                    {foxfire(ICON_SIZE_SMALL, Role::TextMuted, || FoxfireState::Connecting)}
+                    <div test_id="past-sessions-status-label"><text small muted no_wrap>{format!("Asking {agent}…")}</text></div>
+                </div>
+            }
+            .into_any(),
         ),
-        Listing::Failed(error) => (
-            Icon::new(IconName::TriangleAlert, Role::Warning).size(ICON_SIZE_SMALL).into_any(),
-            format!("Couldn't list {agent}'s sessions"),
-            Role::Warning,
-            Some(error),
-        ),
-        Listing::Listed => return None,
-    };
-    let row = view! {
-        <div test_id="past-sessions-status" flex_none flex items_center gap=Space::X2>
-            {mark}
-            <div test_id="past-sessions-status-label"><text small no_wrap color=color>{label}</text></div>
-        </div>
-    };
-    Some(match detail {
-        Some(detail) => row.tooltip(detail).into_any(),
-        None => row.into_any(),
-    })
+        Listing::Failed(error) => {
+            let failed = badge(format!("Couldn't list {agent}'s sessions"), NoticeTone::Warning);
+            let row = view! {
+                <div test_id="past-sessions-status" flex_none><div test_id="past-sessions-status-label">{failed}</div></div>
+            };
+            Some(row.tooltip(error).into_any())
+        }
+        Listing::Listed => None,
+    }
 }
 
 fn recency(updated_at: Option<DateTime<Utc>>, now: DateTime<Utc>) -> &'static str {

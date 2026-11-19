@@ -2,14 +2,12 @@ use super::Sidebar;
 use super::listing::{Row, RowKind};
 use crate::remotes::{InstanceState, Lifecycle};
 use crate::threads::ThreadStatus;
-use crate::ui::tokens::{HAIRLINE, ICON_SIZE, ROW_HEIGHT, Radius, Space, TWO_LINE_ROW_HEIGHT, UNREAD_DOT_SIZE};
+use crate::ui::tokens::{ICON_SIZE, ROW_HEIGHT, Radius, Space, TWO_LINE_ROW_HEIGHT, UNREAD_DOT_SIZE};
 use crate::ui::{
-    FoxfireState, Icon, IconName, SelectionState, UiStyles, foxfire, hint, icon_button, icon_slot, list_row,
+    FoxfireState, Icon, IconName, SelectionState, UiStyles, foxfire, hint, icon_button, icon_slot, inline_edit,
+    list_row, row_action,
 };
-use rouge::core::{
-    AnyView, Div, Key, MenuItem as WindowMenuItem, Role, Styled, Theme, View, div, editable, text, view,
-};
-use rouge::reactive::{Signal, signal};
+use rouge::core::{AnyView, MenuItem as WindowMenuItem, Role, Styled, View, div, text, view};
 use rouge::widgets::context_menu;
 
 #[derive(Clone, PartialEq)]
@@ -31,21 +29,7 @@ pub(super) enum RowAction {
 pub(super) fn row(sidebar: &Sidebar, row: &Row) -> AnyView {
     let sidebar = *sidebar;
     let selector = row.key.selector();
-    let hovered = signal(false);
     let editing = matches!(row.kind, RowKind::Local { editing: true, .. });
-    let hover_actions: Vec<AnyView> = row
-        .actions
-        .iter()
-        .filter(|action| action.hover())
-        .map(|&action| {
-            let (id, label, icon) = action.spec();
-            let target = row.clone();
-            view! {
-                <icon_button test_id={format!("{selector}-{id}")} icon label on_click={move || action.run(&target, &sidebar)}/>
-            }
-            .into_any()
-        })
-        .collect();
     let reconnect = row
         .thread
         .filter(|_| matches!(row.icon, RowIcon::Status(status) if status.problem().is_some()))
@@ -55,7 +39,7 @@ pub(super) fn row(sidebar: &Sidebar, row: &Row) -> AnyView {
                              on_click={move || thread.reconnect()}/>
             }
         });
-    let title = if editing { rename_editor(&sidebar) } else { title(&selector, row) };
+    let title = if editing { rename_editor(&sidebar, &row.title) } else { title(&selector, row) };
     let unread = row.unread.then(|| {
         let dot = view! { <div size=UNREAD_DOT_SIZE rounded=Radius::Full bg=Role::Accent/> };
         hint(format!("{selector}-unread"), "Unread response", dot)
@@ -66,10 +50,8 @@ pub(super) fn row(sidebar: &Sidebar, row: &Row) -> AnyView {
         RowIcon::Instance(state) => instance_icon(&selector, state),
     };
     let two_line = matches!(row.kind, RowKind::Cloud { .. });
-    let (body, trailing) = match &row.kind {
-        RowKind::Local { age, .. } => {
-            (title.flex_1(), trailing(&selector, age.clone(), hover_actions, row.selected, hovered).child(reconnect))
-        }
+    let (body, age) = match &row.kind {
+        RowKind::Local { age, .. } => (title.flex_1(), age.clone()),
         RowKind::Cloud { subtitle, expiring, .. } => {
             let color = if *expiring { Role::Warning } else { Role::TextMuted };
             let body = view! {
@@ -80,15 +62,7 @@ pub(super) fn row(sidebar: &Sidebar, row: &Row) -> AnyView {
                     </div>
                 </div>
             };
-            let actions = view! {
-                <div flex_none flex items_center>
-                    {reconnect}
-                    <div flex items_center opacity={move || if hovered.get() { 1.0 } else { 0.0 }}>
-                        {..hover_actions}
-                    </div>
-                </div>
-            };
-            (body, actions)
+            (body, None)
         }
     };
     let state = if row.selected { SelectionState::Selected } else { SelectionState::None };
@@ -104,12 +78,20 @@ pub(super) fn row(sidebar: &Sidebar, row: &Row) -> AnyView {
             {icon_slot()}
             {icon_slot().when(two_line, |slot| slot.self_start().mt(Space::X2)).child(icon)}
             {body}
-            {trailing}
+            {reconnect}
         </list_row>
     };
-    let list = div().w_full().child(entry).on_hover(move |inside| {
-        hovered.set_if_changed(inside);
+    let entry = match age {
+        Some(age) => entry.trailing(age_label(&selector, age)),
+        None => entry,
+    };
+    let entry = row.actions.iter().filter(|action| action.hover()).fold(entry, |entry, &action| {
+        let (id, label, icon) = action.spec();
+        let target = row.clone();
+        let run = move || action.run(&target, &sidebar);
+        entry.action(row_action(label, run).icon(icon).icon_only().test_id(format!("{selector}-{id}")))
     });
+    let list = div().w_full().child(entry);
     if editing {
         return list.into_any();
     }
@@ -149,7 +131,7 @@ impl RowAction {
         };
         match (self, &row.kind) {
             (Self::Rename, RowKind::Local { session_id: Some(session_id), .. }) => {
-                sidebar.start_rename(session_id.clone(), &row.title);
+                sidebar.start_rename(session_id.clone());
             }
             (Self::Archive, RowKind::Local { session_id: Some(session_id), .. }) => {
                 sidebar.registry.update(|state| state.archive(session_id.clone()));
@@ -196,59 +178,18 @@ fn title(selector: &str, row: &Row) -> AnyView {
     .into_any()
 }
 
-fn rename_editor(sidebar: &Sidebar) -> AnyView {
-    let sidebar = *sidebar;
-    let Some(value) = sidebar.sources.rename.with_untracked(|rename| rename.as_ref().map(|rename| rename.value)) else {
-        return ().into_any();
-    };
-    let accent = Theme::current().get_untracked().accent;
-    let field = editable(value)
-        .autofocus()
-        .select_all_on_focus()
-        .caret_color(accent)
-        .selection_color(accent.with_alpha(0.3))
-        .w_full()
-        .on_blur(move |_| sidebar.commit_rename())
-        .on_submit(move |_| sidebar.commit_rename());
-    div()
-        .test_id("rename-input")
-        .w_full()
-        .min_w(0.0)
-        .px(Space::X1)
-        .rounded(Radius::Inner)
-        .border(HAIRLINE)
-        .border_color(Role::Accent)
-        .bg(Role::Canvas)
-        .body()
-        .text_color(Role::Text)
-        .on_key_down(move |event| {
-            if event.key == Key::Escape {
-                event.stop_propagation();
-                sidebar.cancel_rename();
-            }
-        })
-        .child(field)
-        .into_any()
+fn rename_editor(sidebar: &Sidebar, title: &str) -> AnyView {
+    let (sidebar, title) = (*sidebar, title.to_owned());
+    view! {
+        <inline_edit test_id="rename-input" value=title begin_editing
+                     on_commit={move |title: String| sidebar.commit_rename(&title)}
+                     on_cancel={move || sidebar.cancel_rename()}/>
+    }
+    .into_any()
 }
 
-fn trailing(selector: &str, age: Option<String>, actions: Vec<AnyView>, selected: bool, hovered: Signal<bool>) -> Div {
-    let age = age.map(|age| {
-        view! {
-            <div test_id={format!("{selector}-age-{age}")} opacity={move || if hovered.get() { 0.0 } else { 1.0 }}>
-                <text caption muted no_wrap>{age}</text>
-            </div>
-        }
-    });
-    let background = if selected { Role::SurfaceSelected } else { Role::SurfaceHover };
-    view! {
-        <div flex_none relative flex items_center justify_end>
-            {age}
-            <div absolute right=0.0 top=0.0 bottom=0.0 pl=Space::X1 flex items_center bg=background
-                 opacity={move || if hovered.get() { 1.0 } else { 0.0 }}>
-                {..actions}
-            </div>
-        </div>
-    }
+fn age_label(selector: &str, age: String) -> AnyView {
+    view! { <div test_id={format!("{selector}-age-{age}")}><text caption muted no_wrap>{age}</text></div> }.into_any()
 }
 
 fn status_icon(row: &str, status: ThreadStatus) -> AnyView {

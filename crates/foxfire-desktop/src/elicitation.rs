@@ -1,7 +1,7 @@
 use crate::platform::Platform;
 use crate::threads::Thread;
 use crate::ui::tokens::{HAIRLINE, Space};
-use crate::ui::{ButtonVariant, Material, MaterialExt, UiStyles, button, field, text_input};
+use crate::ui::{ButtonVariant, Material, MaterialExt, UiStyles, button, field, popping, text_input};
 use foxfire_core::elicitation::{
     Elicitation, ElicitationAnswer, ElicitationId, FieldInput, FormError, FormField, FormFieldKind, accept_content,
 };
@@ -58,11 +58,7 @@ impl ElicitationCard {
     pub(crate) fn view(self) -> impl View {
         let thread = self.thread;
         let id = memo(move || thread.elicitation().map(|(id, _)| id));
-        dynamic(move || {
-            id.get()?;
-            let (_, elicitation) = untrack(|| thread.elicitation())?;
-            Some(self.card(&elicitation))
-        })
+        popping(id, move |_| thread.elicitation().map(|(_, elicitation)| self.card(&elicitation)))
     }
 
     fn card(self, elicitation: &Elicitation) -> AnyView {
@@ -90,7 +86,7 @@ impl ElicitationCard {
             }
         };
         view! {
-            <div test_id="elicitation" mt=Space::X2 p=Space::X4 flex col gap=Space::X4 material=Material::Glass border=HAIRLINE border_color=Role::Accent>
+            <div test_id="elicitation" mt=Space::X2 p={Space::X4.px() - HAIRLINE} flex col gap=Space::X4 material=Material::Glass border=HAIRLINE border_color=Role::Accent>
                 <div test_id="elicitation-title"><text title primary>{elicitation.question()}</text></div>
                 {body}
                 {self.actions(elicitation)}
@@ -126,7 +122,7 @@ impl ElicitationCard {
         let (primary_id, primary_label) = primary(elicitation);
         view! {
             <div flex justify_end gap=Space::X2>
-                <button test_id=primary_id label=primary_label variant=ButtonVariant::Primary
+                <button test_id=primary_id label=primary_label variant=ButtonVariant::Primary ripple
                         on_click={move || self.primary_action()}/>
                 {decline("Decline")}
             </div>

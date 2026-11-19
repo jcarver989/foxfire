@@ -53,3 +53,7 @@ desktop agent="aether acp":
 # Run the desktop app in release mode against an ACP agent
 desktop-release agent="aether acp":
     cargo run --release -p foxfire-desktop -- --agent '{{agent}}'
+
+# Keep the desktop app's spacing on the 4px grid, its radii on the token scale and its motion on the pace tokens
+style-check:
+    scripts/style-check

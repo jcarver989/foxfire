@@ -1,6 +1,6 @@
 use crate::threads::Thread;
 use crate::ui::tokens::{MODAL_WIDTH, PICKER_LIST_HEIGHT};
-use crate::ui::{Material, PickerItem, SearchPickerEvent, SearchPickerHandle, backdrop, search_picker};
+use crate::ui::{Material, PickerItem, SearchPickerEvent, SearchPickerHandle, backdrop, key_hints, search_picker};
 use clankerdiff_core::RepoPath;
 use rouge::core::{Styled, View, px, view};
 use rouge::reactive::{Callback, effect, memo, signal, untrack};
@@ -36,7 +36,7 @@ pub(crate) fn file_picker(thread: Thread, on_picked: impl Fn(Option<RepoPath>) +
     view! {
         <backdrop test_id="file-picker-backdrop" align_top on_dismiss={move || on_picked.call(None)}>
             <search_picker test_id="file-picker" handle material={Material::Glass} searchable="Search files…"
-                           empty="No matching files" footer="↑↓ Move    ↵ Open    Esc Close"
+                           empty="No matching files" footer={key_hints([("↑↓", "Move"), ("↵", "Open"), ("Esc", "Close")])}
                            w={px(MODAL_WIDTH)} h={px(PICKER_LIST_HEIGHT)} status=status/>
         </backdrop>
     }
