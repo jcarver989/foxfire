@@ -29,7 +29,7 @@ fn main() -> ExitCode {
                         Dist::new()
                             .set("dependencies.apt.libfontconfig1-dev", "*")
                             .set("dependencies.apt.libxkbcommon-x11-dev", "*")
-                            .set("github-custom-runners.aarch64-apple-darwin", "macos-15"),
+                            .set("github-custom-runners.aarch64-apple-darwin", "macos-26"),
                     ),
             ),
     );

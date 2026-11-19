@@ -15,4 +15,4 @@ libfontconfig1-dev = "*"
 libxkbcommon-x11-dev = "*"
 
 [dist.github-custom-runners]
-aarch64-apple-darwin = "macos-15"
+aarch64-apple-darwin = "macos-26"
