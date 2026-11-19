@@ -1,0 +1,48 @@
+[workspace]
+release_always = false
+git_release_enable = false
+git_tag_name = "{{ package }}-v{{ version }}"
+pr_branch_prefix = "release-plz/"
+pr_name = "chore: release"
+dependencies_update = true
+release = false
+publish = false
+semver_check = false
+
+[[package]]
+name = "foxfire-acp"
+release = true
+publish = true
+git_tag_enable = false
+
+[[package]]
+name = "foxfire-core"
+release = true
+publish = true
+git_tag_enable = false
+
+[[package]]
+name = "foxfire-tui"
+release = true
+publish = true
+git_tag_enable = false
+
+[[package]]
+name = "foxfire"
+release = true
+publish = true
+
+[[package]]
+name = "foxfire-relay"
+release = true
+git_only = true
+
+[[package]]
+name = "foxfire-desktop"
+release = true
+git_only = true
+
+[[package]]
+name = "foxfire-docker"
+release = true
+git_only = true

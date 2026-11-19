@@ -1,6 +1,6 @@
 use framer::Project;
 use framer::github::Step;
-use framer_presets::{Ci, Dist, Release, Rust, RustMonorepo, Rustfmt, Workspace};
+use framer_presets::{Ci, Dist, Release, ReleasePlz, Rust, RustMonorepo, Rustfmt, Workspace};
 use std::process::ExitCode;
 
 fn main() -> ExitCode {
@@ -17,11 +17,19 @@ fn main() -> ExitCode {
                     .name("Install system libraries"),
             ))
             .release(
-                Release::new().dist(
-                    Dist::new()
-                        .set("dependencies.apt.libfontconfig1-dev", "*")
-                        .set("dependencies.apt.libxkbcommon-x11-dev", "*"),
-                ),
+                Release::new()
+                    .release_plz(
+                        ReleasePlz::new()
+                            .publish_to_crates_io()
+                            .set("release", false)
+                            .set("publish", false)
+                            .set("semver_check", false),
+                    )
+                    .dist(
+                        Dist::new()
+                            .set("dependencies.apt.libfontconfig1-dev", "*")
+                            .set("dependencies.apt.libxkbcommon-x11-dev", "*"),
+                    ),
             ),
     );
     project.synth()
