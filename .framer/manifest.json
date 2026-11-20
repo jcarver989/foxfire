@@ -64,6 +64,7 @@
     "justfile": {
       "kind": "blocks",
       "ids": [
+        "rouge/android-emulator",
         "rouge/ios-sim",
         "rust-monorepo"
       ]

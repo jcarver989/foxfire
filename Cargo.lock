@@ -2551,7 +2551,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "foxfire-ios"
+name = "foxfire-mobile"
 version = "0.1.0"
 dependencies = [
  "foxfire-ui",

@@ -17,5 +17,5 @@ fn main() -> Result<(), AppError> {
 
 #[cfg(not(target_os = "ios"))]
 fn main() {
-    eprintln!("Build the iOS app on macOS with `cargo rouge build ios`.");
+    eprintln!("Run the mobile demo with `just ios-sim` or `just android-emulator`.");
 }

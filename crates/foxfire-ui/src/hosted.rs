@@ -1,3 +1,4 @@
+mod mobile;
 mod preferences;
 
 use crate::ChatPane;
@@ -8,11 +9,11 @@ use crate::thread::{Thread, ThreadStatus, UNTITLED};
 use crate::ui::tokens::{BASE_SIZE, Space};
 use crate::ui::{
     ActiveReviewTheme, FoxfireMotion, IconName, InterfaceSize, SettingsField, SettingsModel, ThemePreference,
-    ThreadShell, UiStyles, appearance, breadcrumb, cloud_section, empty_state, icon_button, row_action, settings,
-    settings_button, sidebar_group, sidebar_thread_row, thread_header, thread_status_icon,
+    ThreadShell, UI_FONT, UiStyles, appearance, breadcrumb, cloud_section, empty_state, icon_button, row_action,
+    settings, settings_button, sidebar_group, sidebar_thread_row, thread_header, thread_status_icon,
 };
 use indexmap::IndexMap;
-use rouge::core::{AnyView, Role, Styled, View, div, dynamic, each, motion, presentation, show, text, view};
+use rouge::core::{AnyView, Div, Role, Styled, View, div, dynamic, each, motion, presentation, show, text, view};
 use rouge::persist::Storage;
 use rouge::platform::open_url;
 use rouge::reactive::{ReadSignal, Scope, Signal, Stored, effect, memo, signal, sleep, spawn, stored, untrack};
@@ -80,8 +81,7 @@ struct HostedApp {
     settings_open: Signal<bool>,
     settings: SettingsModel,
     shell: ThreadShell,
-    touch: bool,
-    sidebar_closed: Signal<bool>,
+    inventory_loaded: Signal<bool>,
     cloud_expanded: Signal<bool>,
     closed_projects: Signal<HashSet<String>>,
     launching: Signal<HashSet<String>>,
@@ -105,7 +105,6 @@ impl Entry {
 
 impl HostedApp {
     fn new(backend: Rc<dyn HostedBackend>, platform: Rc<dyn ChatPlatform>, settings: SettingsModel) -> Self {
-        let touch = presentation().get_untracked().is_touch();
         let collapsed = signal(false);
         let width = signal(None);
         let app = Self {
@@ -122,10 +121,8 @@ impl HostedApp {
                 memo(move || width.get()),
                 move |value| collapsed.set(value),
                 move |value| width.set(value),
-            )
-            .full_width_sidebar(touch),
-            touch,
-            sidebar_closed: collapsed,
+            ),
+            inventory_loaded: signal(false),
             cloud_expanded: signal(true),
             closed_projects: signal(HashSet::new()),
             launching: signal(HashSet::new()),
@@ -159,20 +156,40 @@ impl HostedApp {
     }
 
     fn view(self) -> impl View {
+        let overlays = self.overlays();
+        let root = if presentation().get_untracked().is_touch() {
+            div()
+                .test_id("hosted")
+                .relative()
+                .size_full()
+                .flex()
+                .col()
+                .bg(Role::Canvas)
+                .text_color(Role::Text)
+                .font(UI_FONT)
+                .body()
+                .child(mobile::view(self))
+                .children(overlays)
+        } else {
+            self.pointer_view(overlays)
+        };
+        InterfaceSize::current().bind(root)
+    }
+
+    fn pointer_view(self, overlays: Vec<AnyView>) -> Div {
         let selected = memo(move || {
             let id = self.selected.get()?;
             self.threads.with(|threads| threads.get(&id).map(|entry| entry.info.clone()))
         });
-        let main = dynamic(move || {
-            if self.touch && !self.sidebar_closed.get() {
-                return None;
-            }
-            Some(match selected.get() {
-                Some(info) if info.state == HostedState::Ready => untrack(|| self.conversation(&info)).into_any(),
-                Some(info) => self.shell.placeholder(waiting(info)).into_any(),
-                None => self.shell.no_thread().into_any(),
-            })
+        let main = dynamic(move || match selected.get() {
+            Some(info) if info.state == HostedState::Ready => untrack(|| self.conversation(&info)).into_any(),
+            Some(info) => self.shell.placeholder(waiting(info)).into_any(),
+            None => self.shell.no_thread().into_any(),
         });
+        self.shell.view("hosted", move || self.controls(), move || self.sections(), main, overlays)
+    }
+
+    fn overlays(self) -> Vec<AnyView> {
         let error = dynamic(move || {
             self.error.get().map(|error| {
                 view! {
@@ -184,16 +201,14 @@ impl HostedApp {
                 }
             })
         });
-        let overlays = vec![
+        vec![
             error.into_any(),
             show(
                 move || self.settings_open.get(),
                 move || settings(self.settings, move || self.settings_open.set(false)),
             )
             .into_any(),
-        ];
-        let root = self.shell.view("hosted", move || self.controls(), move || self.sections(), main, overlays);
-        InterfaceSize::current().bind(root)
+        ]
     }
 
     fn controls(self) -> impl View {
@@ -220,12 +235,7 @@ impl HostedApp {
 
     fn project(self, project: ReadSignal<Project>) -> impl View {
         let id = move || project.with(|p| p.id.clone());
-        let launching = move || {
-            self.launching.with(|all| all.contains(&id()))
-                || self.threads.with(|all| {
-                    all.values().any(|entry| entry.info.project.id == id() && entry.info.state == HostedState::Starting)
-                })
-        };
+        let launching = move || self.project_launching(&id());
         let expanded = memo(move || !self.closed_projects.with(|closed| closed.contains(&id())));
         let header = dynamic(move || {
             let expanded = expanded.get();
@@ -233,7 +243,7 @@ impl HostedApp {
             let icon = if expanded { IconName::FolderOpen } else { IconName::Folder };
             let controls = view! {
                 <icon_button test_id={format!("launch-{}", id())} icon=IconName::Plus label={format!("New thread in {name}")}
-                             disabled=launching on_click={move || self.launch(id())}/>
+                             disabled=launching on_click={move || self.launch(id(), move |id| self.select(id))}/>
             };
             sidebar_group(
                 format!("project-{}", id()),
@@ -255,7 +265,7 @@ impl HostedApp {
             <div w_full flex col>
                 {header}
                 <show when={move || expanded.get()}>
-                    <each items={move || self.threads.with(|threads| threads.values().filter(|entry| entry.info.project.id == id()).map(|entry| entry.info.id.clone()).collect::<Vec<_>>())}
+                    <each items={move || self.project_threads(&id())}
                           key=Clone::clone let:thread>
                         {self.row(thread)}
                     </each>
@@ -267,21 +277,9 @@ impl HostedApp {
     fn row(self, row: ReadSignal<ThreadId>) -> impl View {
         let id = move || row.get_untracked();
         let selected = move || self.selected.with(|selected| selected.as_ref() == Some(&id()));
-        let title = move || {
-            self.threads
-                .with(|all| all.get(&id()).and_then(|entry| entry.pane))
-                .map_or_else(|| UNTITLED.to_owned(), |(_, thread, _)| thread.title())
-        };
+        let title = move || self.thread_title(&id());
         let row_id = format!("thread-{}", id().0);
-        let status = memo(move || {
-            self.threads.with(|all| {
-                all.get(&id()).map_or(ThreadStatus::Dormant, |entry| match &entry.info.state {
-                    HostedState::Starting => ThreadStatus::Connecting,
-                    HostedState::Failed(_) => ThreadStatus::Errored,
-                    HostedState::Ready => entry.pane.map_or(ThreadStatus::Idle, |(_, thread, _)| thread.status()),
-                })
-            })
-        });
+        let status = memo(move || self.thread_status(&id()));
         let icon = dynamic({
             let row_id = row_id.clone();
             move || thread_status_icon(&row_id, status.get())
@@ -297,19 +295,50 @@ impl HostedApp {
             move || self.select(id()),
         )
         .action(
-            row_action("Stop thread", move || self.stop(id()))
+            row_action("Stop thread", move || self.stop(id(), |_| {}))
                 .icon(IconName::Square)
                 .icon_only()
                 .test_id(format!("stop-{}", id().0)),
         )
     }
 
-    fn conversation(self, info: &HostedThread) -> impl View + use<> {
-        let id = info.id.clone();
+    fn project_launching(self, id: &str) -> bool {
+        self.launching.with(|all| all.contains(id))
+            || self.threads.with(|all| {
+                all.values().any(|entry| entry.info.project.id == id && entry.info.state == HostedState::Starting)
+            })
+    }
+
+    fn project_threads(self, id: &str) -> Vec<ThreadId> {
+        self.threads.with(|threads| {
+            threads.values().filter(|entry| entry.info.project.id == id).map(|entry| entry.info.id.clone()).collect()
+        })
+    }
+
+    fn thread_title(self, id: &ThreadId) -> String {
+        self.threads
+            .with(|all| all.get(id).and_then(|entry| entry.pane))
+            .map_or_else(|| UNTITLED.to_owned(), |(_, thread, _)| thread.title())
+    }
+
+    fn thread_status(self, id: &ThreadId) -> ThreadStatus {
+        self.threads.with(|all| {
+            all.get(id).map_or(ThreadStatus::Dormant, |entry| match &entry.info.state {
+                HostedState::Starting => ThreadStatus::Connecting,
+                HostedState::Failed(_) => ThreadStatus::Errored,
+                HostedState::Ready => entry.pane.map_or(ThreadStatus::Idle, |(_, thread, _)| thread.status()),
+            })
+        })
+    }
+
+    fn conversation_pane(self, id: ThreadId) -> (Thread, ChatPane) {
+        if let Some((_, thread, pane)) = self.threads.with_untracked(|all| all.get(&id).and_then(|entry| entry.pane)) {
+            return (thread, pane);
+        }
         let (_, thread, pane) = self
             .threads
             .try_update(|all| {
-                *all.get_mut(&id).expect("selected thread").pane.get_or_insert_with(|| {
+                *all.get_mut(&id).expect("listed thread").pane.get_or_insert_with(|| {
                     let scope = self.scope.child();
                     scope.run(|| {
                         let backend = self.backend.get();
@@ -319,7 +348,11 @@ impl HostedApp {
                 })
             })
             .expect("live inventory");
-        let reveal = motion(1.0);
+        (thread, pane)
+    }
+
+    fn conversation(self, info: &HostedThread) -> impl View + use<> {
+        let (thread, pane) = self.conversation_pane(info.id.clone());
         let gutter = pane.gutter();
         let header = thread_header(
             move || gutter.get(),
@@ -329,10 +362,8 @@ impl HostedApp {
             (),
         );
         view! {
-            <div relative size_full track_bounds={pane.stage()}>
-                {pane.transcript()}
-                <show when={move || thread.is_fresh()}>{pane.kindling(reveal)}</show>
-                {pane.dock(reveal, None::<AnyView>, None::<AnyView>)}
+            <div relative size_full>
+                {conversation_surface(thread, &pane, false)}
                 {header}
             </div>
         }
@@ -366,9 +397,10 @@ impl HostedApp {
             }),
             Err(error) => self.error.set(Some(error.to_string())),
         }
+        self.inventory_loaded.set_if_changed(true);
     }
 
-    fn launch(self, project: String) {
+    fn launch(self, project: String, on_launch: impl FnOnce(ThreadId) + 'static) {
         self.run(self.launching, project, async move |project| {
             let info = self.backend.get().launch(project).await?;
             self.epoch.update(|epoch| *epoch += 1);
@@ -379,21 +411,20 @@ impl HostedApp {
                     all.insert(id.clone(), Entry { info, pane: None });
                 }
             });
-            self.select(id);
+            self.inventory_loaded.set_if_changed(true);
+            on_launch(id);
             Ok(())
         });
     }
 
     fn select(self, id: ThreadId) {
         self.selected.set_if_changed(Some(id));
-        if self.touch {
-            self.sidebar_closed.set(true);
-        }
     }
 
-    fn stop(self, id: ThreadId) {
+    fn stop(self, id: ThreadId, on_stop: impl FnOnce(&ThreadId) + 'static) {
         self.run(self.stopping, id, async move |id| {
             self.backend.get().stop(id.clone()).await?;
+            on_stop(&id);
             self.epoch.update(|epoch| *epoch += 1);
             if self.selected.with_untracked(|current| current.as_ref() == Some(&id)) {
                 self.selected.set(None);
@@ -424,6 +455,18 @@ impl HostedApp {
                 });
             })
         });
+    }
+}
+
+fn conversation_surface(thread: Thread, pane: &ChatPane, in_flow_header: bool) -> Div {
+    let pane = *pane;
+    let reveal = motion(1.0);
+    view! {
+        <div test_id="conversation-surface" relative size_full min_h=0.0 track_bounds={pane.stage()}>
+            {if in_flow_header { pane.transcript_below_header().into_any() } else { pane.transcript().into_any() }}
+            <show when={move || thread.is_fresh()}>{pane.kindling(reveal)}</show>
+            {pane.dock(reveal, None::<AnyView>, None::<AnyView>)}
+        </div>
     }
 }
 

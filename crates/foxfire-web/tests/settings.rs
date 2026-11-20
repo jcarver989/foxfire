@@ -82,7 +82,8 @@ async fn the_touch_sheet_scrolls_and_leaves_the_conversation_draft_intact() -> R
     assert!(ui.has_focus(), "the composer takes focus on tap");
     ui.type_text("unsent draft");
     assert!(ui.text_bounds("unsent draft").is_some(), "draft is visible before entering Settings");
-    ui.tap_on("toggle-sidebar")?;
+    ui.tap_on("conversation-nav-back")?;
+    ui.run(0.5);
     ui.tap_on("open-settings")?;
     ui.run(0.5);
     assert!(ui.rect_of("settings")?.contains(ui.center_of("settings-done")?));
@@ -116,6 +117,10 @@ async fn the_touch_sheet_scrolls_and_leaves_the_conversation_draft_intact() -> R
     ui.tap_on("thread-demo-1")?;
     ui.run(0.5);
     assert!(ui.text_bounds("unsent draft").is_some());
+    drop(ui);
+
+    let (_restored, theme) = hosted(&storage, InputKind::Touch);
+    assert_eq!(theme_id(theme), option, "the touch selection is saved for the next launch");
     Ok(())
 }
 

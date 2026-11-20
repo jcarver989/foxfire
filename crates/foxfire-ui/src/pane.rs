@@ -1,10 +1,10 @@
 use crate::platform::ChatPlatform;
 use crate::thread::{Thread, ThreadStatus};
-use crate::ui::tokens::{BAR_HEIGHT, ICON_SIZE_SMALL, ROW_HEIGHT, Space, UNIT};
+use crate::ui::tokens::{BAR_HEIGHT, CONTROL_HEIGHT_LARGE, ICON_SIZE_SMALL, ROW_HEIGHT, Space, UNIT};
 use crate::ui::{FoxfireState, UiStyles, column_grid, foxfire, kindling, popping, reading_cell, scroll_edge};
 use crate::{Composer, ElicitationCard, SessionOptions, StatusLine, Transcript, reconnect_banner};
 use agent_client_protocol::v2::schema::ToolCallLocation;
-use rouge::core::{Div, Motion, Rect, Role, Styled, TextAlign, View, auto, div, px, show, text, view};
+use rouge::core::{Div, Motion, Rect, Role, Styled, TextAlign, View, auto, div, presentation, px, show, text, view};
 use rouge::reactive::{Memo, Signal, memo, signal};
 use std::rc::Rc;
 
@@ -64,6 +64,10 @@ impl ChatPane {
         self.transcript.view()
     }
 
+    pub(crate) fn transcript_below_header(self) -> impl View {
+        self.transcript.below_header().view()
+    }
+
     /// Renders the shared composer dock, with optional host-specific controls.
     pub fn dock(self, reveal: Motion, actions: impl View, tray: impl View) -> Div {
         let thread = self.thread;
@@ -76,6 +80,7 @@ impl ChatPane {
         let connecting = memo(move || fresh.get() && thread.status() == ThreadStatus::Connecting);
         let spacer = move || view! { <show when={move || fresh.get()}><div flex_1/></show> };
         let (reading, gutter) = (self.transcript.reading(), self.transcript.gutter());
+        let controls_height = if presentation().get_untracked().is_touch() { CONTROL_HEIGHT_LARGE } else { ROW_HEIGHT };
         view! {
             <div absolute left=0.0 right={move || px(gutter.get())} bottom=0.0
                  top={move || if fresh.get() { px(0.0) } else { auto() }}
@@ -93,7 +98,7 @@ impl ChatPane {
                         {self.elicitation.view()}
                         <div track_bounds={self.composer_bounds} opacity=reveal>{self.composer.view()}</div>
                         <div flex col opacity=reveal>
-                            <div test_id="composer-bar" h=ROW_HEIGHT mt=Space::X1 px=Space::X2 flex items_center gap=Space::X4>
+                            <div test_id="composer-bar" h=controls_height mt=Space::X1 px=Space::X2 flex items_center gap=Space::X4>
                                 {self.options.view()}
                                 {self.status.view()}
                                 <show when={move || connecting.get()}>{connecting_message()}</show>

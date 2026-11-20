@@ -11,7 +11,7 @@ on:
       target:
         description: Target to run
         type: choice
-        options: [all, ios]
+        options: [all, ios, android]
         default: all
       build_number:
         description: Optional store build number override (defaults to GitHub run number)
@@ -77,3 +77,59 @@ jobs:
           APPLE_KEY_ID: ${{ secrets.APPLE_KEY_ID }}
           APPLE_ISSUER_ID: ${{ secrets.APPLE_ISSUER_ID }}
         run: cargo rouge publish ios
+  android:
+    if: ${{ github.ref == format('refs/heads/{0}', github.event.repository.default_branch) && (inputs.target == 'all' || inputs.target == 'android') }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    environment: ${{ inputs.channel == 'check' && 'rouge-package-check' || format('rouge-android-{0}', inputs.channel) }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: "false"
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407
+      - uses: gradle/actions/setup-gradle@ed408507eac070d1f99cc633dbcf757c94c7933a
+        with:
+          gradle-version: "9.9.2"
+      - name: Install ImageMagick
+        run: sudo apt-get update && sudo apt-get install -y imagemagick
+      - name: Install Android build tools
+        run: cargo rouge setup android
+      - name: Check Play credentials
+        if: ${{ inputs.channel != 'check' }}
+        env:
+          ANDROID_UPLOAD_KEYSTORE_BASE64: ${{ secrets.ANDROID_UPLOAD_KEYSTORE_BASE64 }}
+          ANDROID_UPLOAD_STORE_PASSWORD: ${{ secrets.ANDROID_UPLOAD_STORE_PASSWORD }}
+          ANDROID_UPLOAD_KEY_ALIAS: ${{ secrets.ANDROID_UPLOAD_KEY_ALIAS }}
+          ANDROID_UPLOAD_KEY_PASSWORD: ${{ secrets.ANDROID_UPLOAD_KEY_PASSWORD }}
+          PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+        run: cargo rouge doctor android
+      - name: Build signed Android App Bundle
+        env:
+          ANDROID_UPLOAD_KEYSTORE_BASE64: ${{ secrets.ANDROID_UPLOAD_KEYSTORE_BASE64 }}
+          ANDROID_UPLOAD_STORE_PASSWORD: ${{ secrets.ANDROID_UPLOAD_STORE_PASSWORD }}
+          ANDROID_UPLOAD_KEY_ALIAS: ${{ secrets.ANDROID_UPLOAD_KEY_ALIAS }}
+          ANDROID_UPLOAD_KEY_PASSWORD: ${{ secrets.ANDROID_UPLOAD_KEY_PASSWORD }}
+        run: cargo rouge build android
+      - name: Save package for inspection
+        if: ${{ inputs.channel == 'check' }}
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
+        with:
+          name: rouge-android-check
+          path: .rouge/out/android/app.aab
+          if-no-files-found: error
+      - name: Upload Android App Bundle
+        if: ${{ inputs.channel != 'check' }}
+        uses: r0adkll/upload-google-play@e738b9dd8f2476ea806d921b64aacd24f34515a5
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+          packageName: dev.foxfire.app
+          releaseFiles: .rouge/out/android/app.aab
+          tracks: ${{ inputs.channel == 'production' && 'production' || 'internal' }}
+          status: completed
+      - name: Print Google Play link
+        if: ${{ inputs.channel != 'check' }}
+        run: cargo rouge link android

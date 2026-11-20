@@ -79,3 +79,9 @@ style-check:
 ios-sim:
     cargo rouge run ios
 # framer:end rouge/ios-sim
+
+# framer:begin rouge/android-emulator
+# Build and launch the app on an Android emulator or connected device
+android-emulator:
+    cargo rouge run android
+# framer:end rouge/android-emulator

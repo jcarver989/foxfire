@@ -7,7 +7,7 @@ use super::{
 use clankerdiff_ui_core::{Appearance, AppearanceMode, ReviewTheme, ThemeChoice, ThemePreference};
 use rouge::core::{AnyView, Div, Styled, View, div, dynamic, pct, presentation, scroll, text, view};
 use rouge::reactive::{Callback, Memo, Signal, effect, memo, signal, untrack};
-use rouge::widgets::{Placement, popover};
+use rouge::widgets::{Placement, list_group, popover};
 
 /// A setting read from and committed to the host's state.
 pub struct SettingsField<T: 'static> {
@@ -91,14 +91,34 @@ pub fn settings(model: SettingsModel, on_close: impl Fn() + 'static) -> impl Vie
 fn overview(model: SettingsModel, active: ActiveReviewTheme, touch_picker: Option<Signal<Option<Appearance>>>) -> Div {
     let theme = model.appearance;
     let touch = touch_picker.is_some();
-    view! {
-        <div flex col>
-            {model.reduced_motion.map(|field| row("Reduce motion", "Stills the activity marks and every panel", motion(field), touch))}
-            {model.interface_size.map(|size| row("Interface size", "Scales everything in the window", interface_size(size), touch))}
-            {row("Appearance", "Follow the system, or always look light or dark", mode(theme, active), touch)}
-            {row("Light theme", "Shown when the app looks light", theme_choice(theme, active, Appearance::Light, touch_picker), touch)}
-            {row("Dark theme", "Shown when the app looks dark", theme_choice(theme, active, Appearance::Dark, touch_picker), touch)}
-        </div>
+    let general = [
+        model
+            .reduced_motion
+            .map(|field| row("Reduce motion", "Stills the activity marks and every panel", motion(field), touch)),
+        model
+            .interface_size
+            .map(|size| row("Interface size", "Scales everything in the window", interface_size(size), touch)),
+    ];
+    let appearance = [
+        row("Appearance", "Follow the system, or always look light or dark", mode(theme, active), touch),
+        row(
+            "Light theme",
+            "Shown when the app looks light",
+            theme_choice(theme, active, Appearance::Light, touch_picker),
+            touch,
+        ),
+        row(
+            "Dark theme",
+            "Shown when the app looks dark",
+            theme_choice(theme, active, Appearance::Dark, touch_picker),
+            touch,
+        ),
+    ];
+    let content = div().flex().col().children(general.into_iter().flatten());
+    if touch {
+        content.child(list_group().children(appearance.map(|row| row.px(Space::X3))))
+    } else {
+        content.children(appearance)
     }
 }
 

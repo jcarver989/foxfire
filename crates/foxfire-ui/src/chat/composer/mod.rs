@@ -4,7 +4,9 @@ mod queued;
 use super::attachment::{chip, preview};
 use crate::platform::ChatPlatform;
 use crate::thread::{Thread, ThreadEvent, ThreadStatus};
-use crate::ui::tokens::{COMPOSER_POPUP_HEIGHT, ICON_SIZE, MotionScale, ROW_HEIGHT, Radius, Space};
+use crate::ui::tokens::{
+    COMPOSER_POPUP_HEIGHT, CONTROL_HEIGHT_LARGE, ICON_SIZE, MotionScale, ROW_HEIGHT, Radius, Space,
+};
 use crate::ui::typography::READING;
 use crate::ui::{
     IconButton, IconName, Material, MaterialExt, PickerItem, SearchPickerEvent, SearchPickerHandle, UI_FONT,
@@ -166,7 +168,7 @@ impl Composer {
             .multiline()
             .min_rows(MIN_ROWS)
             .max_rows(MAX_ROWS)
-            .submit_on_enter(true)
+            .submit_on_enter(!touch)
             .selection(self.selection)
             .track_focus(self.focus)
             .when(!touch, Editable::autofocus)
@@ -198,6 +200,7 @@ impl Composer {
 
     fn actions(self) -> impl View {
         let thread = self.thread;
+        let touch = presentation().get_untracked().is_touch();
         let empty = memo(move || self.text.with(|text| text.trim().is_empty()) && self.media.with(Vec::is_empty));
         let running = memo(move || running(thread.status()));
         let focused = window_focused();
@@ -216,7 +219,7 @@ impl Composer {
                 <div flex_1/>
                 <div flex_none preserve_focus><dynamic>{
                     if running.get() && empty.get() {
-                        let button = round_button("stop", IconName::Square, ("Stop", "escape"), true, Callback::from(move || self.cancel()))
+                        let button = round_button("stop", IconName::Square, ("Cancel response", "escape"), true, touch, Callback::from(move || self.cancel()))
                             .icon_size(Space::X3.px());
                         let indicator = view! {
                             <show when=animate>
@@ -228,7 +231,7 @@ impl Composer {
                         div().relative().child(button).child(indicator)
                     } else {
                         let filled = !empty.get();
-                        div().child(round_button("send", IconName::ArrowUp, ("Send", "enter"), filled, Callback::from(move || self.send())))
+                        div().child(round_button("send", IconName::ArrowUp, ("Send", "enter"), filled, touch, Callback::from(move || self.send())))
                     }
                 }</dynamic></div>
             </div>
@@ -569,6 +572,7 @@ fn round_button(
     icon: IconName,
     (label, keys): (&'static str, &'static str),
     filled: bool,
+    touch: bool,
     on_click: Callback,
 ) -> IconButton {
     let (background, hovered, foreground) = if filled {
@@ -578,12 +582,12 @@ fn round_button(
     };
     icon_button(icon, label.to_owned())
         .test_id(id)
-        .size(ROW_HEIGHT)
+        .size(if touch { CONTROL_HEIGHT_LARGE } else { ROW_HEIGHT })
         .rounded(Radius::Full)
         .bg(background)
         .color(foreground)
         .hover(move |style| style.bg(hovered))
-        .shortcut(chord(keys))
+        .when(!touch, |button| button.shortcut(chord(keys)))
         .focus_policy(FocusPolicy::None)
         .on_click(on_click)
 }

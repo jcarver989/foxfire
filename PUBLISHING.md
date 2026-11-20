@@ -27,3 +27,20 @@ To run locally on an Apple Silicon Mac with Xcode selected and a compatible iOS 
 5. Before running `production`, create the matching version in App Store Connect and complete screenshots, metadata, privacy details, and export compliance.
 
 Local build: `cargo rouge build ios`.
+
+## Android · Google Play
+
+To run locally, use `just android-emulator` (or `cargo rouge run android`). It installs a debug build on a connected device, or boots an Android Virtual Device; set `ROUGE_ANDROID_DEVICE` to an AVD name or `adb` serial to choose one. The debug build needs none of the Play setup below.
+
+1. Create the app in Google Play Console, enroll in **Play App Signing**, and create an upload keystore.
+2. For the first upload, export `ANDROID_UPLOAD_KEYSTORE_BASE64`, `ANDROID_UPLOAD_STORE_PASSWORD`, `ANDROID_UPLOAD_KEY_ALIAS`, and `ANDROID_UPLOAD_KEY_PASSWORD` locally using that keystore. Run `cargo rouge setup android`, then `cargo rouge build android --channel production --build-number 1` (choose a higher unused number for an existing app). Manually upload `.rouge/out/android/app.aab` in Play Console. This build does not contact Google Play. Never register a `check` artifact: it is signed with a disposable key, not your upload key.
+3. Create a Google service account and grant it release permissions for the app in Play Console.
+4. In **Settings → Environments**, add these secrets to `rouge-android-preview` and `rouge-android-production`:
+   - `PLAY_SERVICE_ACCOUNT_JSON`: raw service account JSON
+   - `ANDROID_UPLOAD_KEYSTORE_BASE64`: base64-encoded upload keystore
+   - `ANDROID_UPLOAD_STORE_PASSWORD`: keystore password
+   - `ANDROID_UPLOAD_KEY_ALIAS`: key alias
+   - `ANDROID_UPLOAD_KEY_PASSWORD`: key password
+5. Before running `production`, complete the Play Console store listing, policy forms, and any required testing prerequisites.
+
+Local build: `cargo rouge build android`. Needs JDK 17 or newer, Gradle 9.9.2, SDK platform 36, build-tools 36.0.0, NDK `28.2.13676358`, `cargo-ndk` 4.1.2, and the Android SDK in `ANDROID_HOME` or Android Studio's default location; `cargo rouge setup android` installs the SDK packages and `cargo-ndk`.

@@ -28,7 +28,6 @@ pub struct ThreadShell {
     set_width: Callback<(Option<f32>,)>,
     slide: Motion,
     fade: Motion,
-    full_width_sidebar: bool,
 }
 
 impl ThreadShell {
@@ -45,13 +44,7 @@ impl ThreadShell {
             set_width: Callback::from(set_width),
             slide: motion(0.0),
             fade: motion(1.0),
-            full_width_sidebar: false,
         }
-    }
-
-    pub(crate) fn full_width_sidebar(mut self, full_width: bool) -> Self {
-        self.full_width_sidebar = full_width;
-        self
     }
 
     pub fn view<T: View, U: View>(
@@ -100,17 +93,6 @@ impl ThreadShell {
 
     fn sidebar(self, controls: impl View, sections: impl View) -> AnyView {
         let contents = self.sidebar_contents(controls, sections);
-        if self.full_width_sidebar {
-            return div()
-                .test_id("sidebar")
-                .size_full()
-                .flex_none()
-                .flex()
-                .col()
-                .bg(Role::Chrome)
-                .child(contents)
-                .into_any();
-        }
         let window = window_size();
         let fit = move |width: f32, available: f32| {
             let max = (available - MIN_MAIN_WIDTH).clamp(MIN_SIDEBAR_WIDTH, MAX_SIDEBAR_WIDTH);
@@ -165,7 +147,7 @@ impl ThreadShell {
 
     fn toggle(self) {
         let opening = self.collapsed.get_untracked();
-        if opening && !self.full_width_sidebar {
+        if opening {
             self.slide.set(-SIDEBAR_ENTRY_SLIDE);
             self.fade.set(0.0);
             self.slide.animate_to(0.0, Pace::Enter);
