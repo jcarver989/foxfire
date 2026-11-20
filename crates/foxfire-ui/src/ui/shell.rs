@@ -5,7 +5,7 @@ use super::{
 };
 use crate::thread::ThreadStatus;
 use rouge::core::{
-    AnyView, Div, Motion, Role, Styled, View, div, dynamic, motion, scroll, show, text, view, window_size,
+    AnyView, Div, Motion, Role, Styled, View, div, dynamic, motion, presentation, scroll, show, text, view, window_size,
 };
 use rouge::reactive::{Callback, Memo, effect, signal, untrack};
 
@@ -28,6 +28,7 @@ pub struct ThreadShell {
     set_width: Callback<(Option<f32>,)>,
     slide: Motion,
     fade: Motion,
+    full_width_sidebar: bool,
 }
 
 impl ThreadShell {
@@ -44,7 +45,13 @@ impl ThreadShell {
             set_width: Callback::from(set_width),
             slide: motion(0.0),
             fade: motion(1.0),
+            full_width_sidebar: false,
         }
+    }
+
+    pub(crate) fn full_width_sidebar(mut self, full_width: bool) -> Self {
+        self.full_width_sidebar = full_width;
+        self
     }
 
     pub fn view<T: View, U: View>(
@@ -91,7 +98,19 @@ impl ThreadShell {
         }
     }
 
-    fn sidebar(self, controls: impl View, sections: impl View) -> impl View {
+    fn sidebar(self, controls: impl View, sections: impl View) -> AnyView {
+        let contents = self.sidebar_contents(controls, sections);
+        if self.full_width_sidebar {
+            return div()
+                .test_id("sidebar")
+                .size_full()
+                .flex_none()
+                .flex()
+                .col()
+                .bg(Role::Chrome)
+                .child(contents)
+                .into_any();
+        }
         let window = window_size();
         let fit = move |width: f32, available: f32| {
             let max = (available - MIN_MAIN_WIDTH).clamp(MIN_SIDEBAR_WIDTH, MAX_SIDEBAR_WIDTH);
@@ -115,13 +134,22 @@ impl ThreadShell {
                 <resizable_panel test_id="sidebar" edge=Side::Left size=width min_size=MIN_SIDEBAR_WIDTH
                                  max_size=MAX_SIDEBAR_WIDTH reset_size=DEFAULT_SIDEBAR_WIDTH
                                  on_resize=on_resize on_reset=on_reset h_full flex col bg=Role::Chrome>
-                    <div top_bar h=HEADER_HEIGHT pr=PANEL_GUTTER gap=Space::X1>
-                        <div flex_1/>{controls}{self.toggle_button(true)}
-                    </div>
-                    <scroll test_id="projects" flex_1 min_h=0.0 w_full>
-                        <div px=Space::X2 pb=Space::X2 flex col gap=Space::X1>{sections}</div>
-                    </scroll>
+                    {contents}
                 </resizable_panel>
+            </div>
+        }
+        .into_any()
+    }
+
+    fn sidebar_contents(self, controls: impl View, sections: impl View) -> impl View {
+        view! {
+            <div size_full flex col>
+                <div top_bar h=HEADER_HEIGHT pr=PANEL_GUTTER gap=Space::X1>
+                    <div flex_1/>{controls}{self.toggle_button(true)}
+                </div>
+                <scroll test_id="projects" flex_1 min_h=0.0 w_full>
+                    <div px=Space::X2 pb=Space::X2 flex col gap=Space::X1>{sections}</div>
+                </scroll>
             </div>
         }
     }
@@ -137,7 +165,7 @@ impl ThreadShell {
 
     fn toggle(self) {
         let opening = self.collapsed.get_untracked();
-        if opening {
+        if opening && !self.full_width_sidebar {
             self.slide.set(-SIDEBAR_ENTRY_SLIDE);
             self.fade.set(0.0);
             self.slide.animate_to(0.0, Pace::Enter);
@@ -175,11 +203,12 @@ pub fn sidebar_group(
 ) -> Div {
     let muted = Role::TextMuted;
     let hovered = signal(false);
+    let touch = presentation().get_untracked().is_touch();
     let leading = view! { <div test_id={icon.0} flex>{Icon::new(icon.1, muted)}</div> }.into_any();
     let toggle = Callback::from(toggle);
     let row = view! {
         <tree_row test_id=id label expanded=expanded leading=leading label_color=muted on_click=toggle on_toggle=toggle>
-            <div flex items_center opacity={move || if hovered.get() { 1.0 } else { 0.0 }} transition=Pace::Move>
+            <div flex items_center opacity={move || if touch || hovered.get() { 1.0 } else { 0.0 }} transition=Pace::Move>
                 {controls}
             </div>
         </tree_row>

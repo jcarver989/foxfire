@@ -1,30 +1,87 @@
-use foxfire_ui::ChatPane;
-use foxfire_ui::backend::{BackendError, HostedBackend, HostedState, HostedThread, Project, ThreadId};
-use foxfire_ui::platform::ChatPlatform;
-use foxfire_ui::thread::{Thread, ThreadStatus, UNTITLED};
-use foxfire_ui::ui::tokens::{BASE_SIZE, Space};
-use foxfire_ui::ui::{
-    ActiveReviewTheme, FoxfireMotion, IconName, InterfaceSize, ThemePreference, ThreadShell, UiStyles, appearance,
-    breadcrumb, cloud_section, empty_state, icon_button, row_action, sidebar_group, sidebar_thread_row, thread_header,
-    thread_status_icon,
+mod preferences;
+
+use crate::ChatPane;
+use crate::backend::{BackendError, HostedBackend, HostedState, HostedThread, Project, ThreadId};
+use crate::memory::MemoryBackend;
+use crate::platform::ChatPlatform;
+use crate::thread::{Thread, ThreadStatus, UNTITLED};
+use crate::ui::tokens::{BASE_SIZE, Space};
+use crate::ui::{
+    ActiveReviewTheme, FoxfireMotion, IconName, InterfaceSize, SettingsField, SettingsModel, ThemePreference,
+    ThreadShell, UiStyles, appearance, breadcrumb, cloud_section, empty_state, icon_button, row_action, settings,
+    settings_button, sidebar_group, sidebar_thread_row, thread_header, thread_status_icon,
 };
 use indexmap::IndexMap;
-use rouge::core::{AnyView, Role, Styled, View, div, dynamic, each, motion, show, text, view};
+use rouge::core::{AnyView, Role, Styled, View, div, dynamic, each, motion, presentation, show, text, view};
+use rouge::persist::Storage;
+use rouge::platform::open_url;
 use rouge::reactive::{ReadSignal, Scope, Signal, Stored, effect, memo, signal, sleep, spawn, stored, untrack};
 use std::collections::HashSet;
 use std::hash::Hash;
 use std::rc::Rc;
 use std::time::Duration;
 
+/// Builds the shared hosted-project shell for a supplied backend. Call inside a Rouge window.
+pub fn hosted_view(
+    backend: Rc<dyn HostedBackend>,
+    platform: Rc<dyn ChatPlatform>,
+    storage: Rc<dyn Storage>,
+) -> impl View {
+    let preference = signal(ThemePreference::default());
+    let system = appearance();
+    let theme = ActiveReviewTheme::install(preference.with_untracked(|value| value.theme(system.get_untracked())));
+    effect(move || preference.with(|value| theme.set(value.theme(system.get()))));
+    let _ = FoxfireMotion::install(false);
+    InterfaceSize::install(BASE_SIZE);
+
+    let ready = signal(false);
+    let storage = stored(storage);
+    spawn(async move {
+        let saved = preferences::load(storage.get().as_ref()).await;
+        theme.set(saved.theme(system.get_untracked()));
+        preference.set(saved);
+        ready.set(true);
+    });
+    let model = SettingsModel {
+        appearance: SettingsField::new(memo(move || preference.get()), move |next| {
+            preferences::save(storage.get().as_ref(), &next);
+            preference.set(next);
+        }),
+        reduced_motion: None,
+        interface_size: None,
+    };
+    show(move || ready.get(), move || HostedApp::new(backend.clone(), platform.clone(), model).view())
+}
+
+/// Builds a self-contained demo with scripted replies and no connection to an agent.
+pub fn demo_view(storage: Rc<dyn Storage>) -> impl View {
+    let backend = MemoryBackend::new(vec![Project { id: "demo".to_owned(), name: "Demo project".to_owned() }]);
+    hosted_view(Rc::new(backend), Rc::new(DemoPlatform), storage)
+}
+
+struct DemoPlatform;
+
+impl ChatPlatform for DemoPlatform {
+    fn open(&self, target: &str) {
+        if target.starts_with("https://") || target.starts_with("http://") {
+            let _ = open_url(target);
+        }
+    }
+}
+
 #[derive(Clone, Copy)]
-pub(crate) struct WebApp {
+struct HostedApp {
     backend: Stored<Rc<dyn HostedBackend>>,
     platform: Stored<Rc<dyn ChatPlatform>>,
     projects: Signal<Vec<Project>>,
     threads: Signal<IndexMap<ThreadId, Entry>>,
     selected: Signal<Option<ThreadId>>,
     error: Signal<Option<String>>,
+    settings_open: Signal<bool>,
+    settings: SettingsModel,
     shell: ThreadShell,
+    touch: bool,
+    sidebar_closed: Signal<bool>,
     cloud_expanded: Signal<bool>,
     closed_projects: Signal<HashSet<String>>,
     launching: Signal<HashSet<String>>,
@@ -46,13 +103,9 @@ impl Entry {
     }
 }
 
-impl WebApp {
-    pub(crate) fn new(backend: Rc<dyn HostedBackend>, platform: Rc<dyn ChatPlatform>) -> Self {
-        let preference = ThemePreference::default();
-        let theme = ActiveReviewTheme::install(preference.theme(appearance().get_untracked()));
-        effect(move || theme.apply(&preference));
-        let _ = FoxfireMotion::install(false);
-        InterfaceSize::install(BASE_SIZE);
+impl HostedApp {
+    fn new(backend: Rc<dyn HostedBackend>, platform: Rc<dyn ChatPlatform>, settings: SettingsModel) -> Self {
+        let touch = presentation().get_untracked().is_touch();
         let collapsed = signal(false);
         let width = signal(None);
         let app = Self {
@@ -62,12 +115,17 @@ impl WebApp {
             threads: signal(IndexMap::new()),
             selected: signal(None),
             error: signal(None),
+            settings_open: signal(false),
+            settings,
             shell: ThreadShell::new(
                 memo(move || collapsed.get()),
                 memo(move || width.get()),
                 move |value| collapsed.set(value),
                 move |value| width.set(value),
-            ),
+            )
+            .full_width_sidebar(touch),
+            touch,
+            sidebar_closed: collapsed,
             cloud_expanded: signal(true),
             closed_projects: signal(HashSet::new()),
             launching: signal(HashSet::new()),
@@ -100,15 +158,20 @@ impl WebApp {
         app
     }
 
-    pub(crate) fn view(self) -> impl View {
+    fn view(self) -> impl View {
         let selected = memo(move || {
             let id = self.selected.get()?;
             self.threads.with(|threads| threads.get(&id).map(|entry| entry.info.clone()))
         });
-        let main = dynamic(move || match selected.get() {
-            Some(info) if info.state == HostedState::Ready => untrack(|| self.conversation(&info)).into_any(),
-            Some(info) => self.shell.placeholder(waiting(info)).into_any(),
-            None => self.shell.no_thread().into_any(),
+        let main = dynamic(move || {
+            if self.touch && !self.sidebar_closed.get() {
+                return None;
+            }
+            Some(match selected.get() {
+                Some(info) if info.state == HostedState::Ready => untrack(|| self.conversation(&info)).into_any(),
+                Some(info) => self.shell.placeholder(waiting(info)).into_any(),
+                None => self.shell.no_thread().into_any(),
+            })
         });
         let error = dynamic(move || {
             self.error.get().map(|error| {
@@ -121,7 +184,15 @@ impl WebApp {
                 }
             })
         });
-        let root = self.shell.view("web", move || self.controls(), move || self.sections(), main, error);
+        let overlays = vec![
+            error.into_any(),
+            show(
+                move || self.settings_open.get(),
+                move || settings(self.settings, move || self.settings_open.set(false)),
+            )
+            .into_any(),
+        ];
+        let root = self.shell.view("hosted", move || self.controls(), move || self.sections(), main, overlays);
         InterfaceSize::current().bind(root)
     }
 
@@ -129,6 +200,7 @@ impl WebApp {
         view! {
             <icon_button test_id="refresh-threads" icon=IconName::RotateCw label="Refresh threads"
                          on_click={move || { self.scope.run(|| spawn(self.refresh())); }}/>
+            {settings_button(move || self.settings_open.set(true))}
         }
     }
 
@@ -222,7 +294,7 @@ impl WebApp {
             },
             icon,
             None,
-            move || self.selected.set(Some(id())),
+            move || self.select(id()),
         )
         .action(
             row_action("Stop thread", move || self.stop(id()))
@@ -307,9 +379,16 @@ impl WebApp {
                     all.insert(id.clone(), Entry { info, pane: None });
                 }
             });
-            self.selected.set(Some(id));
+            self.select(id);
             Ok(())
         });
+    }
+
+    fn select(self, id: ThreadId) {
+        self.selected.set_if_changed(Some(id));
+        if self.touch {
+            self.sidebar_closed.set(true);
+        }
     }
 
     fn stop(self, id: ThreadId) {

@@ -5,7 +5,7 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "Shared Rouge UI for the Foxfire desktop and web clients"
+description = "Shared Rouge UI for Foxfire frontends"
 publish = false
 
 [features]
@@ -24,8 +24,10 @@ clankerdiff-rouge = { workspace = true }
 clankerdiff-ui-core = { workspace = true }
 foxfire-acp = { workspace = true }
 foxfire-core = { workspace = true }
-rouge = { workspace = true, features = ["markdown"] }
+indexmap = { workspace = true }
+rouge = { workspace = true, features = ["markdown", "open-url", "persist"] }
 rouge-widgets = { workspace = true }
+serde_json = { workspace = true }
 thiserror = { workspace = true }
 tokio = { workspace = true, features = ["sync"] }
 web-time = "1"

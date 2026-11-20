@@ -7,3 +7,8 @@
 **/*.rs.bk
 .DS_Store
 # framer:end rust-monorepo
+
+# framer:begin rouge/publishing
+/.rouge/out/
+/.framer/target/
+# framer:end rouge/publishing

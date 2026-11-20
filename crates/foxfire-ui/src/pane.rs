@@ -8,7 +8,7 @@ use rouge::core::{Div, Motion, Rect, Role, Styled, TextAlign, View, auto, div, p
 use rouge::reactive::{Memo, Signal, memo, signal};
 use std::rc::Rc;
 
-/// The conversation surface shared by desktop and web shells.
+/// The conversation surface shared by the desktop and hosted shells.
 #[derive(Clone, Copy)]
 pub struct ChatPane {
     thread: Thread,

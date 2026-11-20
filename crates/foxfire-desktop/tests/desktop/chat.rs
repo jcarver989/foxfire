@@ -124,14 +124,15 @@ fn each_thread_keeps_its_own_transcript_and_draft_across_selection() {
 }
 
 #[test]
-fn a_light_travels_round_the_composer_while_the_agent_works_unless_motion_is_off() {
-    for (motion, lit) in [(MotionScale::Full, true), (MotionScale::None, false)] {
+fn stop_shows_activity_only_in_a_focused_window_with_motion_enabled() {
+    for (motion, animates) in [(MotionScale::Full, true), (MotionScale::None, false)] {
         let (mut harness, thread, _requests) = working(DesktopHarnessBuilder::default().motion(motion), "/alpha");
         assert_eq!(thread.status(), ThreadStatus::Running);
-        assert_eq!(harness.bounds("busy-rim").is_some(), lit, "{motion:?}");
+        assert_eq!(harness.bounds("stop-spinner").is_some(), animates, "{motion:?}");
 
         harness.deactivate();
-        assert!(harness.bounds("busy-rim").is_none(), "a window in the background is still under {motion:?}");
+        assert!(harness.bounds("stop-spinner").is_none(), "a window in the background is still under {motion:?}");
+        assert!(harness.bounds("stop").is_some(), "Stop stays available without the spinner");
     }
 }
 

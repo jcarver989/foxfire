@@ -15,9 +15,8 @@ crate-type = ["cdylib", "rlib"]
 workspace = true
 
 [dependencies]
-indexmap = { workspace = true }
 foxfire-ui = { workspace = true }
-rouge = { workspace = true, features = ["open-url", "persist"] }
+rouge = { workspace = true, features = ["persist"] }
 rouge-widgets = { workspace = true }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]

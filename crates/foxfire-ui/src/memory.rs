@@ -58,7 +58,7 @@ impl MemoryBackend {
             projects: Rc::new(projects),
             state: Rc::default(),
             reply: Rc::new(vec![
-                "This reply is running entirely in your browser. ".to_owned(),
+                "This reply is running entirely on your device. ".to_owned(),
                 "No agent or server was contacted.".to_owned(),
             ]),
             delay: Duration::from_millis(220),

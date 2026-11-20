@@ -1,5 +1,11 @@
 {
   "files": {
+    ".cargo/config.toml": {
+      "kind": "toml",
+      "keys": [
+        "alias.rouge"
+      ]
+    },
     ".config/nextest.toml": {
       "kind": "managed"
     },
@@ -12,10 +18,14 @@
     ".github/workflows/release-plz.yml": {
       "kind": "managed"
     },
+    ".github/workflows/rouge-publish.yml": {
+      "kind": "managed"
+    },
     ".gitignore": {
       "kind": "blocks",
       "ids": [
         "framer",
+        "rouge/publishing",
         "rust-monorepo"
       ]
     },
@@ -42,6 +52,9 @@
         "profile.dist"
       ]
     },
+    "PUBLISHING.md": {
+      "kind": "managed"
+    },
     "clippy.toml": {
       "kind": "managed"
     },
@@ -51,6 +64,7 @@
     "justfile": {
       "kind": "blocks",
       "ids": [
+        "rouge/ios-sim",
         "rust-monorepo"
       ]
     },

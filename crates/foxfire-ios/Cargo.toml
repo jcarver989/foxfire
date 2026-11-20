@@ -1,0 +1,20 @@
+[package]
+name = "foxfire-ios"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "iOS host for the Foxfire demo"
+publish = false
+
+[package.metadata.dist]
+dist = false
+
+[lints]
+workspace = true
+
+[target.'cfg(target_os = "ios")'.dependencies]
+foxfire-ui = { workspace = true }
+rouge = { workspace = true, features = ["persist"] }
+rouge-widgets = { workspace = true }

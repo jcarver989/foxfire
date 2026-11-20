@@ -73,3 +73,9 @@ web-build:
 # Keep the desktop and browser UI spacing on the 4px grid, its radii on the token scale and its motion on the pace tokens
 style-check:
     scripts/style-check
+
+# framer:begin rouge/ios-sim
+# Build and launch the app in the iOS Simulator
+ios-sim:
+    cargo rouge run ios
+# framer:end rouge/ios-sim
