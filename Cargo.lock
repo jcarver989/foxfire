@@ -2625,6 +2625,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "foxfire-web"
+version = "0.1.0"
+dependencies = [
+ "foxfire-ui",
+ "indexmap 2.14.2",
+ "rouge",
+ "rouge-widgets",
+ "tokio",
+ "wasm-bindgen",
+]
+
+[[package]]
 name = "fs_extra"
 version = "1.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"

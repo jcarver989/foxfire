@@ -66,6 +66,10 @@ desktop agent="aether acp":
 desktop-release agent="aether acp":
     cargo run --release -p foxfire-desktop -- --agent '{{agent}}'
 
-# Keep the desktop and shared UI spacing on the 4px grid, its radii on the token scale and its motion on the pace tokens
+# Build the browser demo as static assets
+web-build:
+    scripts/build-web
+
+# Keep the desktop and browser UI spacing on the 4px grid, its radii on the token scale and its motion on the pace tokens
 style-check:
     scripts/style-check

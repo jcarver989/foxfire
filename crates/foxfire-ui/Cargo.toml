@@ -29,3 +29,6 @@ rouge-widgets = { workspace = true }
 thiserror = { workspace = true }
 tokio = { workspace = true, features = ["sync"] }
 web-time = "1"
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["macros", "rt"] }

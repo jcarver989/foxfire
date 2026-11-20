@@ -1,6 +1,7 @@
 pub mod backend;
 mod chat;
 mod elicitation;
+pub mod memory;
 mod pane;
 pub mod platform;
 pub mod thread;

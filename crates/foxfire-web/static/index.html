@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Foxfire · In-memory demo</title>
+  <style>
+    html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; }
+    canvas { display: block; width: 100%; height: 100%; }
+    #startup { position: absolute; top: 1rem; left: 1rem; font: 1rem system-ui; pointer-events: none; }
+  </style>
+</head>
+<body>
+  <canvas id="foxfire" aria-label="Foxfire"></canvas>
+  <p id="startup" role="status">Loading Foxfire…</p>
+  <script type="module">
+    import init, { mount } from './foxfire_web.js';
+    const status = document.getElementById('startup');
+    try {
+      await init();
+      mount('foxfire');
+      status.remove();
+    } catch (error) {
+      console.error(error);
+      status.textContent = `Could not start Foxfire: ${error}`;
+    }
+  </script>
+</body>
+</html>

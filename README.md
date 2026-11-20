@@ -1,6 +1,6 @@
 # Foxfire
 
-ACP clients for AI coding agents: a terminal UI, a native desktop app, and the shared client libraries behind them.
+ACP clients for AI coding agents: a terminal UI, a native desktop app, an in-memory browser demo, and the shared client libraries behind them.
 
 ## Run
 
@@ -12,6 +12,23 @@ cargo run -p foxfire-desktop -- --agent "my-agent"
 
 The terminal binary is `foxfire`; the desktop binary is `foxfire-desktop`. The default terminal agent command is `aether acp`, which requires Aether on `PATH`. Foxfire is an ACP client, not an agent server.
 
+## Browser demo
+
+Install the `wasm32-unknown-unknown` Rust target, `jq`, and `wasm-bindgen-cli` at the exact `wasm-bindgen` version in `Cargo.lock`. The syntax-highlighting dependencies also need a Clang that can target WebAssembly. If your default `clang` cannot, set `CC_wasm32_unknown_unknown` and `AR_wasm32_unknown_unknown` to the matching LLVM tools.
+
+```sh
+rustup target add wasm32-unknown-unknown
+scripts/build-web
+cargo install --locked miniserve  # once
+miniserve --interfaces 127.0.0.1 --port 8000 --index index.html target/foxfire-web
+```
+
+Open <http://localhost:8000>, hover over **Demo project**, click **+**, and send a message. The browser uses the same Rouge sidebar and conversation components as desktop. Drag the sidebar divider to resize it, double-click the divider to reset its width, or click the sidebar icon to hide or reopen it. Send `/permission` to try the shared permission card: choose **Allow once** or **Reject**, or press **Escape** while the composer is focused to cancel the turn.
+
+The replies are scripted, and threads live only in the page's memory: switching threads keeps their history, refreshing the page clears it. No agent, API server, account, or credentials are required. Add `?rouge_backend=gl` to test Rouge's WebGL2 renderer.
+
+To supply a different backend, implement `foxfire_ui::backend::HostedBackend` and pass it to `foxfire_web::web_view`. Desktop supplies a session-opening function backed by its existing agent connector; its local and Cloud configuration are unchanged.
+
 ## Crates
 
 - `foxfire-acp`: ACP transport, client utilities, conversation reduction, and optional Aether protocol extensions.
@@ -20,6 +37,7 @@ The terminal binary is `foxfire`; the desktop binary is `foxfire-desktop`. The d
 - `foxfire-tui`: embeddable terminal UI.
 - `foxfire-desktop`: native desktop client.
 - `foxfire-ui`: shared Rouge shell, conversation views, and session backend contract.
+- `foxfire-web`: browser shell and in-memory demo.
 - `foxfire-relay`: serves a stdio ACP agent, and review of its workspace, to several Foxfire clients over one WebSocket each.
 - `foxfire-docker`: runs desktop Cloud threads in isolated, warm-built containers on a local Docker engine. See [its setup guide](crates/foxfire-docker/README.md).
 

@@ -31,6 +31,7 @@ foxfire-core = { path = "crates/foxfire-core", version = "0.1.1" }
 foxfire-ui = { path = "crates/foxfire-ui" }
 foxfire-tui = { path = "crates/foxfire-tui", version = "0.1.1" }
 futures = "0.3.32"
+indexmap = "2"
 log = "0.4.34"
 mimalloc = { version = "0.1.52", default-features = false }
 mime_guess = "2"
