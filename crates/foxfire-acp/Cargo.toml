@@ -40,6 +40,9 @@ tracing = { workspace = true, optional = true }
 thiserror = { workspace = true }
 tokio-tungstenite = { workspace = true, optional = true }
 
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+agent-client-protocol = { workspace = true, features = ["wasm_js"], optional = true }
+
 [dev-dependencies]
 foxfire-acp = { path = ".", features = ["testing"] }
 tokio = { workspace = true, features = ["full", "test-util"] }

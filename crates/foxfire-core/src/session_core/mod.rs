@@ -9,14 +9,20 @@ use crate::composer::file_listing::FileListing;
 use crate::composer::prompt_search::PromptSearchState;
 use crate::composer::submission::Submission;
 use crate::elicitation::{Elicitation, ElicitationAnswer, ElicitationId, PendingElicitation};
-use crate::runtime::Input;
 use crate::session_model::{SessionModel, SessionSetting, WorkspaceAccess, WorkspaceStatus};
 use agent_client_protocol::v2::schema as acp;
 use clankerdiff_client::{ClientState, DiffReviewEvent};
 use foxfire_acp::aether::WorkspaceEntry;
+use foxfire_acp::client::AcpEvent;
 use foxfire_acp::conversation::{Conversation, NoticeLevel};
 use std::path::PathBuf;
 use std::sync::Arc;
+
+pub enum Input {
+    Event(AcpEvent),
+    Elicitation(PendingElicitation),
+    Result(CommandResult),
+}
 
 pub struct SessionCore {
     session: SessionModel,
@@ -156,6 +162,7 @@ impl SessionCore {
 
     pub fn on_input(&mut self, input: Input) {
         match input {
+            Input::Elicitation(pending) => self.ask(pending),
             Input::Event(event) => self.on_acp_event(event),
             Input::Result(result) => self.on_command_result(result),
         }
@@ -203,10 +210,6 @@ impl SessionCore {
         } else {
             ReviewSource::Unavailable("the agent serves no diff of its remote workspace".to_owned())
         };
-        self.open_git_review_from(source);
-    }
-
-    pub fn open_git_review_from(&mut self, source: ReviewSource) {
         self.git_review = GitReview::Opening;
         self.effects.push(Effect::Dispatch(Command::GitReview(GitReviewCommand::Open(source))));
     }
@@ -311,7 +314,7 @@ impl SessionCore {
                 }
             }
             CommandResult::ElicitationWithdrawn(request) => {
-                if self.elicitation.as_ref().is_some_and(|pending| pending.asked_as(&request)) {
+                if self.elicitation.as_ref().is_some_and(|pending| pending.request_id == request) {
                     self.dismiss_elicitation();
                 }
             }

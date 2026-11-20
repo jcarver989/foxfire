@@ -6,7 +6,7 @@ use clankerdiff_server::{DiffServer, ServerOptions};
 use foxfire_acp::aether::{
     AetherCapabilities, AetherMeta, GitDiffEventPayload, RemoteServerInfo, SessionPreviewResponse,
 };
-use foxfire_core::session_model::local_status;
+use foxfire_core::native::local_status;
 use futures::channel::mpsc::UnboundedSender;
 use serde_json::Value;
 use std::path::{Path, PathBuf};

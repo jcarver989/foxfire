@@ -4,7 +4,8 @@ use clankerdiff_remote::Invocation;
 use foxfire_acp::client::{AcpClientError, AcpEvent, connect_acp_client};
 use foxfire_acp::testing::{Channel, FakeAgent, initialize_request};
 use foxfire_core::command::{AgentCommand, Command, CommandResult, GitReviewCommand, ReviewSource};
-use foxfire_core::runtime::{Input, SessionRuntime};
+use foxfire_core::native::runtime::{ReviewOverride, SessionRuntime};
+use foxfire_core::session_core::Input;
 use foxfire_core::session_model::initial_workspace_status;
 use foxfire_core::testing::TestWorkspace;
 use foxfire_core::testing::{FakeGit, git_diff_agent};
@@ -107,13 +108,19 @@ fn a_git_review_of_a_local_working_tree_reads_it_through_a_diff_server_of_its_ow
 }
 
 #[test]
-fn a_git_review_over_stdio_reads_the_diff_its_command_serves() -> Result<(), TestError> {
+fn a_configured_stdio_review_takes_precedence_over_the_local_source() -> Result<(), TestError> {
     run_local(async {
         let repository = TestWorkspace::new().git_init().file("changed.txt", "edited\n");
+        let local = TestWorkspace::new().git_init().file("local.txt", "local edit\n");
         let mut runtime = disconnected_runtime().await?;
 
         let args = vec![repository.root().to_string_lossy().into_owned()];
-        runtime.dispatch(open_over_stdio(env!("CARGO_BIN_EXE_stdio-diff-server"), args, repository.root()));
+        runtime.set_review_override(Some(stdio_override(
+            env!("CARGO_BIN_EXE_stdio-diff-server"),
+            args,
+            repository.root(),
+        )));
+        runtime.dispatch(Command::GitReview(GitReviewCommand::Open(ReviewSource::Local(local.root().into()))));
 
         let document = next_document(&mut runtime).await;
         assert_eq!(document.files.iter().map(|file| file.path.as_str()).collect::<Vec<_>>(), ["changed.txt"]);
@@ -131,7 +138,8 @@ fn a_git_review_over_stdio_whose_command_cannot_start_or_exits_fails_naming_it()
         {
             let mut runtime = disconnected_runtime().await?;
 
-            runtime.dispatch(open_over_stdio(program, Vec::new(), dir.path()));
+            runtime.set_review_override(Some(stdio_override(program, Vec::new(), dir.path())));
+            runtime.dispatch(Command::GitReview(GitReviewCommand::Open(ReviewSource::Local(dir.path().into()))));
 
             let state = next_review_state(&mut runtime).await;
             assert_eq!(state.label(), "failed");
@@ -169,6 +177,23 @@ fn an_unavailable_git_review_fails_with_the_reason() -> Result<(), TestError> {
     })
 }
 
+#[test]
+fn a_configured_review_failure_is_reported_instead_of_falling_back() -> Result<(), TestError> {
+    run_local(async {
+        let local = TestWorkspace::new().git_init().file("local.txt", "local edit\n");
+        let mut runtime = disconnected_runtime().await?;
+        runtime
+            .set_review_override(Some(ReviewOverride::Unavailable("unable to resolve the review endpoint".to_owned())));
+
+        runtime.dispatch(Command::GitReview(GitReviewCommand::Open(ReviewSource::Local(local.root().into()))));
+
+        let state = next_review_state(&mut runtime).await;
+        assert_eq!(state.label(), "failed");
+        assert!(state.status().is_some_and(|status| status.contains("unable to resolve the review endpoint")));
+        Ok(())
+    })
+}
+
 fn saved(id: &str, cwd: &str) -> SessionInfo {
     SessionInfo::new(id, AbsolutePath::new(cwd))
 }
@@ -179,7 +204,6 @@ async fn disconnected_runtime() -> Result<SessionRuntime, AcpClientError> {
     Ok(SessionRuntime::new(client.handle, client.event_rx))
 }
 
-fn open_over_stdio(program: &str, args: Vec<String>, dir: &Path) -> Command {
-    let invocation = Invocation { program: program.to_owned(), args, dir: dir.into(), env: BTreeMap::new() };
-    Command::GitReview(GitReviewCommand::Open(ReviewSource::Stdio(invocation)))
+fn stdio_override(program: &str, args: Vec<String>, dir: &Path) -> ReviewOverride {
+    ReviewOverride::Stdio(Invocation { program: program.to_owned(), args, dir: dir.into(), env: BTreeMap::new() })
 }

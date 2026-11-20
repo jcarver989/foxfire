@@ -22,9 +22,18 @@ use tokio::task::JoinSet;
 
 use crate::command::{CommandResult, GitReviewCommand, Reply, ReviewSource};
 
+/// A host-configured review source that takes precedence over the session's default.
+#[derive(Debug, Clone)]
+pub enum ReviewOverride {
+    Stdio(Invocation),
+    WebSocket { url: String, headers: Vec<ConnectionHeader> },
+    Unavailable(String),
+}
+
 pub(super) struct GitReviewRuntime {
     handle: AcpClientHandle,
     review: Review,
+    source_override: Option<ReviewOverride>,
 }
 
 enum Review {
@@ -48,7 +57,11 @@ enum ReviewServer {
 
 impl GitReviewRuntime {
     pub(super) fn new(handle: AcpClientHandle) -> Self {
-        Self { handle, review: Review::Closed }
+        Self { handle, review: Review::Closed, source_override: None }
+    }
+
+    pub(super) fn set_review_override(&mut self, source: Option<ReviewOverride>) {
+        self.source_override = source;
     }
 
     pub(super) fn dispatch(
@@ -101,8 +114,13 @@ impl GitReviewRuntime {
 
     fn open(&mut self, source: ReviewSource) -> Option<CommandResult> {
         self.close();
-        self.review = match source {
-            ReviewSource::Agent { session_id } => {
+        self.review = match (self.source_override.clone(), source) {
+            (Some(ReviewOverride::Stdio(invocation)), _) => Review::Opening(Box::pin(open_process(invocation))),
+            (Some(ReviewOverride::WebSocket { url, headers }), _) => Review::Opening(Box::pin(connect(url, headers))),
+            (Some(ReviewOverride::Unavailable(reason)), _) | (None, ReviewSource::Unavailable(reason)) => {
+                return Some(CommandResult::GitReview(failed(ClientError::Transport(reason))));
+            }
+            (None, ReviewSource::Agent { session_id }) => {
                 let (messages, receiver) = mpsc::unbounded_channel();
                 let transport = AcpClientTransport {
                     handle: self.handle.clone(),
@@ -112,12 +130,7 @@ impl GitReviewRuntime {
                 let client = DiffClient::spawn(transport, ClientOptions::default());
                 Review::Open(Box::new(ReviewConnection::new(client, ReviewServer::Agent { session_id, messages })))
             }
-            ReviewSource::Local(path) => Review::Opening(Box::pin(open_local(path))),
-            ReviewSource::Stdio(invocation) => Review::Opening(Box::pin(open_process(invocation))),
-            ReviewSource::WebSocket { url, headers } => Review::Opening(Box::pin(connect(url, headers))),
-            ReviewSource::Unavailable(reason) => {
-                return Some(CommandResult::GitReview(failed(ClientError::Transport(reason))));
-            }
+            (None, ReviewSource::Local(path)) => Review::Opening(Box::pin(open_local(path))),
         };
         None
     }

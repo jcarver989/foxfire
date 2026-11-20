@@ -5,8 +5,7 @@ use agent_client_protocol::v2::schema::{
     AuthStatusResponse, ContentBlock, LoginAuthResponse, NewSessionResponse, ResumeSessionResponse,
     SessionConfigOptionValue, SessionId, SessionInfo, SetSessionConfigOptionResponse,
 };
-use clankerdiff_client::{ClientError, ClientState, ConnectionHeader, DiffReviewEvent, LookupReply};
-use clankerdiff_remote::Invocation;
+use clankerdiff_client::{ClientError, ClientState, DiffReviewEvent, LookupReply};
 use foxfire_acp::aether::{
     PromptSearchParams, PromptSearchResponse, SessionPreviewResponse, WorkspaceListResponse, WorkspaceMoveResponse,
     WorkspaceMoveTarget,
@@ -16,7 +15,6 @@ use foxfire_acp::conversation::ConversationId;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
-use tokio::task::JoinError;
 
 #[derive(Debug, Clone)]
 pub enum Command {
@@ -88,12 +86,11 @@ pub enum GitReviewCommand {
     Close,
 }
 
+/// The session's default review source when the host has no configured override.
 #[derive(Debug, Clone)]
 pub enum ReviewSource {
     Agent { session_id: SessionId },
     Local(PathBuf),
-    Stdio(Invocation),
-    WebSocket { url: String, headers: Vec<ConnectionHeader> },
     Unavailable(String),
 }
 
@@ -136,7 +133,7 @@ pub enum CommandResult {
         cwd: PathBuf,
         status: WorkspaceStatus,
     },
-    BackgroundFailed(JoinError),
+    BackgroundFailed(String),
     ElicitationWithdrawn(RawJsonRpcId),
     Reply(Reply),
 }
@@ -148,12 +145,6 @@ pub enum Reply {
     AuthenticationCompleted { method_id: String, result: Result<LoginAuthResponse, AcpClientError> },
     GitReviewAction(Result<(), ClientError>),
     GitReviewLookup(LookupReply),
-}
-
-impl From<JoinError> for CommandResult {
-    fn from(error: JoinError) -> Self {
-        Self::BackgroundFailed(error)
-    }
 }
 
 impl RequestId {

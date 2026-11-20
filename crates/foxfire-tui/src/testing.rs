@@ -30,8 +30,9 @@ use foxfire_acp::testing::{
     Channel, FakeAgent, FakeAgentRequests, announced, idle_state, initialize_request, message_chunk, on_session,
     running_state,
 };
-use foxfire_core::runtime::{Input, SessionRuntime};
+use foxfire_core::runtime::SessionRuntime;
 use foxfire_core::session_core::ForegroundOperation;
+use foxfire_core::session_core::Input;
 use foxfire_core::testing::{FakeGit, SessionCoreConfigBuilder, git_diff_agent};
 use futures::FutureExt;
 use ratatui::backend::{Backend, ClearType, TestBackend, WindowSize};

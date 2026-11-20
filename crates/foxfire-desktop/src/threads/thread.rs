@@ -278,12 +278,9 @@ impl Thread {
                 state.core = Some(SessionCore::new(*config));
                 state.link = Link::Connected;
             }
-            DriverMessage::OpenReview(source) => {
+            DriverMessage::OpenReview => {
                 if let Some(core) = state.core.as_mut() {
-                    match source {
-                        Some(source) => core.open_git_review_from(source),
-                        None => core.open_git_review(),
-                    }
+                    core.open_git_review();
                 }
             }
             DriverMessage::ConnectFailed(error) => state.link = Link::Failed(error.to_string()),

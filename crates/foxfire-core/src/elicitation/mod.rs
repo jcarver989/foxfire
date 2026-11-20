@@ -4,12 +4,11 @@ pub use form::{
     FieldError, FieldInput, FormError, FormField, FormFieldKind, SelectOption, accept_content, form_fields,
 };
 
+use agent_client_protocol::RawJsonRpcId;
 use agent_client_protocol::v2::schema::{
-    CancelledPermissionOutcome, CreateElicitationResponse, ElicitationAcceptAction, ElicitationAction,
-    ElicitationContentValue, PermissionOptionKind, RequestPermissionOutcome, RequestPermissionRequest,
-    RequestPermissionResponse, SelectedPermissionOutcome,
+    CancelledPermissionOutcome, ElicitationAcceptAction, ElicitationAction, ElicitationContentValue,
+    PermissionOptionKind, RequestPermissionOutcome, RequestPermissionRequest, SelectedPermissionOutcome,
 };
-use agent_client_protocol::{RawJsonRpcId, Responder};
 pub use foxfire_acp::artifact_review::{ArtifactReviewElicitationMeta, ArtifactReviewSubmission};
 use std::collections::BTreeMap;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -105,7 +104,7 @@ impl ElicitationAnswer {
         ))
     }
 
-    fn into_action(self) -> ElicitationAction {
+    pub(crate) fn into_action(self) -> ElicitationAction {
         match self {
             Self::Accept(content) => ElicitationAction::Accept(ElicitationAcceptAction::new().content(content)),
             Self::Choose(_) | Self::Decline => ElicitationAction::Decline,
@@ -113,7 +112,7 @@ impl ElicitationAnswer {
         }
     }
 
-    fn into_outcome(self) -> RequestPermissionOutcome {
+    pub(crate) fn into_outcome(self) -> RequestPermissionOutcome {
         match self {
             Self::Choose(option) => RequestPermissionOutcome::Selected(SelectedPermissionOutcome::new(option)),
             Self::Accept(_) | Self::Decline | Self::Cancel => {
@@ -123,49 +122,34 @@ impl ElicitationAnswer {
     }
 }
 
-pub(crate) struct PendingElicitation {
+/// An unanswered question. Dropping it delivers cancellation to its origin.
+pub struct PendingElicitation {
     pub(crate) id: ElicitationId,
     pub(crate) elicitation: Elicitation,
-    reply: Option<Reply>,
-}
-
-pub(crate) enum Reply {
-    Elicitation(Responder<CreateElicitationResponse>),
-    Permission(Responder<RequestPermissionResponse>),
+    pub request_id: RawJsonRpcId,
+    reply: Option<Box<dyn FnOnce(ElicitationAnswer) + Send>>,
 }
 
 impl PendingElicitation {
-    pub(crate) fn new(id: ElicitationId, elicitation: Elicitation, reply: Reply) -> Self {
-        Self { id, elicitation, reply: Some(reply) }
+    pub fn new(
+        request_id: RawJsonRpcId,
+        elicitation: Elicitation,
+        reply: impl FnOnce(ElicitationAnswer) + Send + 'static,
+    ) -> Self {
+        Self { id: ElicitationId::next(), elicitation, request_id, reply: Some(Box::new(reply)) }
     }
 
-    pub(crate) fn asked_as(&self, request: &RawJsonRpcId) -> bool {
-        match &self.reply {
-            Some(Reply::Elicitation(responder)) => responder.raw_id() == request,
-            Some(Reply::Permission(responder)) => responder.raw_id() == request,
-            None => false,
-        }
-    }
-
-    pub(crate) fn answer(mut self, answer: ElicitationAnswer) {
-        self.respond(answer);
-    }
-
-    fn respond(&mut self, answer: ElicitationAnswer) {
-        match self.reply.take() {
-            Some(Reply::Elicitation(responder)) => {
-                let _ = responder.respond(CreateElicitationResponse::new(answer.into_action()));
-            }
-            Some(Reply::Permission(responder)) => {
-                let _ = responder.respond(RequestPermissionResponse::new(answer.into_outcome()));
-            }
-            None => {}
+    pub fn answer(mut self, answer: ElicitationAnswer) {
+        if let Some(reply) = self.reply.take() {
+            reply(answer);
         }
     }
 }
 
 impl Drop for PendingElicitation {
     fn drop(&mut self) {
-        self.respond(ElicitationAnswer::Cancel);
+        if let Some(reply) = self.reply.take() {
+            reply(ElicitationAnswer::Cancel);
+        }
     }
 }

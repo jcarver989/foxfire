@@ -9,7 +9,7 @@ use crate::surfaces::picker::{Builtin, SlashCommand};
 use crate::view::input::UiEvent;
 use crossterm::event::{Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers, MouseEvent, MouseEventKind};
 use foxfire_acp::config_option_id::THEME_CONFIG_ID;
-use foxfire_core::composer::attachment::classify_paths;
+use foxfire_core::native::classify_paths;
 use foxfire_core::session_config_view::LocalConfigView;
 use foxfire_core::session_core::SessionCore;
 use std::time::{Duration, Instant};

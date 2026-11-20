@@ -1,9 +1,8 @@
 use agent_client_protocol::v2::schema as acp;
 use base64::Engine;
 use base64::engine::general_purpose::STANDARD as BASE64;
-use foxfire_core::composer::attachment::{
-    AttachmentKind, AttachmentOutcome, PromptAttachment, build_attachments, classify_attachment,
-};
+use foxfire_core::composer::attachment::{AttachmentKind, AttachmentOutcome, PromptAttachment, classify_attachment};
+use foxfire_core::native::build_attachments;
 use foxfire_core::session_model::WorkspaceAccess;
 use foxfire_core::testing::TestWorkspace;
 use std::path::Path;

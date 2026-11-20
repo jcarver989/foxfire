@@ -1,5 +1,3 @@
-use crate::git::current_ref;
-use crate::path::home_relative_path;
 use crate::session_config_view::{LocalConfigKind, LocalConfigOption, LocalConfigView};
 use crate::session_core::SessionCoreConfig;
 use agent_client_protocol::v2::schema as acp;
@@ -38,11 +36,6 @@ pub enum WorkspaceAccess {
 
 pub fn initial_workspace_status(cwd: &Path) -> WorkspaceStatus {
     WorkspaceStatus { display_dir: cwd.display().to_string(), git_ref: None }
-}
-
-/// What the client can tell about a working directory on this machine by itself.
-pub fn local_status(cwd: &Path) -> WorkspaceStatus {
-    WorkspaceStatus { display_dir: home_relative_path(cwd), git_ref: current_ref(cwd) }
 }
 
 impl SessionModel {

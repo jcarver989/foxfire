@@ -1,9 +1,9 @@
 use super::thread::Thread;
 use crate::target::{AgentConnector, ConnectError, SessionTarget};
 use agent_client_protocol::v2::schema::SessionId;
-use foxfire_core::command::{Command, ReviewSource};
-use foxfire_core::runtime::{Input, SessionRuntime};
-use foxfire_core::session_core::SessionCoreConfig;
+use foxfire_core::command::Command;
+use foxfire_core::native::runtime::{ReviewOverride, SessionRuntime};
+use foxfire_core::session_core::{Input, SessionCoreConfig};
 use rouge::reactive::{Task, spawn, spawn_tokio};
 use std::future::Future;
 use std::pin::pin;
@@ -13,7 +13,7 @@ use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel};
 pub(crate) enum DriverMessage {
     Launched(String),
     Connected(Box<SessionCoreConfig>),
-    OpenReview(Option<ReviewSource>),
+    OpenReview,
     ConnectFailed(ConnectError),
     Input(Input),
 }
@@ -85,14 +85,14 @@ async fn drive(
     };
     let (config, mut runtime) = session.into_core();
     if messages.send(DriverMessage::Connected(Box::new(config))).is_ok() {
-        forward(&mut runtime, review_source(&connector, &target), commands, &messages).await;
+        forward(&mut runtime, connector.review_override(&target), commands, &messages).await;
     }
     runtime.shutdown().await;
 }
 
 async fn forward(
     runtime: &mut SessionRuntime,
-    review: impl Future<Output = Option<ReviewSource>>,
+    review: impl Future<Output = Result<Option<ReviewOverride>, ConnectError>>,
     mut commands: UnboundedReceiver<Command>,
     messages: &UnboundedSender<DriverMessage>,
 ) {
@@ -102,7 +102,10 @@ async fn forward(
         let message = tokio::select! {
             source = &mut review, if review_pending => {
                 review_pending = false;
-                DriverMessage::OpenReview(source)
+                runtime.set_review_override(
+                    source.unwrap_or_else(|error| Some(ReviewOverride::Unavailable(error.to_string()))),
+                );
+                DriverMessage::OpenReview
             }
             input = runtime.next() => DriverMessage::Input(input),
             command = commands.recv() => match command {
@@ -119,8 +122,4 @@ async fn forward(
             return;
         }
     }
-}
-
-async fn review_source(connector: &AgentConnector, target: &SessionTarget) -> Option<ReviewSource> {
-    connector.review_source(target).await.unwrap_or_else(|error| Some(ReviewSource::Unavailable(error.to_string())))
 }

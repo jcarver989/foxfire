@@ -1,9 +1,11 @@
 mod agent;
 mod git_review;
 
+pub use git_review::ReviewOverride;
+
+use super::{build_attachments, local_status};
 use crate::command::{Command, CommandResult};
-use crate::composer::attachment::build_attachments;
-use crate::session_model::local_status;
+use crate::session_core::Input;
 use agent::Requests;
 use agent_client_protocol::{RawJsonRpcId, RequestCancellation};
 use foxfire_acp::client::{AcpClientHandle, AcpEvent};
@@ -12,11 +14,6 @@ use git_review::GitReviewRuntime;
 use std::collections::VecDeque;
 use tokio::sync::mpsc::UnboundedReceiver;
 use tokio::task::{AbortHandle, JoinSet};
-
-pub enum Input {
-    Event(AcpEvent),
-    Result(CommandResult),
-}
 
 pub struct SessionRuntime {
     handle: AcpClientHandle,
@@ -43,6 +40,11 @@ impl SessionRuntime {
             watching: None,
             ready: VecDeque::new(),
         }
+    }
+
+    /// Sets the host override for subsequent review opens, or clears it to use the session default.
+    pub fn set_review_override(&mut self, source: Option<ReviewOverride>) {
+        self.git_review.set_review_override(source);
     }
 
     pub fn dispatch(&mut self, command: Command) {
@@ -154,7 +156,7 @@ async fn next_task(tasks: &mut JoinSet<CommandResult>, preparing: &mut Option<Ab
                 return Some(result);
             }
             Err(error) if error.is_cancelled() => {}
-            Err(error) => return Some(error.into()),
+            Err(error) => return Some(CommandResult::BackgroundFailed(error.to_string())),
         }
     }
 }

@@ -5,7 +5,7 @@ use clankerdiff_remote::testing::FakeRemotes;
 use foxfire_acp::aether::RemoteServerInfo;
 use foxfire_acp::testing::FakeAgent;
 use foxfire_acp::websocket;
-use foxfire_core::command::ReviewSource;
+use foxfire_core::native::runtime::ReviewOverride;
 use foxfire_core::session_model::WorkspaceAccess;
 use foxfire_desktop::agents::AgentProfile;
 use foxfire_desktop::remotes::{Acp, Channel, InstanceState, RemoteSpec};
@@ -90,7 +90,7 @@ async fn a_thread_on_a_remote_launches_an_instance_and_reaches_its_agent_where_t
     assert_eq!(session.working_dir, PathBuf::from("/vm/patchwave"), "the agent works in the remote's `acp.cwd`");
     assert_eq!(session.workspace_access, WorkspaceAccess::Remote, "`acp.cwd` is not a path on this machine");
     assert_eq!(connector.launch(&target).await.unwrap(), None, "a launched instance is reused");
-    assert!(connector.review_source(&target).await.unwrap().is_none(), "the agent diffs its own working tree");
+    assert!(connector.review_override(&target).await.unwrap().is_none(), "the agent diffs its own working tree");
 }
 
 #[tokio::test]
@@ -185,7 +185,7 @@ async fn an_agents_diff_is_reviewed_wherever_its_endpoint_command_says() {
         }),
     );
 
-    let source = connector().review_source(&target(workspace.path(), agent)).await.unwrap();
+    let source = connector().review_override(&target(workspace.path(), agent)).await.unwrap();
 
     assert_websocket(source, "ws://vm:7331/ws", &[("authorization", "Bearer minted")]);
 }
@@ -195,7 +195,7 @@ async fn an_agent_without_a_diff_endpoint_has_no_review_source_of_its_own() {
     let workspace = tempfile::tempdir().unwrap();
     let agent = define_agent(workspace.path(), "claude", &json!({ "type": "stdio", "command": "claude-code-acp" }));
 
-    assert!(connector().review_source(&target(workspace.path(), agent)).await.unwrap().is_none());
+    assert!(connector().review_override(&target(workspace.path(), agent)).await.unwrap().is_none());
 }
 
 #[tokio::test]
@@ -205,9 +205,9 @@ async fn a_remotes_diff_is_reviewed_over_the_stdio_of_its_diff_command_on_the_th
         ..launching_remote("docker", "/docker")
     };
 
-    let source = connector().review_source(&SessionTarget::remote(&remote, Some("c1".to_owned()))).await.unwrap();
+    let source = connector().review_override(&SessionTarget::remote(&remote, Some("c1".to_owned()))).await.unwrap();
 
-    let Some(ReviewSource::Stdio(Invocation { program, args, dir, .. })) = source else {
+    let Some(ReviewOverride::Stdio(Invocation { program, args, dir, .. })) = source else {
         panic!("a stdio review: {source:?}")
     };
     assert_eq!(program, "remote");
@@ -224,7 +224,7 @@ async fn a_remotes_diff_is_reviewed_wherever_its_websocket_command_says() {
         ..launching_remote("patchwave", dir.path())
     };
 
-    let source = connector().review_source(&SessionTarget::remote(&remote, Some("vm-1".to_owned()))).await.unwrap();
+    let source = connector().review_override(&SessionTarget::remote(&remote, Some("vm-1".to_owned()))).await.unwrap();
 
     assert_websocket(source, "ws://vm:7331/ws", &[]);
 }
@@ -271,8 +271,8 @@ fn target(cwd: &Path, agent: AgentProfile) -> SessionTarget {
     SessionTarget::agent(cwd.into(), agent)
 }
 
-fn assert_websocket(source: Option<ReviewSource>, expected: &str, expected_headers: &[(&str, &str)]) {
-    let Some(ReviewSource::WebSocket { url, headers }) = source else { panic!("a WebSocket review: {source:?}") };
+fn assert_websocket(source: Option<ReviewOverride>, expected: &str, expected_headers: &[(&str, &str)]) {
+    let Some(ReviewOverride::WebSocket { url, headers }) = source else { panic!("a WebSocket review: {source:?}") };
     let headers: Vec<_> =
         headers.iter().map(|header| (header.name().as_str(), header.value().to_str().unwrap())).collect();
     assert_eq!(url, expected);

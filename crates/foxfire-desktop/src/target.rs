@@ -5,8 +5,8 @@ use agent_client_protocol::{self as acp, Agent, ByteStreams, Client, ConnectTo};
 use clankerdiff_client::ConnectionHeader;
 use clankerdiff_remote::{AcpTarget, Channel, Invocation, RemoteError, RemoteSpec, Remotes};
 use foxfire_acp::websocket;
-use foxfire_core::command::ReviewSource;
 use foxfire_core::connection::{Connection, ConnectionError, Session};
+use foxfire_core::native::runtime::ReviewOverride;
 use foxfire_core::session_model::WorkspaceAccess;
 use serde::de::DeserializeOwned;
 use std::future::Future;
@@ -193,15 +193,15 @@ impl AgentConnector {
         }
     }
 
-    pub async fn review_source(&self, target: &SessionTarget) -> Result<Option<ReviewSource>, ConnectError> {
+    pub async fn review_override(&self, target: &SessionTarget) -> Result<Option<ReviewOverride>, ConnectError> {
         match target {
             SessionTarget::Agent { agent, .. } => match &agent.config.diff {
-                Some(source) => Ok(Some(self.resolve(source, agent).await?.review_source()?)),
+                Some(source) => Ok(Some(self.resolve(source, agent).await?.review_override()?)),
                 None => Ok(None),
             },
             SessionTarget::Remote { remote, instance } => match remote.diff(instance.as_deref())? {
-                Some(Channel::Stdio(invocation)) => Ok(Some(ReviewSource::Stdio(invocation))),
-                Some(Channel::Websocket(invocation)) => Ok(Some(self.endpoint(&invocation).await?.review_source()?)),
+                Some(Channel::Stdio(invocation)) => Ok(Some(ReviewOverride::Stdio(invocation))),
+                Some(Channel::Websocket(invocation)) => Ok(Some(self.endpoint(&invocation).await?.review_override()?)),
                 None => Ok(None),
             },
         }
@@ -297,9 +297,9 @@ struct AgentProcess {
 }
 
 impl Endpoint {
-    fn review_source(self) -> Result<ReviewSource, ConnectError> {
+    fn review_override(self) -> Result<ReviewOverride, ConnectError> {
         let headers = self.connection_headers()?;
-        Ok(ReviewSource::WebSocket { url: self.url, headers })
+        Ok(ReviewOverride::WebSocket { url: self.url, headers })
     }
 
     fn connection_headers(&self) -> Result<Vec<ConnectionHeader>, ConnectError> {

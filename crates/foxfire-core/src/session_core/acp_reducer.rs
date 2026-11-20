@@ -1,8 +1,9 @@
 use super::{CommandEntry, Effect, ForegroundOperation, SessionCore, TurnEnd};
-use crate::elicitation::{Elicitation, ElicitationId, PendingElicitation, Reply, form_fields};
+use crate::elicitation::{Elicitation, PendingElicitation, form_fields};
 use crate::session_model::SessionSetting;
 use agent_client_protocol::v2::schema::{
-    self as acp, CreateElicitationRequest, CreateElicitationResponse, ElicitationAction, ElicitationMode, SessionUpdate,
+    self as acp, CreateElicitationRequest, CreateElicitationResponse, ElicitationAction, ElicitationMode,
+    RequestPermissionResponse, SessionUpdate,
 };
 use foxfire_acp::aether::McpNotification;
 use foxfire_acp::aether::source_mcp_server_name;
@@ -26,14 +27,22 @@ impl SessionCore {
             }
             AcpEvent::ElicitationRequest { params, responder } => {
                 if let Some(elicitation) = classify(*params) {
-                    self.ask(elicitation, Reply::Elicitation(responder));
+                    self.ask(PendingElicitation::new(responder.raw_id().clone(), elicitation, move |answer| {
+                        let _ = responder.respond(CreateElicitationResponse::new(answer.into_action()));
+                    }));
                 } else {
                     tracing::warn!("Declining an elicitation whose mode or schema is unsupported");
                     let _ = responder.respond(CreateElicitationResponse::new(ElicitationAction::Decline));
                 }
             }
             AcpEvent::PermissionRequest { params, responder } => {
-                self.ask(Elicitation::permission(&params), Reply::Permission(responder));
+                self.ask(PendingElicitation::new(
+                    responder.raw_id().clone(),
+                    Elicitation::permission(&params),
+                    move |answer| {
+                        let _ = responder.respond(RequestPermissionResponse::new(answer.into_outcome()));
+                    },
+                ));
             }
             AcpEvent::McpNotification(notification) => self.on_mcp_notification(&notification),
             AcpEvent::AuthStatusUpdated(update) => {
@@ -53,8 +62,8 @@ impl SessionCore {
         }
     }
 
-    fn ask(&mut self, elicitation: Elicitation, reply: Reply) {
-        self.elicitation = Some(PendingElicitation::new(ElicitationId::next(), elicitation, reply));
+    pub(super) fn ask(&mut self, pending: PendingElicitation) {
+        self.elicitation = Some(pending);
         self.effects.push(Effect::ElicitationRequested);
     }
 
