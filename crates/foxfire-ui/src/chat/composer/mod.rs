@@ -1,55 +1,50 @@
 mod completion;
-mod pasted;
 mod queued;
 
 use super::attachment::{chip, preview};
-use crate::app::chord;
-use crate::platform::{PathPrompt, Platform};
-use crate::tasks::spawn_in;
-use crate::threads::{Thread, ThreadEvent, ThreadStatus};
+use crate::platform::ChatPlatform;
+use crate::thread::{Thread, ThreadEvent, ThreadStatus};
 use crate::ui::tokens::{COMPOSER_POPUP_HEIGHT, ICON_SIZE, ROW_HEIGHT, Radius, Space};
 use crate::ui::typography::READING;
 use crate::ui::{
     BusyExt, IconName, Material, MaterialExt, PickerItem, SearchPickerEvent, SearchPickerHandle, UI_FONT, icon_button,
     picker_closed, popping, presence, search_picker,
 };
+use crate::ui::{chord, spawn_in};
 use completion::{CompletionItem, CompletionMenu, active_token};
 use foxfire_core::composer::attachment::{AttachedFile, PromptAttachment, attach_missing};
 use foxfire_core::composer::completion_token::Trigger;
 use foxfire_core::composer::prompt_history::PromptHistory;
 use foxfire_core::composer::prompt_search::PromptSearchStatus;
 use foxfire_core::composer::submission::Submission;
-use foxfire_core::native::classify_paths;
 use foxfire_core::session_core::SessionCore;
 use foxfire_core::session_model::WorkspaceAccess;
-use pasted::PastedImages;
 use queued::queued_prompts;
 use rouge::core::{
     AnyView, ClipboardMedia, Cursor, FocusHandle, FocusPolicy, Key, KeyEvent, Modifiers, Role, Styled, View, div,
-    dynamic, editable, focus_handle, px, view, window_focused,
+    dynamic, editable, focus_handle, px, show, view, window_focused,
 };
 use rouge::reactive::{Callback, Scope, Signal, Stored, batch, effect, memo, signal, stored, untrack};
 use std::ops::Range;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::rc::Rc;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) struct SearchPrompts;
 
 #[derive(Clone, Copy)]
-pub(crate) struct Composer {
+pub struct Composer {
     thread: Thread,
     text: Signal<String>,
     selection: Signal<Range<usize>>,
     mentions: Signal<Vec<PromptAttachment>>,
     media: Signal<Vec<PromptAttachment>>,
-    pasted: Stored<PastedImages>,
     history: Stored<PromptHistory>,
     recalled: Stored<bool>,
     popup: Signal<Popup>,
     search_status: Signal<Option<String>>,
     focus: FocusHandle,
-    platform: Stored<Rc<dyn Platform>>,
+    platform: Stored<Rc<dyn ChatPlatform>>,
     scope: Scope,
 }
 
@@ -62,14 +57,13 @@ enum Popup {
 }
 
 impl Composer {
-    pub(crate) fn new(thread: Thread, platform: Rc<dyn Platform>) -> Self {
+    pub fn new(thread: Thread, platform: Rc<dyn ChatPlatform>) -> Self {
         let composer = Self {
             thread,
             text: signal(String::new()),
             selection: signal(0..0),
             mentions: signal(Vec::new()),
             media: signal(Vec::new()),
-            pasted: stored(PastedImages::default()),
             history: stored(PromptHistory::default()),
             recalled: stored(false),
             popup: signal(Popup::Closed),
@@ -108,21 +102,25 @@ impl Composer {
         composer
     }
 
-    pub(crate) fn focus(self) {
+    pub fn focus(self) {
         self.focus.focus();
     }
 
     /// Types `typed` at the caret, replacing any selection, and focuses the composer.
-    pub(crate) fn type_text(self, typed: &str) {
+    pub fn type_text(self, typed: &str) {
         self.replace(self.selection.get_untracked(), typed);
         self.focus();
     }
 
-    pub(crate) fn attach(self, paths: &[PathBuf]) {
+    pub fn attach(self, paths: &[PathBuf]) {
+        if !self.platform.with(|platform| platform.can_attach_local_files()) {
+            return;
+        }
         let remote =
             self.thread.with_core(|core| core.session().workspace_access() == WorkspaceAccess::Remote).unwrap_or(false);
         let mut refused = Vec::new();
-        for file in classify_paths(paths.iter().cloned(), &self.root().unwrap_or_default()) {
+        let root = self.root().unwrap_or_default();
+        for file in self.platform.with(|platform| platform.classify_local_paths(paths, &root)) {
             match file {
                 AttachedFile::Media(media) => self.media.update(|attached| attach_missing(attached, [media])),
                 AttachedFile::Mention(mention) => self.insert_mention(self.selection.get_untracked(), mention),
@@ -138,7 +136,7 @@ impl Composer {
         }
     }
 
-    pub(crate) fn view(self) -> impl View {
+    pub fn view(self) -> impl View {
         let thread = self.thread;
         let queued =
             memo(move || thread.with_core(|core| core.queued_prompts().to_vec()).filter(|prompts| !prompts.is_empty()));
@@ -206,8 +204,10 @@ impl Composer {
         let running = memo(move || running(thread.status()));
         view! {
             <div px=Space::X2 pb=Space::X2 flex items_center gap=Space::X1>
-                <icon_button test_id="attach-files" icon=IconName::Paperclip label="Attach files"
-                             on_click={move || self.pick_files()}/>
+                <show when={move || self.platform.with(|platform| platform.can_attach_local_files())}>
+                    <icon_button test_id="attach-files" icon=IconName::Paperclip label="Attach files"
+                                 on_click={move || self.pick_files()}/>
+                </show>
                 <div flex_1/>
                 <dynamic>{
                     if running.get() && empty.get() {
@@ -228,7 +228,9 @@ impl Composer {
         }
         let chips = media.iter().enumerate().map(|(index, attachment)| {
             let id = format!("composer-attachment-{index}");
-            let thumbnail = preview(format!("{id}-thumbnail"), attachment, ICON_SIZE);
+            let thumbnail = self
+                .platform
+                .with(|platform| preview(format!("{id}-thumbnail"), attachment, ICON_SIZE, platform.as_ref()));
             let remove = view! {
                 <icon_button test_id={format!("{id}-remove")} icon=IconName::X label="Remove"
                              on_click={move || self.remove_media(index)}/>
@@ -341,9 +343,12 @@ impl Composer {
     }
 
     fn paste(self, media: ClipboardMedia) {
+        if !self.platform.with(|platform| platform.can_attach_local_files()) {
+            return;
+        }
         match media {
             ClipboardMedia::Files(paths) => self.attach(&paths),
-            ClipboardMedia::Png(png) => match self.pasted.update(|pasted| pasted.save(&png)) {
+            ClipboardMedia::Png(png) => match self.platform.with(|platform| platform.save_pasted_image(&png)) {
                 Ok(image) => self.media.update(|media| attach_missing(media, [image])),
                 Err(message) => self.thread.report_error(&message),
             },
@@ -351,8 +356,7 @@ impl Composer {
     }
 
     fn pick_files(self) {
-        let prompt = PathPrompt { title: "Attach".to_owned(), directories: false, multiple: true };
-        let picked = self.platform.with(|platform| platform.pick_paths(prompt));
+        let picked = self.platform.with(|platform| platform.pick_files());
         spawn_in(self.scope, async move {
             if let Some(paths) = picked.await {
                 self.attach(&paths);
@@ -388,11 +392,7 @@ impl Composer {
     }
 
     fn root(self) -> Option<PathBuf> {
-        self.thread
-            .listed_files()
-            .map(|files| files.root)
-            .ok()
-            .or_else(|| self.thread.target().cwd().map(Path::to_path_buf))
+        self.thread.listed_files().map(|files| files.root).ok().or_else(|| self.thread.fallback_cwd())
     }
 
     fn cancel(self) {

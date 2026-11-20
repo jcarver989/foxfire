@@ -1,5 +1,5 @@
-use crate::tasks::spawn_in;
-use crate::threads::{Thread, ThreadStatus};
+use crate::thread::{Thread, ThreadStatus};
+use crate::ui::spawn_in;
 use crate::ui::tokens::{HAIRLINE, ICON_SIZE_SMALL, Pace, ROW_HEIGHT, Radius, Space, UNIT};
 use crate::ui::{FoxfireMotion, FoxfireState, Hint, Icon, IconName, Theme, UiStyles, foxfire};
 use agent_client_protocol::v2::schema as acp;
@@ -12,10 +12,11 @@ use rouge::core::{
 use rouge::reactive::{Memo, Scope, Signal, effect, memo, signal, sleep, stored, untrack};
 use rouge::widgets::{Placement, popover, progress, progress_ring};
 use std::cell::Cell;
-use std::time::{Duration, Instant};
+use std::time::Duration;
+use web_time::Instant;
 
 #[derive(Clone, Copy)]
-pub(crate) struct StatusLine {
+pub struct StatusLine {
     thread: Thread,
     running_since: Signal<Option<Instant>>,
     last_turn: Signal<Option<Duration>>,
@@ -34,7 +35,7 @@ enum Doing {
 }
 
 impl StatusLine {
-    pub(crate) fn new(thread: Thread) -> Self {
+    pub fn new(thread: Thread) -> Self {
         let status = Self {
             thread,
             running_since: signal(None),
@@ -76,7 +77,7 @@ impl StatusLine {
         });
     }
 
-    pub(crate) fn view(self) -> impl View {
+    pub fn view(self) -> impl View {
         let thread = self.thread;
         let plan = memo(move || thread.with_core(|core| visible_plan(core.conversation())).flatten());
         let usage = memo(move || thread.with_core(|core| core.conversation().context_usage().cloned()).flatten());

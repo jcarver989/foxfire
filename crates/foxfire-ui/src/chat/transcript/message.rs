@@ -1,5 +1,5 @@
 use crate::chat::attachment::{Attachment, chip, chip_icon, thumbnail};
-use crate::threads::{Thread, ThreadStatus};
+use crate::thread::{Thread, ThreadStatus};
 use crate::ui::tokens::{HAIRLINE, Pace, Space};
 use crate::ui::{
     ButtonVariant, IconName, Material, MaterialExt, NoticeTone, UiStyles, backdrop, button, disclosure, icon_button,
@@ -114,7 +114,7 @@ pub(crate) fn error(index: usize, text: &str) -> AnyView {
     notification(text.to_owned(), NoticeTone::Error, None).test_id(format!("transcript-error-{index}")).into_any()
 }
 
-pub(crate) fn reconnect_banner(thread: Thread, status: ThreadStatus) -> Option<Div> {
+pub fn reconnect_banner(thread: Thread, status: ThreadStatus) -> Option<Div> {
     let problem = status.problem()?;
     let banner = notification(problem.to_owned(), NoticeTone::Warning, None)
         .material(Material::Surface)

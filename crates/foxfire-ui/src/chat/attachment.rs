@@ -1,3 +1,4 @@
+use crate::platform::ChatPlatform;
 use crate::ui::tokens::{HAIRLINE, ICON_SIZE_SMALL, Radius, Space};
 use crate::ui::{Icon, IconName, UiStyles};
 use agent_client_protocol::v2::schema as acp;
@@ -52,10 +53,13 @@ pub(crate) fn thumbnail(id: String, source: ImageSource, size: f32) -> Div {
     }
 }
 
-pub(crate) fn preview(id: String, attachment: &PromptAttachment, size: f32) -> AnyView {
+pub(crate) fn preview(id: String, attachment: &PromptAttachment, size: f32, platform: &dyn ChatPlatform) -> AnyView {
     match classify_attachment(&attachment.path) {
         AttachmentKind::Audio => div().flex().child(chip_icon(IconName::AudioLines)).into_any(),
-        _ => thumbnail(id, ImageSource::File(attachment.path.clone()), size).into_any(),
+        _ => match platform.attachment_image(&attachment.path) {
+            Some(source) => thumbnail(id, source, size).into_any(),
+            None => chip_icon(IconName::File).into_any(),
+        },
     }
 }
 

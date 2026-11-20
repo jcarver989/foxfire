@@ -4,12 +4,12 @@ mod markdown;
 mod message;
 mod tools;
 
-pub(crate) use message::reconnect_banner;
+pub use message::reconnect_banner;
 
 use super::attachment::Attachment;
-use crate::platform::Platform;
-use crate::threads::{Thread, ThreadStatus};
-use crate::ui::tokens::{CONTENT_MAX_WIDTH, GRID_COLUMNS, HAIRLINE, HEADER_HEIGHT, ROW_HEIGHT, SCROLLBAR_WIDTH, Space};
+use crate::platform::ChatPlatform;
+use crate::thread::{Thread, ThreadStatus};
+use crate::ui::tokens::{CONTENT_MAX_WIDTH, GRID_COLUMNS, HEADER_HEIGHT, ROW_HEIGHT, SCROLLBAR_WIDTH, Space};
 use crate::ui::{
     ActiveReviewTheme, IconName, Material, MaterialExt, UiStyles, column_grid, empty_state, grid_cell, icon_button,
     reading_cell, reading_span, vertical_scrollbar,
@@ -18,7 +18,7 @@ use agent_client_protocol::v2::schema as acp;
 use clankerdiff_core::DiffDocument;
 use clankerdiff_rouge::{DiffViewerEvent, DiffViewerOptions, ReviewController, ReviewHandle, ReviewOutput};
 use foxfire_acp::conversation::{
-    ConversationContent, ConversationId, ConversationItem, ConversationItemId, Notice, NoticeLevel, Revision,
+    ConversationContent, ConversationId, ConversationItem, ConversationItemId, Notice, NoticeLevel,
 };
 use groups::{Group, GroupKind, groups};
 use message::{error, full_diff, image_preview, message_actions, notice, prompt, reconnect_button, thinking_block};
@@ -38,7 +38,7 @@ use std::sync::Arc;
 use tools::{ToolActions, ToolCard, ToolFold, ToolPreviews, fold_header};
 
 #[derive(Clone, Copy)]
-pub(crate) struct Transcript {
+pub struct Transcript {
     thread: Thread,
     list: VirtualListHandle,
     following: Signal<bool>,
@@ -53,9 +53,9 @@ pub(crate) struct Transcript {
     tools: Stored<ToolPreviews>,
     focus: Stored<HashMap<ConversationItemId, FocusHandle>>,
     summary: Memo<Summary>,
-    structure: Memo<u64>,
+    projection: Memo<Vec<ProjectedRow>>,
     on_location: Callback<(acp::ToolCallLocation,)>,
-    platform: Stored<Rc<dyn Platform>>,
+    platform: Stored<Rc<dyn ChatPlatform>>,
     window: WindowHandle,
     scope: Scope,
 }
@@ -65,7 +65,7 @@ type ItemAttachments = Vec<(usize, Attachment)>;
 #[derive(Clone, Default, PartialEq)]
 struct Summary {
     conversation: Option<ConversationId>,
-    items: Vec<(ConversationItemId, Revision)>,
+    items: Vec<ConversationItemId>,
     groups: Vec<Group>,
 }
 
@@ -76,16 +76,36 @@ enum Fold {
     Rows(GroupKind, ConversationItemId),
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-enum RowId {
-    Item(ConversationItemId),
-    Spacer,
+#[derive(Clone, PartialEq, Eq, Hash)]
+struct ProjectedRow {
+    index: usize,
+    id: ConversationItemId,
+    group: Option<Group>,
+    collapsed: bool,
+}
+
+impl Summary {
+    fn visible(&self, unfolded: &HashSet<Fold>) -> Vec<ProjectedRow> {
+        let mut groups = self.groups.iter().peekable();
+        let mut rows = Vec::new();
+        let mut index = 0;
+        while let Some(&id) = self.items.get(index) {
+            let group = groups.peek().copied().filter(|g| g.rows.contains(&index));
+            let collapsed = group.is_some_and(|g| !unfolded.contains(&Fold::Rows(g.kind, self.items[g.rows.start])));
+            rows.push(ProjectedRow { index, id, group: group.cloned(), collapsed });
+            index = group.filter(|_| collapsed).map_or(index + 1, |g| g.rows.end);
+            if group.is_some_and(|g| index == g.rows.end) {
+                groups.next();
+            }
+        }
+        rows
+    }
 }
 
 impl Transcript {
-    pub(crate) fn new(
+    pub fn new(
         thread: Thread,
-        platform: Rc<dyn Platform>,
+        platform: Rc<dyn ChatPlatform>,
         dock: Signal<Rect>,
         stage: Signal<Rect>,
         on_location: impl Fn(acp::ToolCallLocation) + 'static,
@@ -98,18 +118,14 @@ impl Transcript {
                     let items = conversation.items();
                     Summary {
                         conversation: Some(conversation.id()),
-                        items: items.iter().map(|item| (item.id(), item.revision())).collect(),
+                        items: items.iter().map(ConversationItem::id).collect(),
                         groups: groups(items),
                     }
                 })
                 .unwrap_or_default()
         });
         let unfolded: Signal<HashSet<Fold>> = signal(HashSet::new());
-        let structure = memo(move || {
-            let groups = summary.with(|summary| hash(&(summary.conversation, &summary.groups)));
-            let folds = unfolded.with(|unfolded| unfolded.iter().map(hash).fold(0, u64::wrapping_add));
-            groups ^ folds
-        });
+        let projection = memo(move || summary.with(|summary| unfolded.with(|folds| summary.visible(folds))));
         let list = virtual_list_handle();
         let scroll = list.scroll_state();
         let gutter = memo(move || {
@@ -132,7 +148,7 @@ impl Transcript {
             tools: stored(ToolPreviews::default()),
             focus: stored(HashMap::new()),
             summary,
-            structure,
+            projection,
             on_location: Callback::from(on_location),
             platform: stored(platform),
             window: window_handle(),
@@ -161,16 +177,16 @@ impl Transcript {
     }
 
     /// The columns the reading column spans, for whatever shares the transcript's grid.
-    pub(crate) fn reading(self) -> Memo<u16> {
+    pub fn reading(self) -> Memo<u16> {
         self.reading
     }
 
     /// The room the scrollbar takes beside the rows, which the grid leaves out.
-    pub(crate) fn gutter(self) -> Memo<f32> {
+    pub fn gutter(self) -> Memo<f32> {
         self.gutter
     }
 
-    pub(crate) fn view(self) -> impl View {
+    pub fn view(self) -> impl View {
         let empty = memo(move || self.summary.with(|summary| summary.items.is_empty()));
         let close_preview = Callback::from(move || self.preview.set(None));
         let close_diff = Callback::from(move || self.full_diff.set(None));
@@ -186,18 +202,21 @@ impl Transcript {
     }
 
     fn list(self) -> impl View {
-        let (summary, structure, list, dock) = (self.summary, self.structure, self.list, self.dock);
+        let (projection, list, dock) = (self.projection, self.list, self.dock);
+        let at = move |index: usize| projection.with(|rows| rows.get(index).cloned());
         let rows = virtual_list(
-            move || summary.with(|summary| summary.items.len()) + 1,
+            move || projection.with(|rows| rows.len() + 1),
             ROW_ESTIMATE,
-            move |index| untrack(|| self.row(index)),
+            move |index| untrack(|| self.row(at(index))),
         )
         .row_identity(move |index| {
-            let id = summary.with(|summary| summary.items.get(index).map_or(RowId::Spacer, |(id, _)| RowId::Item(*id)));
-            RowKey::new(id, structure.get())
+            let row = at(index);
+            let folds = row.as_ref().map(|r| (self.expanded(Fold::Item(r.id)), self.expanded(Fold::Full(r.id))));
+            let revision = hash(&(self.summary.with(|s| s.conversation), &row, folds));
+            RowKey::new(row.map(|r| r.id), revision)
         })
         .measure_rows(|| 0)
-        .row_text(move |index| self.row_text(index))
+        .row_text(move |index| at(index).filter(|r| !r.collapsed).map_or_else(String::new, |r| self.row_text(r.index)))
         .handle(list)
         .follow_end(self.following)
         .size_full();
@@ -207,7 +226,7 @@ impl Transcript {
         let jump = move || {
             let latest = move || {
                 following.set(true);
-                list.scroll_to_row(summary.with_untracked(|summary| summary.items.len()), Align::Bottom);
+                list.scroll_to_row(projection.with_untracked(Vec::len), Align::Bottom);
             };
             view! {
                 <div flex_none material=Material::GlassControl>
@@ -252,22 +271,12 @@ impl Transcript {
         self.on_type.call(typed.clone());
     }
 
-    fn with_group<T>(self, index: usize, read: impl FnOnce(Option<(&Group, Fold)>) -> T) -> T {
-        self.summary.with(|summary| {
-            let group = summary.groups.iter().find(|group| group.rows.contains(&index));
-            read(group.map(|group| (group, Fold::Rows(group.kind, summary.items[group.rows.start].0))))
-        })
-    }
-
     fn expanded(self, fold: Fold) -> bool {
         self.unfolded.with(|unfolded| unfolded.contains(&fold))
     }
 
     /// The selectable text of a row that is not mounted in the virtual list.
     fn row_text(self, index: usize) -> String {
-        if self.with_group(index, |group| group.is_some_and(|(_, fold)| !self.expanded(fold))) {
-            return String::new();
-        }
         self.thread
             .with_core(|core| {
                 let item = core.conversation().items().get(index)?;
@@ -297,42 +306,39 @@ impl Transcript {
         view! { <div size_full pt=HEADER_HEIGHT pb={move || px(dock.get().size.height)}>{content}</div> }.into_any()
     }
 
-    fn row(self, index: usize) -> AnyView {
-        let group = self.with_group(index, |group| group.map(|(group, fold)| (group.clone(), fold)));
-        if self.summary.with(|summary| index >= summary.items.len()) {
+    fn row(self, projected: Option<ProjectedRow>) -> AnyView {
+        let Some(ProjectedRow { index, id, group, collapsed: folded }) = projected else {
             let dock = self.dock;
             return view! { <div pt=FADE_HEIGHT><div h={move || px(dock.get().size.height)}/></div> }.into_any();
-        }
+        };
         let Some((kind, header)) = self
             .thread
             .with_core(|core| {
                 let items = core.conversation().items();
-                let kind = items.get(index).map(kind_of)?;
-                let header = group.as_ref().map(|(group, fold)| {
-                    let fold = *fold;
-                    let expanded = self.expanded(fold);
-                    let toggle = Callback::from(move || self.toggle(fold));
-                    let header = (index == group.rows.start)
-                        .then(|| fold_header(group.kind, index, &items[group.rows.clone()], expanded, toggle));
-                    (header, !expanded)
+                let kind = kind_of(items.get(index)?);
+                let header = group.as_ref().filter(|g| g.rows.start == index).and_then(|g| {
+                    let fold = Fold::Rows(g.kind, id);
+                    Some(fold_header(
+                        g.kind,
+                        index,
+                        items.get(g.rows.clone())?,
+                        !folded,
+                        Callback::from(move || self.toggle(fold)),
+                    ))
                 });
                 Some((kind, header))
             })
             .flatten()
         else {
-            return view! { <div h=HAIRLINE/> }.into_any();
+            return ().into_any();
         };
-        let (header, folded) = header.unwrap_or((None, false));
-        if folded && header.is_none() {
-            return view! { <div h=HAIRLINE/> }.into_any();
-        }
         let hovered = signal(false);
         let content = (!folded).then(|| {
-            let indented = group.as_ref().is_some_and(|(group, _)| group.kind == GroupKind::Run);
+            let indented = group.as_ref().is_some_and(|group| group.kind == GroupKind::Run);
             let item = self.item(index, kind, hovered);
             if indented { div().pl(Space::X4).child(item) } else { div().child(item) }
         });
-        let turn_header = header.is_some() && group.as_ref().is_some_and(|(group, _)| group.kind == GroupKind::Turn);
+        let turn_header = header.is_some() && group.as_ref().is_some_and(|group| group.kind == GroupKind::Turn);
         let top = if index == 0 { HEADER_HEIGHT } else { 0.0 };
         let padding = match kind {
             Kind::User => (Space::X6.px(), Space::X2.px()),

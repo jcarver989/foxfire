@@ -63,7 +63,8 @@ fn a_stopped_threads_session_can_be_picked_up_again_from_a_new_thread() -> TestR
     assert_eq!(resumed.session_id(), Some(SessionId::new("alpha-session")));
     assert!(!harness.threads().threads().contains(&fresh));
     assert_eq!(texts(resumed), ["replayed answer"]);
-    assert_eq!(harness.connector().live_agents("/alpha"), 1, "the new thread's agent gave way to the resumed one");
+    harness.run_until(|harness| harness.connector().live_agents("/alpha") == 1);
+    assert_eq!(resumed.status(), ThreadStatus::Idle);
     Ok(())
 }
 

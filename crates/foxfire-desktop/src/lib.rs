@@ -5,7 +5,6 @@ pub mod branding;
 mod chat;
 pub mod cli;
 pub mod clock;
-mod elicitation;
 mod file_picker;
 mod files;
 pub mod history;

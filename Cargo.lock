@@ -2502,7 +2502,6 @@ name = "foxfire-desktop"
 version = "0.1.0"
 dependencies = [
  "agent-client-protocol",
- "base64 0.23.1",
  "chrono",
  "clankerdiff-client",
  "clankerdiff-core",
@@ -2516,6 +2515,7 @@ dependencies = [
  "clap",
  "foxfire-acp",
  "foxfire-core",
+ "foxfire-ui",
  "futures",
  "log",
  "mimalloc",
@@ -2602,6 +2602,26 @@ dependencies = [
  "tracing-subscriber",
  "unicode-width",
  "url",
+]
+
+[[package]]
+name = "foxfire-ui"
+version = "0.1.0"
+dependencies = [
+ "agent-client-protocol",
+ "base64 0.23.1",
+ "clankerdiff-client",
+ "clankerdiff-core",
+ "clankerdiff-markdown",
+ "clankerdiff-rouge",
+ "clankerdiff-ui-core",
+ "foxfire-acp",
+ "foxfire-core",
+ "rouge",
+ "rouge-widgets",
+ "thiserror 2.0.21",
+ "tokio",
+ "web-time",
 ]
 
 [[package]]

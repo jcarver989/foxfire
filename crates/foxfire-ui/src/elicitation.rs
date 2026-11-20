@@ -1,5 +1,5 @@
-use crate::platform::Platform;
-use crate::threads::Thread;
+use crate::platform::ChatPlatform;
+use crate::thread::Thread;
 use crate::ui::tokens::{HAIRLINE, Space};
 use crate::ui::{ButtonVariant, Material, MaterialExt, UiStyles, button, field, popping, text_input};
 use foxfire_core::elicitation::{
@@ -10,12 +10,12 @@ use rouge::reactive::{Callback, Scope, Signal, Stored, effect, memo, signal, sto
 use std::rc::Rc;
 
 #[derive(Clone, Copy)]
-pub(crate) struct ElicitationCard {
+pub struct ElicitationCard {
     thread: Thread,
     shown: Stored<Option<ElicitationId>>,
     form: Signal<Option<Form>>,
     on_open_review: Callback,
-    platform: Stored<Rc<dyn Platform>>,
+    platform: Stored<Rc<dyn ChatPlatform>>,
     scope: Scope,
 }
 
@@ -38,7 +38,7 @@ enum FieldAnswer {
 }
 
 impl ElicitationCard {
-    pub(crate) fn new(thread: Thread, platform: Rc<dyn Platform>, on_open_review: impl Fn() + 'static) -> Self {
+    pub fn new(thread: Thread, platform: Rc<dyn ChatPlatform>, on_open_review: impl Fn() + 'static) -> Self {
         let card = Self {
             thread,
             shown: stored(None),
@@ -55,7 +55,7 @@ impl ElicitationCard {
         card
     }
 
-    pub(crate) fn view(self) -> impl View {
+    pub fn view(self) -> impl View {
         let thread = self.thread;
         let id = memo(move || thread.elicitation().map(|(id, _)| id));
         popping(id, move |_| thread.elicitation().map(|(_, elicitation)| self.card(&elicitation)))

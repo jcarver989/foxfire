@@ -115,7 +115,7 @@ const REVEAL_AT: f32 = 0.7;
 const REVEAL_FOR: f32 = 0.3;
 /// Seconds from a kindling's first frame until its composer is fully shown, and so takes clicks.
 #[cfg(any(test, feature = "testing"))]
-pub(crate) const KINDLED_AFTER: f64 = (REVEAL_AT + REVEAL_FOR) as f64;
+pub const KINDLED_AFTER: f64 = (REVEAL_AT + REVEAL_FOR) as f64;
 /// Opacity is clamped to [0, 1], so one linear ramp up from here holds the composer hidden until `REVEAL_AT`
 /// and stays on the compositor's clock with the shader.
 const HIDDEN: f32 = -REVEAL_AT / REVEAL_FOR;

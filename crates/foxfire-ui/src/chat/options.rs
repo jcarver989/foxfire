@@ -1,4 +1,4 @@
-use crate::threads::Thread;
+use crate::thread::Thread;
 use crate::ui::tokens::{COMPOSER_POPUP_HEIGHT, ICON_SIZE_SMALL, Space, UNIT};
 use crate::ui::{
     Icon, IconName, Material, PickerItem, SearchPickerHandle, UiStyles, list_row, picker_closed, search_picker,
@@ -11,16 +11,16 @@ use rouge::reactive::{memo, signal};
 use rouge::widgets::{Placement, popover};
 
 #[derive(Clone, Copy)]
-pub(crate) struct SessionOptions {
+pub struct SessionOptions {
     thread: Thread,
 }
 
 impl SessionOptions {
-    pub(crate) fn new(thread: Thread) -> Self {
+    pub fn new(thread: Thread) -> Self {
         Self { thread }
     }
 
-    pub(crate) fn view(self) -> impl View {
+    pub fn view(self) -> impl View {
         let thread = self.thread;
         let options = memo(move || {
             thread.with_connected_core(|core| core.session().config_options().to_vec()).unwrap_or_default()

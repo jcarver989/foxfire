@@ -2,10 +2,10 @@ use super::Sidebar;
 use super::listing::{Row, RowKind};
 use crate::remotes::{InstanceState, Lifecycle};
 use crate::threads::ThreadStatus;
-use crate::ui::tokens::{ICON_SIZE, ROW_HEIGHT, Radius, Space, TWO_LINE_ROW_HEIGHT, UNREAD_DOT_SIZE};
+use crate::ui::tokens::{ICON_SIZE, Radius, UNREAD_DOT_SIZE};
 use crate::ui::{
-    FoxfireState, Icon, IconName, SelectionState, UiStyles, foxfire, hint, icon_button, icon_slot, inline_edit,
-    list_row, row_action,
+    FoxfireState, Icon, IconName, UiStyles, foxfire, hint, icon_button, inline_edit, row_action, sidebar_thread_row,
+    thread_status_icon,
 };
 use rouge::core::{AnyView, MenuItem as WindowMenuItem, Role, Styled, View, div, text, view};
 use rouge::widgets::context_menu;
@@ -44,43 +44,26 @@ pub(super) fn row(sidebar: &Sidebar, row: &Row) -> AnyView {
         let dot = view! { <div size=UNREAD_DOT_SIZE rounded=Radius::Full bg=Role::Accent/> };
         hint(format!("{selector}-unread"), "Unread response", dot)
     });
-    let title = view! { <div min_w=0.0 flex items_center gap=Space::X1>{title}{unread}</div> };
+    let title: Vec<_> = std::iter::once(title).chain(unread).collect();
     let icon = match row.icon {
-        RowIcon::Status(status) => status_icon(&selector, status),
+        RowIcon::Status(status) => thread_status_icon(&selector, status),
         RowIcon::Instance(state) => instance_icon(&selector, state),
     };
-    let two_line = matches!(row.kind, RowKind::Cloud { .. });
-    let (body, age) = match &row.kind {
-        RowKind::Local { age, .. } => (title.flex_1(), age.clone()),
+    let (subtitle, age) = match &row.kind {
+        RowKind::Local { age, .. } => (None, age.clone()),
         RowKind::Cloud { subtitle, expiring, .. } => {
             let color = if *expiring { Role::Warning } else { Role::TextMuted };
-            let body = view! {
-                <div flex_1 min_w=0.0 py=Space::X1 flex col>
-                    {title}
-                    <div test_id={format!("{selector}-subtitle")} min_w=0.0 overflow_hidden>
-                        <text caption no_wrap color=color>{subtitle.clone()}</text>
-                    </div>
-                </div>
-            };
-            (body, None)
+            (Some((subtitle.clone(), color)), None)
         }
     };
-    let state = if row.selected { SelectionState::Selected } else { SelectionState::None };
+    let selected = row.selected;
     let opened = row.clone();
     let open = move || {
         if !editing {
             open_row(&opened, &sidebar);
         }
     };
-    let entry = view! {
-        <list_row test_id={selector.clone()} depth={usize::from(!two_line)} selection=state on_click=open
-                  h={if two_line { TWO_LINE_ROW_HEIGHT } else { ROW_HEIGHT }}>
-            {icon_slot()}
-            {icon_slot().when(two_line, |slot| slot.self_start().mt(Space::X2)).child(icon)}
-            {body}
-            {reconnect}
-        </list_row>
-    };
+    let entry = sidebar_thread_row(selector.clone(), move || selected, title, icon, subtitle, open).child(reconnect);
     let entry = match age {
         Some(age) => entry.trailing(age_label(&selector, age)),
         None => entry,
@@ -190,43 +173,6 @@ fn rename_editor(sidebar: &Sidebar, title: &str) -> AnyView {
 
 fn age_label(selector: &str, age: String) -> AnyView {
     view! { <div test_id={format!("{selector}-age-{age}")}><text caption muted no_wrap>{age}</text></div> }.into_any()
-}
-
-fn status_icon(row: &str, status: ThreadStatus) -> AnyView {
-    let (name, label, shape, icon, color) = match status {
-        ThreadStatus::Connecting => ("connecting", "Starting agent", "foxfire", None, Role::TextMuted),
-        ThreadStatus::Running => ("running", "Agent working", "foxfire", None, Role::Info),
-        ThreadStatus::Background => {
-            ("background", "Background task still running", "dot", Some(IconName::CircleDot), Role::TextMuted)
-        }
-        ThreadStatus::NeedsInput => {
-            ("needs-input", "Waiting for your answer", "speech-bubble", Some(IconName::MessageCircle), Role::Warning)
-        }
-        ThreadStatus::Errored => (
-            "errored",
-            "Unable to connect — reconnect to try again",
-            "warning-triangle",
-            Some(IconName::TriangleAlert),
-            Role::Destructive,
-        ),
-        ThreadStatus::Disconnected => (
-            "disconnected",
-            "Disconnected — reconnect to continue",
-            "warning-triangle",
-            Some(IconName::TriangleAlert),
-            Role::Destructive,
-        ),
-        ThreadStatus::Idle | ThreadStatus::Dormant => {
-            return tagged(format!("{row}-conversation-icon"), Icon::new(IconName::MessageSquareText, Role::TextMuted));
-        }
-    };
-    let id = format!("{row}-status-{name}");
-    let mark = match icon {
-        Some(icon) => Icon::new(icon, color).into_any(),
-        None if status == ThreadStatus::Running => foxfire(ICON_SIZE, color, || FoxfireState::Working).into_any(),
-        None => foxfire(ICON_SIZE, color, || FoxfireState::Connecting).into_any(),
-    };
-    hint(id.clone(), label, tagged(format!("{id}-{shape}"), mark))
 }
 
 fn instance_icon(row: &str, state: Option<InstanceState>) -> AnyView {

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
-src="crates/foxfire-desktop/src"
+src=(crates/foxfire-desktop/src crates/foxfire-ui/src)
 sized='(p|px|py|pt|pb|pl|pr|m|mx|my|mt|mb|ml|mr|gap|gap_x|gap_y|w|h|size|min_w|min_h|max_w|max_h|top|left|right|bottom)'
 spaced='(p|px|py|pt|pb|pl|pr|m|mx|my|mt|mb|ml|mr|gap|gap_x|gap_y)'
 status=0
@@ -13,25 +13,25 @@ off_grid() {
     awk -F"$1" '{ value = $NF; sub(/[);].*$/, "", value); if (value + 0 > 2 && value % 4 != 0) print $0 }'
 }
 # The activity mark's cells are rounded in proportion to their size, not on the radius scale.
-matches=$(grep -rnE --include='*.rs' --exclude=foxfire.rs 'Corners::all' "$src" || true)
+matches=$(grep -rnE --include='*.rs' --exclude=foxfire.rs 'Corners::all' "${src[@]}" || true)
 [ -n "$matches" ] && report "Use tokens::Radius instead" "$matches"
-matches=$(grep -rnoE --include='*.rs' "(\b$spaced=|\.$spaced\()[0-9]+(\.[0-9]+)?" "$src" | awk -F'[=(]' '$NF + 0 > 2' || true)
+matches=$(grep -rnoE --include='*.rs' "(\b$spaced=|\.$spaced\()[0-9]+(\.[0-9]+)?" "${src[@]}" | awk -F'[=(]' '$NF + 0 > 2' || true)
 [ -n "$matches" ] && report "Use tokens::Space for padding, margins and gaps" "$matches"
-matches=$(grep -rnoE --include='*.rs' "(\b$sized=|\.$sized\()(px\()?[0-9]+(\.[0-9]+)?" "$src" | off_grid '[=(]' || true)
+matches=$(grep -rnoE --include='*.rs' "(\b$sized=|\.$sized\()(px\()?[0-9]+(\.[0-9]+)?" "${src[@]}" | off_grid '[=(]' || true)
 [ -n "$matches" ] && report "Keep spacing and size literals on the 4px grid" "$matches"
-matches=$(grep -rnE --include='*.rs' "(border(_[trbl])?=|\.border(_[trbl])?\()(px\()?1(\.0)?\b" "$src" || true)
+matches=$(grep -rnE --include='*.rs' "(border(_[trbl])?=|\.border(_[trbl])?\()(px\()?1(\.0)?\b" "${src[@]}" || true)
 [ -n "$matches" ] && report "Use tokens::HAIRLINE for a 1px edge" "$matches"
-matches=$(grep -rnE --include='*.rs' "(\b$sized=|\.$sized\()(px\()?1(\.0)?\b" "$src" || true)
+matches=$(grep -rnE --include='*.rs' "(\b$sized=|\.$sized\()(px\()?1(\.0)?\b" "${src[@]}" || true)
 [ -n "$matches" ] && report "Use tokens::HAIRLINE for a 1px size" "$matches"
-matches=$(grep -rnE --include='*.rs' "(\btext_size=|\.text_size\(|\bline_height=|\.line_height\()[0-9]" "$src" || true)
+matches=$(grep -rnE --include='*.rs' "(\btext_size=|\.text_size\(|\bline_height=|\.line_height\()[0-9]" "${src[@]}" || true)
 [ -n "$matches" ] && report "Use a typography preset instead of a size or line height of your own" "$matches"
-matches=$(grep -rnE --include='*.rs' "(\b(w|h|min_w|min_h|max_w|max_h)=|\.(w|h|min_w|min_h|max_w|max_h)\()pct\((100|[0-9]+)(\.[0-9]+)?\)" "$src" | grep -vE 'pct\(100(\.0)?\)' || true)
+matches=$(grep -rnE --include='*.rs' "(\b(w|h|min_w|min_h|max_w|max_h)=|\.(w|h|min_w|min_h|max_w|max_h)\()pct\((100|[0-9]+)(\.[0-9]+)?\)" "${src[@]}" | grep -vE 'pct\(100(\.0)?\)' || true)
 [ -n "$matches" ] && report "Size to whole grid columns instead of a share of the parent" "$matches"
-matches=$(grep -rnE --include='*.rs' "(Tween::(ms|new)|Spring::new)\(" "$src" | grep -vE '/ui/(foxfire|kindling)\.rs' || true)
+matches=$(grep -rnE --include='*.rs' "(Tween::(ms|new)|Spring::new)\(" "${src[@]}" | grep -vE '/ui/(foxfire|kindling)\.rs' || true)
 [ -n "$matches" ] && report "Use tokens::Pace instead of a spring or duration of your own" "$matches"
-names=$(grep -rhoE --include='*.rs' "(\b$sized=|\.$sized\()[A-Z][A-Z0-9_]*" "$src" | sed -E 's/.*[=(]//' | sort -u || true)
+names=$(grep -rhoE --include='*.rs' "(\b$sized=|\.$sized\()[A-Z][A-Z0-9_]*" "${src[@]}" | sed -E 's/.*[=(]//' | sort -u || true)
 matches=$(for name in $names; do
-    grep -rnE --include='*.rs' "const $name: f32 = [0-9.]+;" "$src" | off_grid '= ' || true
+    grep -rnE --include='*.rs' "const $name: f32 = [0-9.]+;" "${src[@]}" | off_grid '= ' || true
 done)
 [ -n "$matches" ] && report "Keep the size constants on the 4px grid" "$matches"
 exit "$status"

@@ -8,23 +8,22 @@ use crate::registry::{Registry, State, WindowSize};
 use crate::remotes::Fleet;
 use crate::sessions::{SessionKey, SessionSource};
 use crate::settings::settings;
-use crate::sidebar::{Sidebar, SwitcherEntry, toggle_button};
+use crate::sidebar::{Sidebar, SwitcherEntry};
 use crate::target::AgentConnector;
 use crate::tasks::spawn_in;
 use crate::thread_view::{ThreadTab, ThreadView};
 use crate::threads::{Attention, Thread, ThreadEvent, ThreadManager};
 use crate::ui::DEFAULT_INTERFACE_SIZE;
-use crate::ui::tokens::{HEADER_HEIGHT, MODAL_WIDTH, MotionScale, PANEL_GUTTER, PICKER_LIST_HEIGHT, Pace, Space};
+use crate::ui::tokens::{MODAL_WIDTH, MotionScale, PICKER_LIST_HEIGHT};
 use crate::ui::{
-    ActiveReviewTheme, FoxfireMotion, IconName, InterfaceSize, Material, PickerItem, SearchPickerHandle, StyledExt,
-    Toasts, UI_FONT, UiStyles, appearance, backdrop, empty_state, key_hints, picker_closed, search_picker,
+    ActiveReviewTheme, FoxfireMotion, InterfaceSize, Material, PickerItem, SearchPickerHandle, ThreadShell, Toasts,
+    appearance, backdrop, key_hints, picker_closed, search_picker,
 };
 use clankerdiff_core::RepoPath;
 use clankerdiff_remote::Remotes;
 use clankerdiff_rouge::ReviewHandle;
 use rouge::core::{
-    AnyView, Chord, Div, Motion, Role, Styled, View, WindowHandle, div, dynamic, motion, px, view, window_focused,
-    window_handle, window_size, zoom,
+    AnyView, Div, Styled, View, WindowHandle, dynamic, px, view, window_focused, window_handle, window_size, zoom,
 };
 use rouge::persist::Storage;
 use rouge::reactive::{Scope, Signal, Stored, effect, memo, signal, spawn, stored, untrack};
@@ -52,8 +51,8 @@ pub struct OpenSettings;
 pub struct NewThread;
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct NewCloudThread;
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct ToggleSidebar;
+pub(crate) use crate::ui::TOGGLE_SIDEBAR_KEYS;
+pub use crate::ui::ToggleSidebar;
 
 pub struct DesktopConfig {
     pub connector: Arc<AgentConnector>,
@@ -76,7 +75,7 @@ pub struct DesktopApp {
     agents: Catalogs,
     fleet: Fleet,
     sidebar: Sidebar,
-    sidebar_entry: (Motion, Motion),
+    shell: ThreadShell,
     views: Stored<HashMap<usize, (Scope, ThreadView)>>,
     modal: Signal<Option<Modal>>,
     platform: Stored<Rc<dyn Platform>>,
@@ -96,7 +95,6 @@ enum Modal {
 
 pub(crate) const NEW_THREAD_KEYS: &str = "secondary-n";
 pub(crate) const NEW_CLOUD_THREAD_KEYS: &str = "secondary-alt-n";
-pub(crate) const TOGGLE_SIDEBAR_KEYS: &str = "secondary-b";
 pub(crate) const SWITCHER_KEYS: &str = "secondary-k";
 pub(crate) const NEXT_THREAD_KEYS: &str = "secondary-]";
 pub(crate) const PREVIOUS_THREAD_KEYS: &str = "secondary-[";
@@ -147,7 +145,12 @@ impl DesktopApp {
             agents,
             fleet,
             sidebar,
-            sidebar_entry: (motion(0.0), motion(1.0)),
+            shell: ThreadShell::new(
+                memo(move || registry.with(|state| state.sidebar_collapsed)),
+                memo(move || registry.with(|state| state.sidebar_width)),
+                move |collapsed| registry.update(|state| state.sidebar_collapsed = collapsed),
+                move |width| registry.update(|state| state.sidebar_width = width),
+            ),
             views: stored(HashMap::new()),
             modal: signal(None),
             platform,
@@ -183,24 +186,19 @@ impl DesktopApp {
     }
 
     pub fn view(self) -> impl View {
-        let collapsed = memo(move || self.registry.with(|state| state.sidebar_collapsed));
         let selected = memo(move || self.threads.selected());
-        let root = view! {
-            <div test_id="desktop" relative size_full flex bg=Role::Canvas text_color=Role::Text font=UI_FONT body>
-                <dynamic>{(!collapsed.get()).then(|| {
-                    let (slide, fade) = self.sidebar_entry;
-                    view! { <div h_full flex_none flex translate_x=slide opacity=fade>{self.sidebar.view()}</div> }
-                })}</dynamic>
-                <div test_id="main" flex_1 min_w=0.0 h_full>
-                    <dynamic>{match selected.get() {
-                        Some(thread) => untrack(|| self.view_of(thread).view(collapsed)).into_any(),
-                        None => no_thread(collapsed.get()).into_any(),
-                    }}</dynamic>
-                </div>
-                <dynamic>{self.modal.get().map(|modal| untrack(|| self.render_modal(modal)))}</dynamic>
-                {self.toasts}
-            </div>
-        };
+        let main = dynamic(move || match selected.get() {
+            Some(thread) => untrack(|| self.view_of(thread).view(self.shell)).into_any(),
+            None => self.shell.no_thread().into_any(),
+        });
+        let modal = dynamic(move || self.modal.get().map(|modal| untrack(|| self.render_modal(modal))));
+        let root = self.shell.view(
+            "desktop",
+            Sidebar::controls,
+            move || self.sidebar.sections(),
+            main,
+            vec![modal.into_any(), self.toasts.into_any()],
+        );
         InterfaceSize::current().bind(self.bind(root))
     }
 
@@ -208,7 +206,6 @@ impl DesktopApp {
         let root = root
             .bind_key(chord(NEW_THREAD_KEYS), NewThread)
             .bind_key(chord(NEW_CLOUD_THREAD_KEYS), NewCloudThread)
-            .bind_key(chord(TOGGLE_SIDEBAR_KEYS), ToggleSidebar)
             .bind_key(chord(SWITCHER_KEYS), OpenThreadSwitcher)
             .bind_key(chord(NEXT_THREAD_KEYS), SelectNextThread)
             .bind_key(chord(PREVIOUS_THREAD_KEYS), SelectPreviousThread)
@@ -218,7 +215,6 @@ impl DesktopApp {
             .bind_key(chord(SETTINGS_KEYS), OpenSettings);
         root.on_action(move |_: &NewThread| self.sidebar.new_thread())
             .on_action(move |_: &NewCloudThread| self.sidebar.new_cloud_thread())
-            .on_action(move |_: &ToggleSidebar| self.toggle_sidebar())
             .on_action(move |_: &SelectNextThread| self.step_selection(1))
             .on_action(move |_: &SelectPreviousThread| self.step_selection(-1))
             .on_action(move |_: &OpenThreadSwitcher| self.open_switcher())
@@ -441,18 +437,6 @@ impl DesktopApp {
         self.view_of(thread).open_file(path, None);
     }
 
-    fn toggle_sidebar(self) {
-        let opening = self.registry.with_untracked(|state| state.sidebar_collapsed);
-        if opening {
-            let (slide, fade) = self.sidebar_entry;
-            slide.set(-SIDEBAR_ENTRY_SLIDE);
-            fade.set(0.0);
-            slide.animate_to(0.0, Pace::Enter);
-            fade.animate_to(1.0, Pace::Enter);
-        }
-        self.registry.update(|state| state.sidebar_collapsed.toggle());
-    }
-
     fn render_modal(self, modal: Modal) -> AnyView {
         match modal {
             Modal::Switcher(entries) => {
@@ -494,9 +478,7 @@ impl DesktopApp {
     }
 }
 
-pub(crate) fn chord(keys: &str) -> Chord {
-    Chord::parse(keys).unwrap_or_else(|error| unreachable!("built-in chord {keys}: {error}"))
-}
+pub(crate) use foxfire_ui::ui::chord;
 
 fn auto_add_agent(mut agents: Agents, platform: &dyn Platform, registry: Registry) -> Agents {
     let name = AUTO_ADDED_AGENT.name;
@@ -514,21 +496,5 @@ fn auto_add_agent(mut agents: Agents, platform: &dyn Platform, registry: Registr
     agents
 }
 
-fn no_thread(collapsed: bool) -> impl View {
-    let header = collapsed.then(|| {
-        view! { <div top_bar h=HEADER_HEIGHT pr=PANEL_GUTTER>{toggle_button(false)}</div> }
-    });
-    view! {
-        <div size_full flex col>
-            {header}
-            <div flex_1 min_h=0.0 flex items_center justify_center>
-                <empty_state icon=IconName::MessageSquareText title="No thread selected"
-                             detail="Select a thread, or start a new one"/>
-            </div>
-        </div>
-    }
-}
-
-const SIDEBAR_ENTRY_SLIDE: f32 = Space::X6.px();
 const TURN_FINISHED: &str = "The agent finished its turn";
 const NEEDS_INPUT: &str = "The agent needs your input";
