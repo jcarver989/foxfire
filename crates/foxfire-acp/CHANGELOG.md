@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.3](https://github.com/jcarver989/foxfire/compare/foxfire-acp-v0.1.2...foxfire-acp-v0.1.3) - 2026-11-24
+
+### Added
+
+- *(acp)* add the chat extension
+
+### Other
+
+- *(acp)* record every extension message the fake agent receives
+
 ## [0.1.2](https://github.com/jcarver989/foxfire/compare/foxfire-acp-v0.1.1...foxfire-acp-v0.1.2) - 2026-11-24
 
 ### Fixed
