@@ -2,10 +2,6 @@
 
 ACP clients for AI coding agents: a terminal UI, a native desktop app, an in-memory demo for browsers and iOS, and the shared client libraries behind them.
 
-## Local Clankerdiff and Rouge checkouts
-
-This development workspace uses the sibling checkouts at `../diff` and `../rouge` (`~/code/diff` and `~/code/rouge` when Foxfire is at `~/code/foxfire`). Clankerdiff must use Rouge 0.4, and the Rouge checkout must declare version 0.4. Cargo patches keep the app and Clankerdiff on one local copy of Rouge, and `cargo rouge` uses the packager from the same checkout. Fresh checkouts and CI need both siblings; switch to published versions before building without them.
-
 ## Run
 
 ```sh

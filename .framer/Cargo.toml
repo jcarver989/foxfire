@@ -7,7 +7,7 @@ publish = false
 [dependencies]
 framer = "0.1.4"
 framer-presets = "0.1.4"
-rouge-framer = { version = "0.4.0", path = "../../rouge/crates/rouge-framer" }
+rouge-framer = "0.5.0"
 
 # Keeps this crate out of the repository's own workspace.
 [workspace]
