@@ -20,7 +20,6 @@ mod tasks;
 mod temp_dir;
 #[cfg(feature = "testing")]
 pub mod testing;
-mod theme;
 mod thread_view;
 pub mod threads;
 pub mod ui;

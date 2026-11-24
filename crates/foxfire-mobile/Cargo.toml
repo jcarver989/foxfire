@@ -1,0 +1,23 @@
+[package]
+name = "foxfire-mobile"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "iOS and Android hosts for the Foxfire demo"
+publish = false
+
+[package.metadata.dist]
+dist = false
+
+[lib]
+crate-type = ["cdylib"]
+
+[lints]
+workspace = true
+
+[target.'cfg(any(target_os = "ios", target_os = "android"))'.dependencies]
+foxfire-ui = { workspace = true }
+rouge = { workspace = true, features = ["persist"] }
+rouge-widgets = { workspace = true }

@@ -112,6 +112,7 @@ pub fn with_middots(parts: impl IntoIterator<Item = AnyView>) -> Vec<AnyView> {
 }
 
 pub fn hint(id: impl Into<String>, label: &'static str, child: impl View) -> AnyView {
+    let id: String = id.into();
     div().test_id(id).flex_none().flex().items_center().child(child).tooltip(label).into_any()
 }
 

@@ -124,15 +124,13 @@ fn each_thread_keeps_its_own_transcript_and_draft_across_selection() {
 }
 
 #[test]
-fn a_light_travels_round_the_composer_while_the_agent_works_unless_motion_is_off() {
-    for (motion, lit) in [(MotionScale::Full, true), (MotionScale::None, false)] {
-        let (mut harness, thread, _requests) = working(DesktopHarnessBuilder::default().motion(motion), "/alpha");
-        assert_eq!(thread.status(), ThreadStatus::Running);
-        assert_eq!(harness.bounds("busy-rim").is_some(), lit, "{motion:?}");
-
-        harness.deactivate();
-        assert!(harness.bounds("busy-rim").is_none(), "a window in the background is still under {motion:?}");
-    }
+fn stop_stays_still_and_leaves_showing_activity_to_the_status() {
+    let (mut harness, thread, _requests) =
+        working(DesktopHarnessBuilder::default().motion(MotionScale::Full), "/alpha");
+    assert_eq!(thread.status(), ThreadStatus::Running);
+    assert!(harness.bounds("stop-glyph").is_some(), "Stop is offered while the turn runs");
+    assert!(harness.bounds("stop-spinner").is_none(), "Stop does not spin");
+    assert!(harness.bounds("activity").is_some(), "the status shows the activity");
 }
 
 fn working_thread(cwd: impl Into<PathBuf>) -> (DesktopHarness, Thread, FakeAgentRequests) {

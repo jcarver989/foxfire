@@ -44,6 +44,7 @@ pub struct Transcript {
     following: Signal<bool>,
     on_type: Callback<(String,)>,
     dock: Signal<Rect>,
+    header_inset: f32,
     gutter: Memo<f32>,
     reading: Memo<u16>,
     unfolded: Signal<HashSet<Fold>>,
@@ -139,6 +140,7 @@ impl Transcript {
             following: signal(true),
             on_type: Callback::from(on_type),
             dock,
+            header_inset: HEADER_HEIGHT,
             gutter,
             reading,
             unfolded,
@@ -184,6 +186,11 @@ impl Transcript {
     /// The room the scrollbar takes beside the rows, which the grid leaves out.
     pub fn gutter(self) -> Memo<f32> {
         self.gutter
+    }
+
+    pub(crate) fn below_header(mut self) -> Self {
+        self.header_inset = 0.0;
+        self
     }
 
     pub fn view(self) -> impl View {
@@ -240,7 +247,7 @@ impl Transcript {
                 <div test_id="transcript-selection" relative flex_1 min_w=0.0 h_full selectable
                      on_key_down={move |event| self.type_into_composer(event)}>
                     {rows}
-                    <div test_id="transcript-view" absolute left=0.0 right=0.0 top=HEADER_HEIGHT
+                    <div test_id="transcript-view" absolute left=0.0 right=0.0 top={self.header_inset}
                          bottom=bottom_inset pb=FADE_HEIGHT flex items_end pass_through>
                         <column_grid w_full pass_through>
                             <reading_cell span=reading flex justify_end pass_through>
@@ -303,7 +310,8 @@ impl Transcript {
 
     fn unobscured(self, content: impl View) -> AnyView {
         let dock = self.dock;
-        view! { <div size_full pt=HEADER_HEIGHT pb={move || px(dock.get().size.height)}>{content}</div> }.into_any()
+        view! { <div size_full pt={self.header_inset} pb={move || px(dock.get().size.height)}>{content}</div> }
+            .into_any()
     }
 
     fn row(self, projected: Option<ProjectedRow>) -> AnyView {

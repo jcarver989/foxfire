@@ -1,6 +1,7 @@
 mod components;
 mod foxfire;
 mod kindling;
+mod settings;
 mod shell;
 pub mod tokens;
 
@@ -12,6 +13,7 @@ pub use foxfire::{FoxfireMotion, FoxfireState, foxfire};
 #[cfg(any(test, feature = "testing"))]
 pub use kindling::KINDLED_AFTER;
 pub use kindling::kindling;
+pub use settings::{SettingsField, SettingsModel, settings, settings_button};
 pub use shell::{
     MIN_MAIN_WIDTH, TOGGLE_SIDEBAR_KEYS, ThreadShell, ToggleSidebar, cloud_section, sidebar_group, sidebar_thread_row,
     thread_status_icon,

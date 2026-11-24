@@ -16,7 +16,7 @@ use crate::threads::{Thread, ThreadManager};
 use crate::ui::tokens::Space;
 use crate::ui::{
     IconName, ListRow, MenuItem, NoticeTone, Toasts, UiStyles, cloud_section, context_menu, dispatch, icon_button,
-    icon_slot, list_row, section_header, sidebar_group, toast,
+    icon_slot, list_row, section_header, settings_button, sidebar_group, toast,
 };
 use foxfire_core::fs::write_json_atomic;
 use listing::{Listing, RemoteSection, Row, Section};
@@ -115,11 +115,7 @@ impl Sidebar {
                              shortcut={chord(SWITCHER_KEYS)} on_click={|| dispatch(OpenThreadSwitcher)}/>
             }
             .into_any(),
-            view! {
-                <icon_button test_id="open-settings" icon=IconName::Settings label="Settings"
-                             shortcut={chord(SETTINGS_KEYS)} on_click={|| dispatch(OpenSettings)}/>
-            }
-            .into_any(),
+            settings_button(|| dispatch(OpenSettings)).shortcut(chord(SETTINGS_KEYS)).into_any(),
         ]
     }
 
