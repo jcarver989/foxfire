@@ -95,6 +95,7 @@ Set `FOXFIRE_HOME` to override the default `~/.foxfire` directory.
 | Desktop state | `~/.foxfire/desktop/state.json` |
 | Desktop agents | `~/.foxfire/desktop/acp.json` |
 | Project agents | `<project>/.foxfire/acp.json` |
+| Relay chat | `~/.foxfire/relay/chat/` |
 | Terminal logs | `/tmp/foxfire-logs/foxfire.log.YYYY-MM-DD` |
 
 This naming change does not automatically migrate configuration from the former clients. Copy existing settings, themes, desktop state, and agent catalogs to the locations above if you want to keep them. Aether's agent settings and sessions remain owned by Aether and should not be moved.

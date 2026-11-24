@@ -8,6 +8,7 @@ repository.workspace = true
 description = "Serves a stdio ACP agent and its workspace review to any number of Foxfire clients over WebSocket"
 keywords = ["acp", "foxfire", "agent", "websocket", "relay"]
 categories = ["command-line-utilities", "development-tools"]
+publish = false
 
 [[bin]]
 name = "foxfire-relay"
@@ -27,6 +28,7 @@ clankerdiff-protocol = { workspace = true }
 clankerdiff-server = { workspace = true }
 clap = { workspace = true }
 foxfire-acp = { workspace = true, features = ["websocket"] }
+foxfire-chat = { workspace = true }
 foxfire-core = { workspace = true }
 futures = { workspace = true }
 serde = { workspace = true }

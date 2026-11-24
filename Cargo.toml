@@ -27,6 +27,7 @@ clankerdiff-ui-core = "0.10.4"
 clap = { version = "4.6", features = ["derive", "env"] }
 crossterm = { version = "0.29", features = ["event-stream"] }
 foxfire-acp = { path = "crates/foxfire-acp", version = "0.1.2" }
+foxfire-chat = { path = "crates/foxfire-chat" }
 foxfire-core = { path = "crates/foxfire-core", version = "0.1.2" }
 foxfire-ui = { path = "crates/foxfire-ui" }
 foxfire-tui = { path = "crates/foxfire-tui", version = "0.1.2" }

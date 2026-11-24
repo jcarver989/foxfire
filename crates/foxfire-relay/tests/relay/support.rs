@@ -1,10 +1,11 @@
 use agent_client_protocol::ByteStreams;
 use agent_client_protocol::v2::schema::{
-    ContentBlock, NewSessionRequest, PromptRequest, ReplayFrom, ReplayFromStart, ResumeSessionRequest, SessionId,
-    SessionInfo, SessionUpdate, StateUpdate,
+    ContentBlock, InitializeRequest, NewSessionRequest, PromptRequest, ReplayFrom, ReplayFromStart,
+    ResumeSessionRequest, SessionId, SessionInfo, SessionUpdate, StateUpdate,
 };
 use clankerdiff_git::testing::RepoFixtureBuilder;
 use foxfire_acp::aether::{RemoteServerInfo, SessionPreviewParams};
+use foxfire_acp::chat::{ChatChannelJoinParams, ClientMeta, FoxfireMeta, Participant};
 use foxfire_acp::client::{AcpClient, AcpClientError, AcpEvent, connect_acp_client};
 use foxfire_acp::testing::{FakeAgent, FakeAgentRequests, initialize_request};
 use foxfire_acp::websocket::WebSocketTransport;
@@ -37,6 +38,8 @@ pub(crate) enum TestError {
 pub(crate) struct RelayBuilder {
     agent: FakeAgent,
     repository: bool,
+    chat: bool,
+    data_dir: Option<PathBuf>,
     saved_sessions: Vec<(&'static str, &'static str)>,
 }
 
@@ -45,17 +48,28 @@ pub(crate) struct TestRelay {
     url: String,
     cwd: PathBuf,
     _workspace: Box<dyn Any>,
+    _data: Option<TempDir>,
     served: JoinHandle<Result<(), RelayError>>,
     agent_task: JoinHandle<()>,
 }
 
 impl RelayBuilder {
     pub(crate) fn new(agent: FakeAgent) -> Self {
-        Self { agent, repository: false, saved_sessions: Vec::new() }
+        Self { agent, repository: false, chat: false, data_dir: None, saved_sessions: Vec::new() }
     }
 
     pub(crate) fn saved_session(mut self, session_id: &'static str, updated_at: &'static str) -> Self {
         self.saved_sessions.push((session_id, updated_at));
+        self
+    }
+
+    pub(crate) fn chat(mut self) -> Self {
+        self.chat = true;
+        self
+    }
+
+    pub(crate) fn data_dir(mut self, directory: &Path) -> Self {
+        self.data_dir = Some(directory.to_path_buf());
         self
     }
 
@@ -90,8 +104,14 @@ impl RelayBuilder {
         let listener = TcpListener::bind("127.0.0.1:0").await?;
         let url = format!("ws://{}", listener.local_addr()?);
         let agent = ByteStreams::new(to_agent.compat_write(), from_agent.compat());
-        let served = tokio::spawn(Relay::new(cwd.clone()).serve(listener, agent));
-        Ok(TestRelay { agent: requests, url, cwd, _workspace: workspace, served, agent_task })
+        let mut relay = Relay::new(cwd.clone());
+        let data = if self.chat { Some(TempDir::new()?) } else { None };
+        let data_dir = data.as_ref().map(|data| data.path().to_path_buf()).or(self.data_dir);
+        if let Some(directory) = data_dir {
+            relay = relay.data_dir(directory);
+        }
+        let served = tokio::spawn(relay.serve(listener, agent));
+        Ok(TestRelay { agent: requests, url, cwd, _workspace: workspace, _data: data, served, agent_task })
     }
 }
 
@@ -101,8 +121,20 @@ impl TestRelay {
     }
 
     pub(crate) async fn client(&self) -> Result<AcpClient, TestError> {
-        let (socket, _) = connect_async(self.url.as_str()).await?;
-        Ok(connect_acp_client(WebSocketTransport::new(socket), initialize_request()).await?)
+        self.connect(initialize_request()).await
+    }
+
+    pub(crate) async fn client_as(&self, participant: &str) -> Result<AcpClient, TestError> {
+        let meta = ClientMeta { participant: Some(self::participant(participant)) }.to_meta();
+        let client = self.connect(initialize_request().meta(meta)).await?;
+        client.handle.request(NewSessionRequest::new(self.cwd())).await?;
+        Ok(client)
+    }
+
+    pub(crate) async fn member(&self, participant: &str) -> Result<AcpClient, TestError> {
+        let client = self.client_as(participant).await?;
+        client.handle.request(ChatChannelJoinParams { session_id: SESSION.into(), after: None }).await?;
+        Ok(client)
     }
 
     pub(crate) async fn creator(&self) -> Result<AcpClient, TestError> {
@@ -122,6 +154,11 @@ impl TestRelay {
         Ok(())
     }
 
+    async fn connect(&self, request: InitializeRequest) -> Result<AcpClient, TestError> {
+        let (socket, _) = connect_async(self.url.as_str()).await?;
+        Ok(connect_acp_client(WebSocketTransport::new(socket), request).await?)
+    }
+
     pub(crate) async fn stop_agent(&mut self) {
         self.agent_task.abort();
         let _ = (&mut self.agent_task).await;
@@ -136,6 +173,10 @@ impl TestRelay {
 pub(crate) fn resume(cwd: &Path, replay: bool) -> ResumeSessionRequest {
     let request = ResumeSessionRequest::new(SESSION, cwd.to_path_buf());
     if replay { request.replay_from(ReplayFrom::Start(ReplayFromStart::new())) } else { request }
+}
+
+pub(crate) fn participant(id: &str) -> Participant {
+    Participant { id: id.to_owned(), name: id.to_uppercase() }
 }
 
 pub(crate) fn live_session(client: &AcpClient) -> Option<SessionId> {

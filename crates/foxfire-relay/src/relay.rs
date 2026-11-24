@@ -1,3 +1,4 @@
+use crate::chat;
 use crate::hub::{ClientEvent, ClientId, Hub, LiveSession};
 use crate::wire;
 use crate::workspace::Workspace;
@@ -47,13 +48,21 @@ pub enum RelayError {
     AgentFailed(ExitStatus),
 }
 
+const CHAT_DIRECTORY: &str = "chat";
+
 pub struct Relay {
     cwd: PathBuf,
+    data_dir: Option<PathBuf>,
 }
 
 impl Relay {
     pub fn new(cwd: PathBuf) -> Self {
-        Self { cwd }
+        Self { cwd, data_dir: None }
+    }
+
+    pub fn data_dir(mut self, data_dir: PathBuf) -> Self {
+        self.data_dir = Some(data_dir);
+        self
     }
 
     pub async fn run(self, address: SocketAddr, agent: Command) -> Result<(), RelayError> {
@@ -79,11 +88,12 @@ impl Relay {
         let live = startup.find_latest_session(&self.cwd).await?;
         let AgentStartup { from_agent, to_agent, .. } = startup;
         let workspace = Workspace::open(self.cwd).await;
+        let chat = self.data_dir.and_then(|directory| chat::open(directory.join(CHAT_DIRECTORY)));
         tracing::info!(cwd = %workspace.cwd().display(), address = ?listener.local_addr().ok(), "relaying the agent");
 
         let (events, received) = mpsc::unbounded_channel();
         let accepting = tokio::spawn(accept_clients(listener, events, tasks.clone()));
-        Hub::create(to_agent, initialized, workspace, live).run(from_agent, received).await;
+        Hub::create(to_agent, initialized, workspace, chat, live).run(from_agent, received).await;
         accepting.abort();
         tasks.close();
         tasks.wait().await;

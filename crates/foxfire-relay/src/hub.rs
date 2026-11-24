@@ -1,3 +1,4 @@
+use crate::chat::{self, Caller};
 use crate::wire::{self, field, session_of};
 use crate::workspace::{DiffBridge, Workspace};
 use agent_client_protocol::v2::schema::{InitializeResponse, ReplayFrom, ReplayFromStart, SessionId};
@@ -6,6 +7,8 @@ use agent_client_protocol::{
     RawJsonRpcResponse, TransportFrame,
 };
 use foxfire_acp::aether::{GitDiffCommandPayload, RemoteServerInfo};
+use foxfire_acp::chat::{FOXFIRE_METHOD_PREFIX, Participant};
+use foxfire_chat::{Ask, ChatChannels, Delivery};
 use futures::StreamExt;
 use futures::channel::mpsc::{UnboundedReceiver, UnboundedSender};
 use serde_json::{Map, Value, json};
@@ -27,6 +30,7 @@ pub(crate) struct Hub {
     agent: UnboundedSender<TransportFrame>,
     initialize: InitializeResponse,
     workspace: Workspace,
+    chat: Option<ChatChannels<ClientId>>,
     live: Option<LiveSession>,
     clients: HashMap<ClientId, Client>,
     sessions: HashMap<String, Session>,
@@ -46,6 +50,7 @@ pub(crate) struct LiveSession {
 struct Client {
     outgoing: UnboundedSender<TransportFrame>,
     initialized: bool,
+    participant: Option<Participant>,
     reviews: HashMap<String, DiffBridge>,
 }
 
@@ -72,6 +77,7 @@ enum ClientRequestKind {
     ResumeSession { session: LiveSession, answers_new: bool },
     CloseSession(String),
     SetSessionConfigOption(String),
+    Prompt(Ask),
 }
 
 struct PendingAgentRequest {
@@ -86,12 +92,14 @@ impl Hub {
         agent: UnboundedSender<TransportFrame>,
         initialize: InitializeResponse,
         workspace: Workspace,
+        chat: Option<ChatChannels<ClientId>>,
         live: Option<LiveSession>,
     ) -> Self {
         Self {
             agent,
             initialize,
             workspace,
+            chat,
             live,
             clients: HashMap::new(),
             sessions: HashMap::new(),
@@ -128,7 +136,8 @@ impl Hub {
     }
 
     fn on_client_connected(&mut self, client: ClientId, outgoing: UnboundedSender<TransportFrame>) {
-        self.clients.insert(client, Client { outgoing, initialized: false, reviews: HashMap::new() });
+        self.clients
+            .insert(client, Client { outgoing, initialized: false, participant: None, reviews: HashMap::new() });
     }
 
     fn on_client_frame(&mut self, client: ClientId, frame: TransportFrame) {
@@ -146,14 +155,18 @@ impl Hub {
         }
     }
 
-    fn on_client_request(&mut self, client: ClientId, request: RawJsonRpcRequest) {
+    fn on_client_request(&mut self, client: ClientId, mut request: RawJsonRpcRequest) {
         let session = session_of(request.params.as_ref());
         match (&*request.method, session) {
             ("initialize", _) => {
                 if let Some(connected) = self.clients.get_mut(&client) {
                     connected.initialized = true;
+                    connected.participant = chat::introduced(&request);
                 }
-                let advertised = self.workspace.advertise(self.initialize.clone(), &self.remote_info());
+                let mut advertised = self.workspace.advertise(self.initialize.clone(), &self.remote_info());
+                if self.chat.is_some() {
+                    wire::advertise(&mut advertised, chat::capabilities());
+                }
                 self.send_to_client(client, wire::result(request.id, advertised));
             }
             ("session/new", _) | ("session/resume", Some(_)) => {
@@ -177,8 +190,42 @@ impl Hub {
                 let preview = self.workspace.preview(session.unwrap_or_default());
                 self.send_to_client(client, wire::result(request.id, preview));
             }
+            ("session/prompt", Some(session)) => {
+                let author = self.clients.get(&client).and_then(|connected| connected.participant.clone());
+                let ask = chat::take_ask(&mut request, session, author);
+                let kind = ask.map_or(ClientRequestKind::Other, ClientRequestKind::Prompt);
+                self.forward_client_request(client, request, kind);
+            }
+            (method, session) if method.starts_with(FOXFIRE_METHOD_PREFIX) => {
+                let RawJsonRpcRequest { id, method, params } = request;
+                let frame = match self.answer_chat(client, &method, params, &session.unwrap_or_default()) {
+                    Ok(answer) => wire::result(id, answer),
+                    Err(error) => wire::failure(id, error),
+                };
+                self.send_to_client(client, frame);
+            }
             _ => self.forward_client_request(client, request, ClientRequestKind::Other),
         }
+    }
+
+    fn answer_chat(
+        &mut self,
+        client: ClientId,
+        method: &str,
+        params: Option<RawJsonRpcParams>,
+        session: &str,
+    ) -> Result<Value, Error> {
+        let (Some(chat_channels), Some(connected)) = (&mut self.chat, self.clients.get(&client)) else {
+            return Err(Error::method_not_found());
+        };
+        let caller = Caller {
+            client,
+            participant: connected.participant.as_ref(),
+            watching: self.sessions.get(session).is_some_and(|watched| watched.subscribers.contains(&client)),
+        };
+        let (answer, deliveries) = chat::answer(chat_channels, &caller, method, params)?;
+        self.deliver(deliveries);
+        Ok(answer)
     }
 
     fn must_wait(&self, open: &WaitingOpen) -> bool {
@@ -189,7 +236,9 @@ impl Hub {
         self.forwarded_client_requests.values().any(|forwarded| match &forwarded.kind {
             ClientRequestKind::CreateSession { .. } | ClientRequestKind::CloseSession(_) => true,
             ClientRequestKind::ResumeSession { session, .. } => Some(&session.id) != target.as_ref(),
-            ClientRequestKind::SetSessionConfigOption(_) | ClientRequestKind::Other => false,
+            ClientRequestKind::SetSessionConfigOption(_) | ClientRequestKind::Prompt(_) | ClientRequestKind::Other => {
+                false
+            }
         })
     }
 
@@ -220,8 +269,7 @@ impl Hub {
         });
         if let Some((watched, _)) = watched_elsewhere {
             let reason = format!("other clients are using session {watched}, so {} cannot be opened", session.id);
-            let error = Error::invalid_request().data(reason);
-            self.send_to_client(client, wire::response(request.id, Err(Box::new(error.into()))));
+            self.send_to_client(client, wire::failure(request.id, Error::invalid_request().data(reason)));
             return;
         }
         self.subscribe_and_resume(client, request, session, false);
@@ -265,11 +313,7 @@ impl Hub {
         if let Some(connected) = self.clients.get_mut(&client) {
             connected.reviews.remove(&session);
         }
-        let watched = self.sessions.get_mut(&session).is_some_and(|watched| {
-            watched.subscribers.remove(&client);
-            !watched.subscribers.is_empty()
-        });
-        if watched {
+        if self.unsubscribe(client, &session) {
             self.send_to_client(client, wire::result(request.id, json!({})));
         } else {
             self.forward_client_request(client, request, ClientRequestKind::CloseSession(session));
@@ -293,8 +337,7 @@ impl Hub {
                     .iter()
                     .position(|open| open.client == client && Some(&open.request.id) == requested.as_ref());
                 if let Some(open) = waiting.and_then(|index| self.waiting_opens.remove(index)) {
-                    let error = Error::request_cancelled();
-                    self.send_to_client(client, wire::response(open.request.id, Err(Box::new(error.into()))));
+                    self.send_to_client(client, wire::failure(open.request.id, Error::request_cancelled()));
                     return;
                 }
                 let matching_request = self
@@ -305,6 +348,17 @@ impl Hub {
                     self.send_to_agent(wire::cancel(*id));
                 }
             }
+            ("_foxfire/channel_read", _) => {
+                if let (Some(chat_channels), Ok(params)) = (&mut self.chat, wire::parse(notification.params)) {
+                    match chat_channels.read(client, &params) {
+                        Ok(deliveries) => self.deliver(deliveries),
+                        Err(error) => {
+                            tracing::debug!(error = %chat::refusal(&error), ?client, "ignoring a read mark");
+                        }
+                    }
+                }
+            }
+            (method, _) if method.starts_with(FOXFIRE_METHOD_PREFIX) => {}
             _ => self.send_to_agent(TransportFrame::Single(notification.into())),
         }
     }
@@ -371,7 +425,7 @@ impl Hub {
         };
         if session.is_none() && recipients.is_empty() {
             let error = Error::internal_error().data("no client is connected to answer");
-            self.send_to_agent(wire::response(request.id, Err(Box::new(error.into()))));
+            self.send_to_agent(wire::failure(request.id, error));
             return;
         }
         let id = self.allocate_request_id();
@@ -481,6 +535,18 @@ impl Hub {
                 }
                 None
             }
+            (ClientRequestKind::Prompt(ask), Ok(result)) => {
+                if let (Some(chat_channels), Some(message_id)) =
+                    (&mut self.chat, result.get("messageId").and_then(Value::as_str))
+                {
+                    let session = ask.session_id.clone();
+                    match chat_channels.record_ask(ask, message_id.into()) {
+                        Ok(deliveries) => self.deliver(deliveries),
+                        Err(error) => tracing::warn!(%error, %session, "failed to record who prompted the agent"),
+                    }
+                }
+                None
+            }
             _ => None,
         };
         self.send_to_client(client, TransportFrame::Single(response.into()));
@@ -493,19 +559,30 @@ impl Hub {
     fn set_live_session(&mut self, live: LiveSession) {
         self.sessions.retain(|session, _| *session == live.id);
         self.session_parents.retain(|_, parent| *parent == live.id);
+        if let Some(chat_channels) = &mut self.chat {
+            chat_channels.keep_only(&SessionId::new(live.id.as_str()));
+        }
         self.live = Some(live);
     }
 
     fn on_resume_failed(&mut self, client: ClientId, session: &LiveSession, code: ErrorCode) {
-        let unwatched = self.sessions.get_mut(&session.id).is_none_or(|watched| {
-            watched.subscribers.remove(&client);
-            watched.subscribers.is_empty()
-        });
+        let unwatched = !self.unsubscribe(client, &session.id);
         let unknown = matches!(code, ErrorCode::RESOURCE_NOT_FOUND | ErrorCode::INVALID_PARAMS);
         if unwatched && unknown && self.live.as_ref() == Some(session) {
             tracing::warn!(session = session.id, "forgetting the live session, as the agent cannot resume it");
             self.live = None;
         }
+    }
+
+    fn unsubscribe(&mut self, client: ClientId, session: &str) -> bool {
+        if let Some(chat_channels) = &mut self.chat {
+            let left = chat_channels.leave(client, &SessionId::new(session));
+            self.deliver(left);
+        }
+        self.sessions.get_mut(session).is_some_and(|watched| {
+            watched.subscribers.remove(&client);
+            !watched.subscribers.is_empty()
+        })
     }
 
     fn publish_session_frame(
@@ -540,8 +617,8 @@ impl Hub {
     fn on_client_disconnected(&mut self, client: ClientId) {
         self.clients.remove(&client);
         self.waiting_opens.retain(|open| open.client != client);
-        for session in self.sessions.values_mut() {
-            session.subscribers.remove(&client);
+        for session in self.sessions.keys().cloned().collect::<Vec<_>>() {
+            self.unsubscribe(client, &session);
         }
         for pending in self.pending_agent_requests.values_mut() {
             pending.recipients.remove(&client);
@@ -572,6 +649,15 @@ impl Hub {
     fn allocate_request_id(&mut self) -> i64 {
         self.next_request_id += 1;
         self.next_request_id - 1
+    }
+
+    fn deliver(&self, deliveries: impl IntoIterator<Item = Delivery<ClientId>>) {
+        for Delivery { to, payload } in deliveries {
+            let frame = wire::notification("_foxfire/channel_event", payload);
+            for client in to {
+                self.send_to_client(client, frame.clone());
+            }
+        }
     }
 
     fn send_to_agent(&self, frame: TransportFrame) {

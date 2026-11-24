@@ -24,6 +24,13 @@ pub struct Cli {
     )]
     pub cwd: Option<PathBuf>,
 
+    #[arg(
+        long,
+        env = "FOXFIRE_RELAY_DATA",
+        help = "The directory to keep chat in, outside the workspace. Defaults to `relay` in the Foxfire home directory"
+    )]
+    pub data_dir: Option<PathBuf>,
+
     #[arg(required = true, last = true, help = "The agent's command line, after `--`")]
     pub agent: Vec<String>,
 }

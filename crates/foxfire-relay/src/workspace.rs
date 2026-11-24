@@ -1,5 +1,5 @@
 use crate::wire;
-use agent_client_protocol::v2::schema::{InitializeResponse, Meta, SessionId};
+use agent_client_protocol::v2::schema::{InitializeResponse, SessionId};
 use agent_client_protocol::{RawJsonRpcId, TransportFrame};
 use clankerdiff_protocol::client::{ClientCommand, LocalClientMessageTransport};
 use clankerdiff_server::{DiffServer, ServerOptions};
@@ -8,7 +8,6 @@ use foxfire_acp::aether::{
 };
 use foxfire_core::native::local_status;
 use futures::channel::mpsc::UnboundedSender;
-use serde_json::Value;
 use std::path::{Path, PathBuf};
 use tokio::sync::mpsc;
 use tokio::task::spawn_blocking;
@@ -40,10 +39,8 @@ impl Workspace {
         let mut capabilities = AetherCapabilities::of(&response.capabilities);
         capabilities.git_diff = self.diff.is_some();
         capabilities.workspace_status = true;
-        let mut session = response.capabilities.session.take().unwrap_or_default();
-        session.meta = Some(merge(session.meta.take(), capabilities.to_meta()));
-        response.capabilities.session = Some(session);
-        response.meta = Some(merge(response.meta.take(), remote.to_meta()));
+        wire::advertise(&mut response, capabilities.to_meta());
+        response.meta = Some(wire::merge(response.meta.take(), remote.to_meta()));
         response
     }
 
@@ -101,17 +98,4 @@ async fn run_bridge(
         }
     }
     transport.close();
-}
-
-fn merge(meta: Option<Meta>, addition: Meta) -> Meta {
-    let mut meta = meta.unwrap_or_default();
-    for (namespace, value) in addition {
-        match (meta.get_mut(&namespace), value) {
-            (Some(Value::Object(existing)), Value::Object(added)) => existing.extend(added),
-            (_, value) => {
-                meta.insert(namespace, value);
-            }
-        }
-    }
-    meta
 }

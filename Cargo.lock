@@ -2763,6 +2763,7 @@ dependencies = [
  "clankerdiff-server",
  "clap",
  "foxfire-acp",
+ "foxfire-chat",
  "foxfire-core",
  "futures",
  "serde",
