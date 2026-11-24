@@ -55,6 +55,8 @@ fn the_status_names_the_plan_step_in_progress_without_moving_or_resizing_anythin
     let elapsed = harness.bounds("elapsed").expect("the turn's clock");
     let toggle = harness.bounds("plan-toggle").expect("the plan's progress");
     assert!(toggle.right() <= elapsed.left(), "the status never runs into its clock");
+    let label = harness.bounds("status-label").expect("the step in progress");
+    assert!(label.right() <= toggle.left(), "the step is cut short of the plan's progress: {label:?} {toggle:?}");
 
     harness.click("plan-toggle").unwrap();
     assert!(harness.bounds("plan-panel").is_some());

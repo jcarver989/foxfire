@@ -3,6 +3,7 @@ mod composer;
 mod options;
 mod status;
 mod transcript;
+mod usage;
 
 pub use composer::Composer;
 pub use options::SessionOptions;

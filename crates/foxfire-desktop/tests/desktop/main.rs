@@ -2,6 +2,7 @@ mod activity;
 mod agents;
 mod attachments;
 mod attention;
+mod cells;
 mod changes;
 mod chat;
 mod cli;

@@ -5,6 +5,8 @@ use foxfire_acp::testing::{FakeAgent, FakeAgentRequests, model_select, select};
 use foxfire_core::testing::TestWorkspace;
 use foxfire_desktop::testing::{DesktopHarness, DesktopHarnessBuilder};
 use foxfire_desktop::threads::ThreadStatus;
+use rouge::core::access::Role;
+use rouge::core::testing::TestError;
 
 #[test]
 fn up_and_down_walk_the_prompts_sent_before() {
@@ -163,8 +165,8 @@ fn the_sessions_options_sit_in_the_status_row_under_the_composer_in_the_chat_alo
 
     assert!(harness.bounds("new-thread-heading").is_none(), "the composer has docked");
     assert_options_lead_the_status_row(&mut harness);
-    let [model, ring] = ["config-model", "context-ring"].map(|id| harness.bounds(id).expect("painted"));
-    assert!(model.right() < ring.left(), "the options come before the context ring: {model:?} {ring:?}");
+    let [model, meter] = ["config-model", "context-meter"].map(|id| harness.bounds(id).expect("painted"));
+    assert!(model.right() < meter.left(), "the options come before the context meter: {model:?} {meter:?}");
 
     harness.press("secondary-2");
 
@@ -200,8 +202,7 @@ fn a_long_list_of_models_is_searchable_and_scrolls_inside_the_window() {
 }
 
 #[test]
-fn the_context_meter_shows_once_the_agent_reports_usage_and_its_counts_once_nearly_full() {
-    let usage = |used| acp::SessionUpdate::UsageUpdate(acp::UsageUpdate::new(used, 200_000));
+fn the_context_meter_shows_once_the_agent_reports_usage() -> Result<(), TestError> {
     let (agent, mut requests) = FakeAgent::new("alpha-session").capture();
     let (mut harness, thread) = DesktopHarness::alpha(agent);
     assert!(harness.bounds("context-meter").is_none(), "nothing is reported yet");
@@ -211,13 +212,54 @@ fn the_context_meter_shows_once_the_agent_reports_usage_and_its_counts_once_near
     turn.end(acp::StopReason::EndTurn);
     harness.run_until(|_| thread.status() == ThreadStatus::Idle);
 
-    assert!(harness.bounds("context-ring").is_some(), "the meter stays once the turn ends");
     let (meter, composer) = (harness.bounds("context-meter").unwrap(), harness.bounds("composer").unwrap());
     assert!(meter.top() >= composer.bottom(), "the meter is on the bar below the composer");
-    assert!(harness.bounds("context-tokens").is_none(), "a quarter-full window leaves its counts to the tooltip");
+    let cells = harness.ui().access_node(Role::ProgressIndicator, "Context used")?;
+    assert_eq!(cells.numeric_value, Some(0.25));
+    assert!(harness.bounds("session-cost").is_none(), "the agent reports no cost");
 
-    harness.start_turn(thread, &mut requests, "more").update(usage(160_000));
-    harness.run_until_painted("context-tokens");
+    harness.click("context-meter")?;
+    assert!(harness.shows("usage-context", "Context50k / 200k tokens"));
+    assert!(harness.shows("usage-left", "Left150k tokens"));
+    assert!(harness.bounds("usage-cost").is_none(), "the agent reports no cost");
+    Ok(())
+}
+
+#[test]
+fn the_context_meter_shows_the_sessions_cost_beside_its_cells_and_follows_both_while_open() -> Result<(), TestError> {
+    let (agent, mut requests) = FakeAgent::new("alpha-session").capture();
+    let (mut harness, thread) = DesktopHarness::alpha(agent);
+    let turn = harness.start_turn(thread, &mut requests, "hi");
+
+    turn.update(acp::SessionUpdate::UsageUpdate(
+        acp::UsageUpdate::new(94_000, 200_000).cost(acp::Cost::new(2.47, "USD")),
+    ));
+    harness.run_until(|harness| harness.shows("session-cost", "$2.47"));
+    let [cells, cost] = ["context-cells", "session-cost"].map(|id| harness.bounds(id).expect("painted"));
+    assert!(cells.right() < cost.left(), "the cost follows the cells: {cells:?} {cost:?}");
+
+    harness.click("context-meter")?;
+    assert!(harness.shows("usage-cost", "Session cost$2.47"));
+
+    turn.update(usage(160_000));
+    harness.run_until(|harness| harness.shows("usage-context", "Context160k / 200k tokens"));
+    assert!(harness.shows("usage-cost", "Session cost$2.47"), "an update without a cost leaves it as it was");
+    Ok(())
+}
+
+#[test]
+fn a_window_of_unknown_size_shows_only_the_tokens_used() -> Result<(), TestError> {
+    let (agent, mut requests) = FakeAgent::new("alpha-session").capture();
+    let (mut harness, thread) = DesktopHarness::alpha(agent);
+    let turn = harness.start_turn(thread, &mut requests, "hi");
+
+    turn.update(acp::SessionUpdate::UsageUpdate(acp::UsageUpdate::new(12_000, 0)));
+    harness.run_until_painted("context-meter");
+
+    harness.click("context-meter")?;
+    assert!(harness.shows("usage-context", "Context12k tokens"));
+    assert!(harness.bounds("usage-left").is_none());
+    Ok(())
 }
 
 #[test]
@@ -288,6 +330,10 @@ fn agent_with_models(names: &[&str], current: &str) -> (FakeAgent, FakeAgentRequ
     let values: Vec<_> = names.iter().map(|name| format!("model-{name}")).collect();
     let values: Vec<_> = values.iter().map(String::as_str).zip(names.iter().copied()).collect();
     offering(vec![model_select(&format!("model-{current}"), &values)]).capture()
+}
+
+fn usage(used: u64) -> acp::SessionUpdate {
+    acp::SessionUpdate::UsageUpdate(acp::UsageUpdate::new(used, 200_000))
 }
 
 fn offering(options: Vec<acp::SessionConfigOption>) -> FakeAgent {

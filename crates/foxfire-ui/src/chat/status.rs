@@ -1,16 +1,16 @@
+use super::usage::usage_meter;
 use crate::thread::{Thread, ThreadStatus};
 use crate::ui::spawn_in;
 use crate::ui::tokens::{HAIRLINE, ICON_SIZE_SMALL, Pace, ROW_HEIGHT, Radius, Space, UNIT};
 use crate::ui::{FoxfireMotion, FoxfireState, Hint, Icon, IconName, Theme, UiStyles, foxfire};
 use agent_client_protocol::v2::schema as acp;
 use foxfire_acp::conversation::{Activity, Conversation, ConversationContent, ToolStatus, is_plan_entry_finished};
-use foxfire_core::format::token_count;
 use rouge::core::{
     AnyView, Cursor, Div, Ease, Keyframes, PaintRegion, Pose, Role, Styled, TextAlign, View, div, dynamic, show,
     switch, text, view, window_focused,
 };
 use rouge::reactive::{Memo, Scope, Signal, effect, memo, signal, sleep, stored, untrack};
-use rouge::widgets::{Placement, popover, progress, progress_ring};
+use rouge::widgets::{Placement, popover};
 use std::cell::Cell;
 use std::time::Duration;
 use web_time::Instant;
@@ -92,11 +92,12 @@ impl StatusLine {
         let planned = memo(move || plan.with(Option::is_some));
         let timing = memo(move || self.running_since.with(Option::is_some));
         let metered = memo(move || usage.with(Option::is_some));
+        let working = memo(move || doing.get().is_some_and(|doing| doing != Doing::Waiting));
         let parts: [(Memo<bool>, AnyView); 4] = [
             (activity, self.activity(doing, plan).into_any()),
             (planned, self.plan(plan).into_any()),
             (timing, elapsed(self.elapsed).into_any()),
-            (metered, context_meter(usage).into_any()),
+            (metered, usage_meter(usage, working).into_any()),
         ];
         let visible = parts.each_ref().map(|(shown, _)| *shown);
         let parts = parts.into_iter().enumerate().map(move |(index, (shown, part))| {
@@ -166,7 +167,7 @@ impl StatusLine {
                                 <div test_id="last-turn"><text muted no_wrap>{format!("Took {}", clock(took))}</text></div>
                             })}</dynamic>
                         </div>
-                    }.tooltip(detail)
+                    }.tooltip(detail).min_w(0.0).flex_shrink(1.0)
                 }</dynamic>
             </div>
         };
@@ -194,10 +195,7 @@ impl StatusLine {
         let open = self.plan_open;
         let toggle = dynamic(move || {
             let entries = plan.get().unwrap_or_default();
-            let total = entries.len().max(1);
             let done = entries.iter().filter(|entry| is_plan_entry_finished(&entry.status)).count();
-            #[allow(clippy::cast_precision_loss, reason = "A plan's entries are far fewer than f32 counts exactly.")]
-            let share = done as f32 / total as f32;
             let chevron = if open.get() { IconName::ChevronDown } else { IconName::ChevronRight };
             view! {
                 <div test_id="plan-toggle" flex_none flex items_center gap=Space::X2 cursor=Cursor::Pointer
@@ -205,7 +203,6 @@ impl StatusLine {
                          event.stop_propagation();
                          open.update(bool::toggle);
                      }}>
-                    <progress value=share flex_none w=PLAN_BAR_WIDTH/>
                     <text>{format!("{done}/{}", entries.len())}</text>
                     {Icon::new(chevron, Role::TextMuted).size(ICON_SIZE_SMALL)}
                 </div>
@@ -395,41 +392,6 @@ fn elapsed(elapsed: Signal<Duration>) -> impl View {
     }
 }
 
-fn context_meter(usage: Memo<Option<acp::UsageUpdate>>) -> impl View {
-    dynamic(move || {
-        let usage = usage.get()?;
-        #[allow(
-            clippy::cast_precision_loss,
-            reason = "The ring only needs subpixel precision; labels use integer counts."
-        )]
-        let fraction = if usage.size == 0 { 0.0 } else { usage.used.min(usage.size) as f32 / usage.size as f32 };
-        let color = if fraction >= FULL {
-            Role::Destructive
-        } else if fraction >= NEARLY_FULL {
-            Role::Warning
-        } else {
-            Role::Accent
-        };
-        let label = if usage.size == 0 {
-            format!("{} tokens", token_count(usage.used))
-        } else {
-            format!("{} / {} tokens", token_count(usage.used), token_count(usage.size))
-        };
-        let counts = (fraction >= NEARLY_FULL).then(|| {
-            view! { <div test_id="context-tokens"><text no_wrap color=color>{label.clone()}</text></div> }
-        });
-        Some(
-            view! {
-                <div test_id="context-meter" flex_none flex items_center gap=Space::X2>
-                    {progress_ring(fraction, color).test_id("context-ring")}
-                    {counts}
-                </div>
-            }
-            .tooltip(label),
-        )
-    })
-}
-
 fn clock(duration: Duration) -> String {
     let seconds = duration.as_secs();
     format!("{}:{:02}", seconds / 60, seconds % 60)
@@ -442,10 +404,7 @@ fn visible_plan(conversation: &Conversation) -> Option<Vec<acp::PlanEntry>> {
 }
 
 const TICK: Duration = Duration::from_secs(1);
-const PLAN_BAR_WIDTH: f32 = 10.0 * UNIT;
 const PLAN_PANEL_WIDTH: f32 = 90.0 * UNIT;
-const NEARLY_FULL: f32 = 0.75;
-const FULL: f32 = 0.9;
 const ELAPSED_MIN_WIDTH: f32 = 9.0 * UNIT;
 
 const UNSUMMONED: Pose = Pose::new().scale(0.96).opacity(0.0);

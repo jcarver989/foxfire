@@ -1,3 +1,4 @@
+mod cells;
 mod components;
 mod foxfire;
 mod kindling;
@@ -5,6 +6,7 @@ mod settings;
 mod shell;
 pub mod tokens;
 
+pub use cells::cells;
 pub use components::{
     StyledExt, chord, dispatch, hint, icon_slot, picker_closed, popping, presence, scroll_edge, selection,
     thread_header, with_middots,

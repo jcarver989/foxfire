@@ -1,8 +1,9 @@
 use super::tokens::Pace;
 use rouge::core::{
-    Corners, Div, Fill, IntoProp, Keyframes, PaintRegion, Pose, Prop, Styled, View, div, each, switch, window_focused,
+    Corners, Div, Fill, IntoProp, Keyframes, PaintRegion, Pose, Prop, Styled, View, div, each, switch, view,
+    window_focused,
 };
-use rouge::reactive::{Signal, expect_context, memo, provide_context, signal, stored, use_context};
+use rouge::reactive::{Memo, Signal, expect_context, memo, provide_context, signal, stored, use_context};
 use std::f32::consts::TAU;
 
 /// Activity, not progress: each state has a distinct choreography and direction of motion.
@@ -29,37 +30,40 @@ pub fn foxfire<T>(size: f32, tint: impl IntoProp<Fill, T>, state: impl Fn() -> F
     let fill = move || tint.with(Prop::get);
     let state = memo(state);
     let region = signal(PaintRegion::default());
+    let allowed = may_animate(region);
+    let animated = memo(move || state.get() != FoxfireState::Waiting && allowed.get());
+    let mark = move |animated| {
+        if animated {
+            view! {
+                <each items={move || vec![state.get()]} key={|state| *state} let:state
+                      enter=(Pose::new().opacity(0.0), Pace::Enter)>
+                    {let state = state.get_untracked();
+                     matrix(size, fill, |cell, column, row| moving(cell, state, size, column, row))}
+                </each>
+            }
+            .into_any()
+        } else {
+            view! {
+                <switch on={move || state.get()} let:state>
+                    {matrix(size, fill, |cell, column, row| still(cell, state, size, column, row))}
+                </switch>
+            }
+            .into_any()
+        }
+    };
+    view! {
+        <div flex_none relative size=size pass_through track_paint_region=region>
+            <switch on={move || animated.get()} children=mark/>
+        </div>
+    }
+}
+
+pub(super) fn may_animate(region: Signal<PaintRegion>) -> Memo<bool> {
     let focused = window_focused();
     let motion = use_context::<FoxfireMotion>();
-    let animated = memo(move || {
-        state.get() != FoxfireState::Waiting
-            && focused.get()
-            && !motion.is_some_and(FoxfireMotion::reduced)
-            && region.with(|region| !region.bounds.is_empty())
-    });
-    div().flex_none().relative().size(size).pass_through().track_paint_region(region).child(switch(
-        move || animated.get(),
-        move |animated| {
-            if animated {
-                each(
-                    move || vec![state.get()],
-                    |state| *state,
-                    move |state| {
-                        let state = state.get_untracked();
-                        matrix(size, fill, |cell, column, row| moving(cell, state, size, column, row))
-                    },
-                )
-                .enter(Pose::new().opacity(0.0), Pace::Enter)
-                .into_any()
-            } else {
-                switch(
-                    move || state.get(),
-                    move |state| matrix(size, fill, |cell, column, row| still(cell, state, size, column, row)),
-                )
-                .into_any()
-            }
-        },
-    ))
+    memo(move || {
+        focused.get() && !motion.is_some_and(FoxfireMotion::reduced) && region.with(|region| !region.bounds.is_empty())
+    })
 }
 
 impl FoxfireState {
@@ -230,7 +234,7 @@ fn smoothstep(from: f32, to: f32, x: f32) -> f32 {
 /// The outer cells, clockwise from the top left.
 const RING: [(u8, u8); 8] = [(0, 0), (1, 0), (2, 0), (2, 1), (2, 2), (1, 2), (0, 2), (0, 1)];
 const PITCH: f32 = 1.5;
-const ROUNDNESS: f32 = 0.3;
+pub(super) const ROUNDNESS: f32 = 0.3;
 /// Unlit cells stay faintly visible so the grid reads as one mark rather than scattered specks.
 const UNLIT: f32 = 0.1;
 const WRITING_STEPS: u8 = 14;
