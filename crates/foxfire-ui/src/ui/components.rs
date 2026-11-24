@@ -99,18 +99,6 @@ pub fn icon_slot() -> Div {
     div().flex_none().size(ICON_SIZE).flex().items_center().justify_center()
 }
 
-pub fn with_middots(parts: impl IntoIterator<Item = AnyView>) -> Vec<AnyView> {
-    let muted = Role::TextMuted;
-    let mut separated = Vec::new();
-    for part in parts {
-        if !separated.is_empty() {
-            separated.push(view! { <div flex_none><text color=muted>"·"</text></div> }.into_any());
-        }
-        separated.push(part);
-    }
-    separated
-}
-
 pub fn hint(id: impl Into<String>, label: &'static str, child: impl View) -> AnyView {
     let id: String = id.into();
     div().test_id(id).flex_none().flex().items_center().child(child).tooltip(label).into_any()

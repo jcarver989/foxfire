@@ -1,10 +1,14 @@
 use crate::support::Edges;
 use crate::support::{replying, texts};
 use agent_client_protocol::v2::schema as acp;
-use foxfire_acp::testing::{FakeAgent, FakeAgentRequests, model_select, select};
+use foxfire_acp::testing::{
+    FakeAgent, FakeAgentRequests, QueuedTurns, mode_select, model_select, plan, select, thought_level_select,
+};
 use foxfire_core::testing::TestWorkspace;
 use foxfire_desktop::testing::{DesktopHarness, DesktopHarnessBuilder};
-use foxfire_desktop::threads::ThreadStatus;
+use foxfire_desktop::threads::{Thread, ThreadStatus};
+use foxfire_desktop::ui::tokens::{ROW_HEIGHT, Space};
+use rouge::core::Rect;
 use rouge::core::access::Role;
 use rouge::core::testing::TestError;
 
@@ -174,6 +178,84 @@ fn the_sessions_options_sit_in_the_status_row_under_the_composer_in_the_chat_alo
 }
 
 #[test]
+fn a_new_threads_footer_moves_whole_controls_to_the_next_line() {
+    let (mut harness, _) = DesktopHarnessBuilder::default().agent("/alpha", long_options()).start("/alpha");
+    let controls = ["config-mode", "config-model", "config-reasoning_effort", "past-sessions-toggle"];
+    for width in FOOTER_WIDTHS {
+        harness.resize(width, 700.0);
+        assert!(harness.bounds("status").is_none(), "a thread with nothing to report leaves no gap for it");
+        assert_footer_holds(&mut harness, &controls);
+        assert_footer_shares_the_composers_edges(&mut harness);
+    }
+
+    harness.resize(940.0, 700.0);
+    let bar = harness.bounds("composer-bar").expect("painted");
+    assert_eq!(bar.size.height, ROW_HEIGHT, "everything that fits stays on one line");
+}
+
+#[test]
+fn a_running_threads_footer_keeps_its_status_clear_of_its_options() {
+    let (mut harness, _, _turn) = running_with_long_options();
+    let controls = [
+        "config-mode",
+        "config-model",
+        "config-reasoning_effort",
+        "activity-details-trigger",
+        "plan-toggle",
+        "elapsed",
+        "context-meter",
+    ];
+    for width in FOOTER_WIDTHS {
+        harness.resize(width, 700.0);
+        assert_footer_holds(&mut harness, &controls);
+        assert_footer_shares_the_composers_edges(&mut harness);
+        let [label, mark] = ["status-label", "activity"].map(|id| harness.bounds(id).expect("painted"));
+        assert!(label.size.width > 2.0 * mark.size.width, "the activity keeps a readable label at {width}: {label:?}");
+    }
+}
+
+#[test]
+fn the_last_turns_time_is_whole_and_level_with_the_meter() {
+    let (mut harness, thread, turn) = running_with_long_options();
+    turn.end(acp::StopReason::EndTurn);
+    harness.run_until(|_| thread.status() == ThreadStatus::Idle);
+    let whole = harness.bounds("last-turn").expect("painted").size;
+    for width in FOOTER_WIDTHS {
+        harness.resize(width, 700.0);
+        let [took, meter] = ["last-turn", "context-meter"].map(|id| harness.bounds(id).expect("painted"));
+        assert_eq!(took.size, whole, "at {width}");
+        assert!((took.center().y - meter.center().y).abs() < 0.5, "at {width}: {took:?} {meter:?}");
+    }
+}
+
+#[test]
+fn an_open_footer_panel_survives_the_footer_reflowing() -> Result<(), TestError> {
+    let (mut harness, _, _turn) = running_with_long_options();
+    harness.resize(1600.0, 700.0);
+    let wide = harness.bounds("composer-bar").expect("painted");
+    harness.click("context-meter")?;
+
+    harness.resize(900.0, 700.0);
+
+    let narrow = harness.bounds("composer-bar").expect("painted");
+    assert!(narrow.size.height > wide.size.height, "the status takes a line of its own: {wide:?} {narrow:?}");
+    assert!(harness.bounds("usage-panel").is_some());
+    Ok(())
+}
+
+#[test]
+fn an_option_wider_than_the_footer_is_cut_short() {
+    let long = "A model whose name goes on for far longer than any composer could ever be wide ".repeat(4);
+    let agent = offering(vec![model_select("long", &[("long", &long)])]);
+    let (mut harness, _) = DesktopHarnessBuilder::default().agent("/alpha", agent).start("/alpha");
+    for width in FOOTER_WIDTHS {
+        harness.resize(width, 700.0);
+        assert_footer_holds(&mut harness, &["config-model", "past-sessions-toggle"]);
+    }
+    assert!(harness.shows("config-model-value", &long), "the whole name is still there to read");
+}
+
+#[test]
 fn the_model_picker_opens_on_the_current_model() {
     let (agent, mut requests) = agent_with_models(&["one", "two", "three"], "two");
     let (mut harness, _) = DesktopHarness::alpha(agent);
@@ -339,6 +421,64 @@ fn usage(used: u64) -> acp::SessionUpdate {
 fn offering(options: Vec<acp::SessionConfigOption>) -> FakeAgent {
     FakeAgent::default().new_session_response(acp::NewSessionResponse::new("alpha-session").config_options(options))
 }
+
+fn long_options() -> FakeAgent {
+    offering(vec![
+        mode_select("build", &[("build", "Build (Large)")]),
+        model_select("sol", &[("sol", "Codex: GPT-6.2 Sol")]),
+        thought_level_select("high", &[("high", "High")]),
+    ])
+}
+
+fn running_with_long_options() -> (DesktopHarness, Thread, QueuedTurns) {
+    let (agent, mut requests) = long_options().capture();
+    let (mut harness, thread) = DesktopHarnessBuilder::default().agent("/alpha", agent).start("/alpha");
+    let turn = harness.start_turn(thread, &mut requests, "hi");
+    let step = "Thread trailing-comma tolerance through every list-like production in the grammar";
+    turn.update(plan(
+        "plan",
+        vec![acp::PlanEntry::new(step, acp::PlanEntryPriority::Medium, acp::PlanEntryStatus::InProgress)],
+    ));
+    turn.update(acp::SessionUpdate::UsageUpdate(
+        acp::UsageUpdate::new(50_000, 200_000).cost(acp::Cost::new(4.91, "USD")),
+    ));
+    harness.run_until_painted("plan-toggle");
+    harness.run_until_painted("session-cost");
+    (harness, thread, turn)
+}
+
+fn assert_footer_holds(harness: &mut DesktopHarness, controls: &[&str]) {
+    let bar = harness.bounds("composer-bar").expect("painted");
+    let placed: Vec<(&str, Rect)> =
+        controls.iter().map(|&id| (id, harness.bounds(id).unwrap_or_else(|| panic!("{id} is painted")))).collect();
+    for (index, (id, control)) in placed.iter().enumerate() {
+        assert!(control.size.height <= ROW_HEIGHT, "{id} is one line: {control:?}");
+        assert!(
+            control.left() >= bar.left()
+                && control.right() <= bar.right()
+                && control.top() >= bar.top()
+                && control.bottom() <= bar.bottom(),
+            "{id} stays inside the footer: {control:?} {bar:?}"
+        );
+        for (other, neighbour) in &placed[..index] {
+            let apart = control.left() >= neighbour.right()
+                || control.right() <= neighbour.left()
+                || control.top() >= neighbour.bottom()
+                || control.bottom() <= neighbour.top();
+            assert!(apart, "{id} clears {other}: {control:?} {neighbour:?}");
+        }
+    }
+}
+
+fn assert_footer_shares_the_composers_edges(harness: &mut DesktopHarness) {
+    let text = harness.bounds("composer-text").expect("painted");
+    let icon = harness.bounds("config-mode-icon").expect("painted");
+    assert_eq!(icon.left(), text.left(), "the options start where the prompt does");
+    let last = harness.bounds("context-meter").or_else(|| harness.bounds("past-sessions-toggle")).expect("painted");
+    assert_eq!(last.right() - Space::X2.px(), text.right(), "the footer ends where the prompt does");
+}
+
+const FOOTER_WIDTHS: [f32; 8] = [1800.0, 1600.0, 1200.0, 1000.0, 940.0, 900.0, 800.0, 700.0];
 
 fn assert_options_lead_the_status_row(harness: &mut DesktopHarness) {
     let [model, composer] = ["config-model", "composer"].map(|id| harness.bounds(id).expect("painted"));

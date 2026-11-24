@@ -6,8 +6,8 @@ use crate::ui::{FoxfireMotion, FoxfireState, Hint, Icon, IconName, Theme, UiStyl
 use agent_client_protocol::v2::schema as acp;
 use foxfire_acp::conversation::{Activity, Conversation, ConversationContent, ToolStatus, is_plan_entry_finished};
 use rouge::core::{
-    AnyView, Cursor, Div, Ease, Keyframes, PaintRegion, Pose, Role, Styled, TextAlign, View, div, dynamic, show,
-    switch, text, view, window_focused,
+    Cursor, Div, Ease, Keyframes, PaintRegion, Pose, Role, Styled, View, div, dynamic, show, switch, text, view,
+    window_focused,
 };
 use rouge::reactive::{Memo, Scope, Signal, effect, memo, signal, sleep, stored, untrack};
 use rouge::widgets::{Placement, popover};
@@ -93,34 +93,17 @@ impl StatusLine {
         let timing = memo(move || self.running_since.with(Option::is_some));
         let metered = memo(move || usage.with(Option::is_some));
         let working = memo(move || doing.get().is_some_and(|doing| doing != Doing::Waiting));
-        let parts: [(Memo<bool>, AnyView); 4] = [
-            (activity, self.activity(doing, plan).into_any()),
-            (planned, self.plan(plan).into_any()),
-            (timing, elapsed(self.elapsed).into_any()),
-            (metered, usage_meter(usage, working).into_any()),
-        ];
-        let visible = parts.each_ref().map(|(shown, _)| *shown);
-        let parts = parts.into_iter().enumerate().map(move |(index, (shown, part))| {
-            let separated = memo(move || visible[..index].iter().any(|shown| shown.get()));
-            let part = std::cell::RefCell::new(Some(part));
-            show(
-                move || shown.get(),
-                move || {
-                    view! {
-                        <div flex items_center gap=Space::X2 min_w=0.0 flex_shrink={if index == 0 { 1.0 } else { 0.0 }}>
-                            <show when={move || separated.get()}>
-                                <div flex_none><text muted>"·"</text></div>
-                            </show>
-                            {part.borrow_mut().take()}
-                        </div>
-                    }
-                },
-            )
-        });
+        let reporting = memo(move || activity.get() || planned.get() || metered.get());
         view! {
-            <div test_id="status" flex_1 min_w=0.0 h=ROW_HEIGHT flex items_center justify_end gap=Space::X2 body secondary>
-                {..parts}
-            </div>
+            <show when={move || reporting.get()}>
+                <div test_id="status" flex_grow=1.0 min_w=0.0 min_h=ROW_HEIGHT
+                     flex flex_wrap items_center justify_end gap=Space::X1 body secondary>
+                    <show when={move || activity.get()}>{self.activity(doing, plan)}</show>
+                    <show when={move || planned.get()}>{self.plan(plan)}</show>
+                    <show when={move || timing.get()}>{elapsed(self.elapsed)}</show>
+                    <show when={move || metered.get()}>{usage_meter(usage, working)}</show>
+                </div>
+            </show>
         }
     }
 
@@ -145,7 +128,7 @@ impl StatusLine {
         );
         let detail = memo(move || activity_detail(self.thread, doing, plan));
         let trigger = view! {
-            <div test_id="activity-details-trigger" min_w=0.0 flex items_center gap=Space::X2
+            <div test_id="activity-details-trigger" min_h=ROW_HEIGHT px=Space::X2 flex items_center gap=Space::X2 rounded=Radius::Inner
                  on_activate=open_details
                  on_focus={move |event| {
                      // Popover dismissal restores focus; that must not reopen it.
@@ -159,15 +142,19 @@ impl StatusLine {
                 <dynamic>{
                     let detail = detail.get();
                     view! {
-                        <div test_id="status-label" min_w=0.0 overflow_hidden>
-                            <text no_wrap color={move || {
-                                if doing.get() == Some(Doing::Waiting) { theme.get().warning } else { theme.get().text_secondary }
-                            }}>{label}</text>
+                        <div>
+                            <show when=busy>
+                                <div test_id="status-label">
+                                    <text truncate color={move || {
+                                        if doing.get() == Some(Doing::Waiting) { theme.get().warning } else { theme.get().text_secondary }
+                                    }}>{label}</text>
+                                </div>
+                            </show>
                             <dynamic>{last_turn.get().map(|took| view! {
-                                <div test_id="last-turn"><text muted no_wrap>{format!("Took {}", clock(took))}</text></div>
+                                <div test_id="last-turn"><text muted truncate>{format!("Took {}", clock(took))}</text></div>
                             })}</dynamic>
                         </div>
-                    }.tooltip(detail).min_w(0.0).flex_shrink(1.0)
+                    }.tooltip(detail)
                 }</dynamic>
             </div>
         };
@@ -188,7 +175,12 @@ impl StatusLine {
                     })}</dynamic>
                 </div>
             }
-        }).placement(Placement::Above).min_w(0.0).flex_shrink(1.0)
+        })
+        .placement(Placement::Above)
+        .flex()
+        .w(0.0)
+        .min_w(ACTIVITY_MIN_WIDTH)
+        .flex_grow(1.0)
     }
 
     fn plan(self, plan: Memo<Option<Vec<acp::PlanEntry>>>) -> impl View {
@@ -198,12 +190,12 @@ impl StatusLine {
             let done = entries.iter().filter(|entry| is_plan_entry_finished(&entry.status)).count();
             let chevron = if open.get() { IconName::ChevronDown } else { IconName::ChevronRight };
             view! {
-                <div test_id="plan-toggle" flex_none flex items_center gap=Space::X2 cursor=Cursor::Pointer
+                <div test_id="plan-toggle" flex_none min_h=ROW_HEIGHT px=Space::X2 flex items_center gap=Space::X2 cursor=Cursor::Pointer
                      on_click={move |event| {
                          event.stop_propagation();
                          open.update(bool::toggle);
                      }}>
-                    <text>{format!("{done}/{}", entries.len())}</text>
+                    <text no_wrap>{format!("{done}/{}", entries.len())}</text>
                     {Icon::new(chevron, Role::TextMuted).size(ICON_SIZE_SMALL)}
                 </div>
             }
@@ -386,8 +378,8 @@ fn plan_entries(entries: &[acp::PlanEntry]) -> Div {
 
 fn elapsed(elapsed: Signal<Duration>) -> impl View {
     view! {
-        <div test_id="elapsed" flex_none min_w=ELAPSED_MIN_WIDTH>
-            <text muted align=TextAlign::End>{move || clock(elapsed.get())}</text>
+        <div test_id="elapsed" flex_none min_h=ROW_HEIGHT px=Space::X2 min_w=ELAPSED_MIN_WIDTH flex items_center justify_end>
+            <text muted no_wrap>{move || clock(elapsed.get())}</text>
         </div>
     }
 }
@@ -405,6 +397,7 @@ fn visible_plan(conversation: &Conversation) -> Option<Vec<acp::PlanEntry>> {
 
 const TICK: Duration = Duration::from_secs(1);
 const PLAN_PANEL_WIDTH: f32 = 90.0 * UNIT;
-const ELAPSED_MIN_WIDTH: f32 = 9.0 * UNIT;
+const ELAPSED_MIN_WIDTH: f32 = 13.0 * UNIT;
+const ACTIVITY_MIN_WIDTH: f32 = 22.0 * UNIT;
 
 const UNSUMMONED: Pose = Pose::new().scale(0.96).opacity(0.0);

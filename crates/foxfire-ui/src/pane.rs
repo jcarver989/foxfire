@@ -81,8 +81,6 @@ impl ChatPane {
         let spacer = move || view! { <show when={move || fresh.get()}><div flex_1/></show> };
         let (reading, gutter) = (self.transcript.reading(), self.transcript.gutter());
         let controls_height = if presentation().get_untracked().is_touch() { CONTROL_HEIGHT_LARGE } else { ROW_HEIGHT };
-        let presentation = presentation();
-        let stacked = memo(move || presentation.get().is_compact());
         view! {
             <div absolute left=0.0 right={move || px(gutter.get())} bottom=0.0
                  top={move || if fresh.get() { px(0.0) } else { auto() }}
@@ -100,15 +98,13 @@ impl ChatPane {
                         {self.elicitation.view()}
                         <div track_bounds={self.composer_bounds} opacity=reveal>{self.composer.view()}</div>
                         <div flex col opacity=reveal>
-                            <div test_id="composer-bar" h=controls_height mt=Space::X1 px=Space::X2 flex items_center gap=Space::X4>
+                            <div test_id="composer-bar" min_h=controls_height mt=Space::X1 px=Space::X1
+                                 flex flex_wrap items_center gap=Space::X1>
                                 {self.options.view()}
-                                <show when={move || !stacked.get()}>{self.status.view()}</show>
+                                {self.status.view()}
                                 <show when={move || connecting.get()}>{connecting_message()}</show>
                                 {actions}
                             </div>
-                            <show when={move || stacked.get() && !fresh.get()}>
-                                <div h=controls_height px=Space::X2 flex items_center>{self.status.view()}</div>
-                            </show>
                             {tray}
                         </div>
                     </reading_cell>
@@ -138,7 +134,7 @@ impl ChatPane {
 fn connecting_message() -> impl View {
     let muted = Role::TextMuted;
     view! {
-        <div test_id="new-thread-connecting" flex_none flex items_center gap=Space::X2>
+        <div test_id="new-thread-connecting" flex_none px=Space::X2 flex items_center gap=Space::X2>
             {foxfire(ICON_SIZE_SMALL, muted, || FoxfireState::Connecting)}
             <text body muted>"Connecting…"</text>
         </div>

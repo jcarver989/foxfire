@@ -4,6 +4,7 @@ use foxfire_acp::testing::FakeAgent;
 use foxfire_desktop::history::{Listing, SavedSession};
 use foxfire_desktop::sessions::SessionKey;
 use foxfire_desktop::testing::{DesktopHarnessBuilder, TEST_AGENT};
+use foxfire_desktop::ui::tokens::Space;
 use rouge::core::testing::TestResult;
 use rouge::widgets::tokens::MotionScale;
 use serde_json::json;
@@ -26,7 +27,8 @@ fn the_composer_bar_lists_recent_sessions_on_demand_and_filters_them_locally() -
     assert!(harness.shows("past-sessions-toggle-label", "Past sessions"));
     assert!((bar.top() - composer.bottom() - 4.0).abs() < 0.5, "the bar sits just below the composer");
     assert!((bar.left() - composer.left()).abs() < 0.5 && (bar.right() - composer.right()).abs() < 0.5);
-    assert!((bar.right() - toggle.right() - 24.0).abs() < 0.5, "the toggle stays at the right end of the bar");
+    let text = harness.bounds("composer-text").expect("painted");
+    assert!((toggle.right() - Space::X2.px() - text.right()).abs() < 0.5, "the toggle ends where the prompt does");
     assert!(toggle.top() >= bar.top() && toggle.bottom() <= bar.bottom());
     assert!(harness.bounds("past-sessions").is_none());
     assert_eq!(harness.sessions().asked(), [] as [(String, PathBuf); 0]);

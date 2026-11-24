@@ -51,8 +51,8 @@ fn a_connecting_thread_already_asks_what_to_build_and_keeps_its_composer_in_plac
 fn the_status_row_sits_as_snug_under_a_new_threads_composer_as_under_a_docked_one() {
     let (mut harness, thread) = DesktopHarness::alpha(replying("alpha-session", "hello"));
     let gap = |harness: &mut DesktopHarness| {
-        let [composer, status] = ["composer", "status"].map(|id| harness.bounds(id).expect("painted"));
-        status.top() - composer.bottom()
+        let [composer, bar] = ["composer", "composer-bar"].map(|id| harness.bounds(id).expect("painted"));
+        bar.top() - composer.bottom()
     };
     let fresh = gap(&mut harness);
 

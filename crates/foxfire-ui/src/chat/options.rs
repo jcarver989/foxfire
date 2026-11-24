@@ -2,11 +2,11 @@ use crate::thread::Thread;
 use crate::ui::tokens::{COMPOSER_POPUP_HEIGHT, ICON_SIZE_SMALL, Space, UNIT};
 use crate::ui::{
     Icon, IconName, Material, PickerItem, SearchPickerHandle, UiStyles, list_row, picker_closed, search_picker,
-    selection, with_middots,
+    selection,
 };
 use agent_client_protocol::v2::schema as acp;
 use foxfire_core::session_config_view::LocalConfigOption;
-use rouge::core::{AnyView, Role, Styled, View, div, dynamic, px, text, view};
+use rouge::core::{AnyView, Role, Styled, View, div, dynamic, px, show, text, view};
 use rouge::reactive::{memo, signal};
 use rouge::widgets::{Placement, popover};
 
@@ -26,9 +26,11 @@ impl SessionOptions {
             thread.with_connected_core(|core| core.session().config_options().to_vec()).unwrap_or_default()
         });
         view! {
-            <div test_id="session-options" min_w=0.0 overflow_hidden flex items_center gap=Space::X1 body>
-                <dynamic>{with_middots(options.get().iter().filter_map(|option| self.selector(option)))}</dynamic>
-            </div>
+            <show when={move || options.with(|options| !options.is_empty())}>
+                <div test_id="session-options" flex flex_wrap items_center gap=Space::X1 body>
+                    <dynamic>{options.get().iter().filter_map(|option| self.selector(option)).collect::<Vec<_>>()}</dynamic>
+                </div>
+            </show>
         }
     }
 
@@ -37,12 +39,12 @@ impl SessionOptions {
         let id = format!("config-{}", option.id);
         let open = signal(false);
         let icon = category_icon(option).map(|icon| {
-            view! { <div test_id={format!("{id}-icon")} flex>{Icon::new(icon, Role::TextMuted).size(ICON_SIZE_SMALL)}</div> }
+            view! { <div test_id={format!("{id}-icon")} flex flex_none>{Icon::new(icon, Role::TextMuted).size(ICON_SIZE_SMALL)}</div> }
         });
         let trigger = view! {
             <list_row test_id={id.clone()} selection={move || selection(open.get())} on_click={move || open.set(true)}>
                 {icon}
-                <div test_id={format!("{id}-value")}><text>{label}</text></div>
+                <div test_id={format!("{id}-value")}><text truncate>{label}</text></div>
             </list_row>
         };
         let (thread, option) = (self.thread, option.clone());

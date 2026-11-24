@@ -297,7 +297,7 @@ async fn swiping_a_thread_row_offers_end_thread_behind_the_same_confirmation() -
 }
 
 #[tokio::test]
-async fn a_phone_gives_the_status_a_line_of_its_own_below_the_options() -> Result<(), TestError> {
+async fn the_footer_holds_its_status_with_a_readable_label_on_a_phone_and_a_tablet() -> Result<(), TestError> {
     let _entered = Runtime::new().enter();
     let mut ui = touch_demo(390.0, 780.0);
     ui.tap_on("launch-demo")?;
@@ -309,14 +309,15 @@ async fn a_phone_gives_the_status_a_line_of_its_own_below_the_options() -> Resul
     ui.tap_on("send")?;
     ui.run(0.5);
 
-    let (bar, status) = (ui.rect_of("composer-bar")?, ui.rect_of("status")?);
-    assert!(status.origin.y >= bar.max().y, "the status is below the options: {bar:?} {status:?}");
-    assert!(ui.rect_of("status-label")?.size.width > 0.0, "the activity has room for its label");
-
-    ui.set_size(Size::new(1180.0, 820.0));
-    ui.run(0.5);
-    let (bar, status) = (ui.rect_of("composer-bar")?, ui.rect_of("status")?);
-    assert!(status.origin.y >= bar.origin.y && status.max().y <= bar.max().y, "a wide window has room for one line");
+    for (width, height) in [(390.0, 780.0), (1180.0, 820.0)] {
+        ui.set_size(Size::new(width, height));
+        ui.run(0.5);
+        let (bar, status) = (ui.rect_of("composer-bar")?, ui.rect_of("status")?);
+        assert!(status.origin.x >= bar.origin.x && status.max().x <= bar.max().x, "at {width}: {bar:?} {status:?}");
+        assert!(status.origin.y >= bar.origin.y && status.max().y <= bar.max().y, "at {width}: {bar:?} {status:?}");
+        let (label, mark) = (ui.rect_of("status-label")?, ui.rect_of("activity")?);
+        assert!(label.size.width > 2.0 * mark.size.width, "at {width} the label is readable: {label:?}");
+    }
     Ok(())
 }
 

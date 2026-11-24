@@ -4,7 +4,7 @@ use crate::history::{History, Listing, SavedSession};
 use crate::registry::Registry;
 use crate::target::SessionTarget;
 use crate::threads::{Thread, ThreadManager};
-use crate::ui::tokens::{COMPOSER_POPUP_HEIGHT, ICON_SIZE_SMALL, PANEL_GUTTER, Pace, ROW_HEIGHT, Space};
+use crate::ui::tokens::{COMPOSER_POPUP_HEIGHT, ICON_SIZE_SMALL, Pace, ROW_HEIGHT, Space};
 use crate::ui::{
     FoxfireState, Hint, Icon, IconName, Material, MaterialExt, NoticeTone, PickerItem, SearchPickerEvent,
     SearchPickerHandle, UiStyles, badge, foxfire, list_row, search_picker, segment, segmented_control, selection,
@@ -12,7 +12,7 @@ use crate::ui::{
 };
 use chrono::{DateTime, Utc};
 use clankerdiff_core::format_age;
-use rouge::core::{AnyView, Role, Styled, View, div, dynamic, motion, pct, px, show, text, view};
+use rouge::core::{AnyView, Role, Styled, View, auto, div, dynamic, motion, pct, px, show, text, view};
 use rouge::reactive::{Signal, Stored, effect, memo, signal, stored, untrack};
 use std::sync::Arc;
 
@@ -75,13 +75,14 @@ impl PastSessions {
             turn.animate_to(if open.get() { HALF_TURN } else { 0.0 }, Pace::Move);
         });
         view! {
-            <list_row test_id="past-sessions-toggle" flex_none mr=PANEL_GUTTER selection={move || selection(open.get())}
+            <list_row test_id="past-sessions-toggle" flex_none selection={move || selection(open.get())}
                       on_click={move || self.toggle()}>
                 <div test_id="past-sessions-toggle-label"><text no_wrap>"Past sessions"</text></div>
                 <div flex rotate=turn>{Icon::new(IconName::ChevronDown, Role::TextMuted).size(ICON_SIZE_SMALL)}</div>
             </list_row>
         }
         .tooltip("Pick up a past session")
+        .ml(auto())
     }
 
     pub(crate) fn tray_view(self, on_dismiss: impl Fn() + 'static) -> impl View {

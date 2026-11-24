@@ -9,7 +9,7 @@ pub mod tokens;
 pub use cells::cells;
 pub use components::{
     StyledExt, chord, dispatch, hint, icon_slot, picker_closed, popping, presence, scroll_edge, selection,
-    thread_header, with_middots,
+    thread_header,
 };
 pub use foxfire::{FoxfireMotion, FoxfireState, foxfire};
 #[cfg(any(test, feature = "testing"))]

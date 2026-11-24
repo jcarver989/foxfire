@@ -35,6 +35,21 @@ fn a_running_turn_says_what_the_agent_is_doing_and_how_long_it_took_once_it_ends
 }
 
 #[test]
+fn every_turn_shows_its_clock() {
+    let (agent, mut requests) = FakeAgent::new("alpha-session").capture();
+    let (mut harness, thread) = DesktopHarness::alpha(agent);
+    for prompt in ["first", "second"] {
+        let turn = harness.start_turn(thread, &mut requests, prompt);
+        assert!(harness.bounds("elapsed").is_some(), "the {prompt} turn is timed");
+        assert!(harness.bounds("activity").is_some(), "the {prompt} turn shows activity");
+
+        turn.end(acp::StopReason::EndTurn);
+        harness.run_until(|_| thread.status() == ThreadStatus::Idle);
+        assert!(harness.bounds("elapsed").is_none(), "the {prompt} turn's clock stops with it");
+    }
+}
+
+#[test]
 fn the_status_names_the_plan_step_in_progress_without_moving_or_resizing_anything() {
     let (agent, mut requests) = FakeAgent::new("alpha-session").capture();
     let (mut harness, thread) =
