@@ -1,6 +1,6 @@
 # foxfire-relay
 
-foxfire-relay runs an [ACP](https://agentclientprotocol.com/) agent over stdio and lets multiple Foxfire clients connect to it over WebSocket. All clients share the agent's sessions. The relay also answers Foxfire's diff and workspace status requests, so a client needs no other connection to the workspace.
+foxfire-relay runs an [ACP](https://agentclientprotocol.com/) agent over stdio and lets multiple Foxfire clients connect to it over WebSocket. All clients share one live session. The relay also answers Foxfire's diff and workspace status requests, so a client needs no other connection to the workspace.
 
 ```sh
 foxfire-relay --listen 0.0.0.0:7777 --cwd /workspace -- my-agent acp
@@ -19,6 +19,15 @@ Set a remote's `acp.websocket` command to one that prints the relay's endpoint a
 ```
 
 The remote does not need a `diff` channel or `acp.cwd`, because the relay provides both. While a dynamic remote starts, Foxfire retries refused connections.
+
+## The live session
+
+The first session a client opens becomes the relay's live session, and it stays live after every client leaves.
+
+- A client that connects later is told of it and joins it with its history. So does a client that asks for a new session, which means `/clear` rejoins the live session rather than starting over.
+- A client may resume a different session, which then becomes the live one, only while no other client is using the current one.
+- When the relay starts, it adopts the workspace's most recently updated session as the live one and resumes it once a client joins.
+- If the agent no longer knows the live session, the client that tried to join gets the agent's error, and the next one to open a session creates a new one.
 
 ## Configuration
 
