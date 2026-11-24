@@ -1,0 +1,4 @@
+[tasks.ios-sim]
+description = "Build and launch the app in the iOS Simulator"
+run = "cargo rouge run ios"
+raw = true

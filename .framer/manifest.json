@@ -1,5 +1,11 @@
 {
   "files": {
+    ".cargo/config.toml": {
+      "kind": "toml",
+      "keys": [
+        "alias.rouge"
+      ]
+    },
     ".config/nextest.toml": {
       "kind": "managed"
     },
@@ -12,10 +18,14 @@
     ".github/workflows/release-plz.yml": {
       "kind": "managed"
     },
+    ".github/workflows/rouge-publish.yml": {
+      "kind": "managed"
+    },
     ".gitignore": {
       "kind": "blocks",
       "ids": [
         "framer",
+        "rouge/publishing",
         "rust-monorepo"
       ]
     },
@@ -42,16 +52,61 @@
         "profile.dist"
       ]
     },
+    "android/build.gradle": {
+      "kind": "managed"
+    },
+    "android/gradle/wrapper/gradle-wrapper.properties": {
+      "kind": "managed"
+    },
+    "android/proguard-rules.pro": {
+      "kind": "managed"
+    },
+    "android/settings.gradle": {
+      "kind": "managed"
+    },
+    "android/src/main/AndroidManifest.xml": {
+      "kind": "managed"
+    },
+    "android/src/main/java/dev/foxfire/app/RougeActivity.java": {
+      "kind": "managed"
+    },
     "clippy.toml": {
       "kind": "managed"
     },
     "dist-workspace.toml": {
       "kind": "managed"
     },
+    "ios/Assets.xcassets/AppIcon.appiconset/Contents.json": {
+      "kind": "managed"
+    },
+    "ios/Assets.xcassets/Contents.json": {
+      "kind": "managed"
+    },
+    "ios/Info.plist": {
+      "kind": "managed"
+    },
+    "ios/PrivacyInfo.xcprivacy": {
+      "kind": "managed"
+    },
+    "ios/RougeApp.xcodeproj/project.pbxproj": {
+      "kind": "managed"
+    },
+    "ios/RougeApp.xcodeproj/xcshareddata/xcschemes/RougeApp.xcscheme": {
+      "kind": "managed"
+    },
+    "ios/cargo.sh": {
+      "kind": "managed"
+    },
     "justfile": {
       "kind": "blocks",
       "ids": [
         "rust-monorepo"
+      ]
+    },
+    "mise.toml": {
+      "kind": "toml",
+      "keys": [
+        "tasks.ios-sim"
       ]
     },
     "release-plz.toml": {

@@ -1,0 +1,61 @@
+plugins { id 'com.android.application' version '9.5.1' }
+
+def env = { name, fallback -> System.getenv(name) ?: fallback }
+def uploadKey = System.getenv('ROUGE_KEYSTORE')
+
+android {
+    namespace 'dev.foxfire.app'
+    compileSdk { version = release(37) }
+    buildToolsVersion '36.0.0'
+    ndkVersion '28.2.13676358'
+    defaultConfig {
+        applicationId 'dev.foxfire.app'
+        minSdk 30
+        targetSdk 36
+        versionCode env('ROUGE_BUILD_NUMBER', '1').toInteger()
+        versionName env('APP_VERSION', '0.0.0')
+        manifestPlaceholders = [appName: env('APP_NAME', 'Foxfire'), rustLibrary: env('APP_TARGET', 'foxfire-mobile').replace('-', '_')]
+    }
+    if (uploadKey) {
+        signingConfigs {
+            upload {
+                storeFile file(uploadKey)
+                storePassword System.getenv('ANDROID_UPLOAD_STORE_PASSWORD')
+                keyAlias System.getenv('ANDROID_UPLOAD_KEY_ALIAS')
+                keyPassword System.getenv('ANDROID_UPLOAD_KEY_PASSWORD')
+            }
+        }
+    }
+    buildTypes {
+        release {
+            if (uploadKey) signingConfig signingConfigs.upload
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            ndk { debugSymbolLevel = 'SYMBOL_TABLE' }
+        }
+    }
+    packaging { jniLibs { useLegacyPackaging = false } }
+}
+
+dependencies {
+    implementation 'androidx.appcompat:appcompat:1.7.0'
+    implementation 'androidx.games:games-activity:4.4.0'
+}
+
+['Debug', 'Release'].each { variant ->
+    def cargo = tasks.register("cargo$variant", Exec) {
+        workingDir '..'
+        environment 'ANDROID_NDK_HOME', "${androidComponents.sdkComponents.sdkDirectory.get().asFile}/ndk/28.2.13676358"
+        environment 'CARGO_NDK_NO_PANIC_HOOK', '1'
+        environment 'CARGO_PROFILE_RELEASE_DEBUG', 'line-tables-only'
+        environment 'CARGO_PROFILE_RELEASE_STRIP', 'none'
+        commandLine(['cargo', 'ndk', '-t', 'arm64-v8a', '-P', '30', '-o', file("src/${variant.toLowerCase()}/jniLibs"), 'build', '--locked', '--lib', '--package', 'foxfire-mobile'] + (variant == 'Release' ? ['--release'] : []))
+    }
+    tasks.matching { it.name == "pre${variant}Build" }.configureEach { dependsOn cargo }
+}
+
+def icon = tasks.register('rougeIcon', Copy) {
+    from '../assets/app-icon.png'
+    into 'src/main/res/drawable-nodpi'
+    rename { 'rouge_icon.png' }
+}
+tasks.matching { it.name == 'preBuild' }.configureEach { dependsOn icon }

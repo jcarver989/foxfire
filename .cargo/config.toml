@@ -1,0 +1,2 @@
+[alias]
+rouge = "run --quiet --locked --manifest-path .framer/Cargo.toml --"

@@ -1,6 +1,7 @@
 use framer::Project;
 use framer::github::Step;
 use framer_presets::{Ci, Dist, Release, ReleasePlz, Rust, RustMonorepo, Rustfmt, Workspace};
+use rouge_framer::{PlayInternal, RougePublish, TestFlight};
 use std::process::ExitCode;
 
 fn main() -> ExitCode {
@@ -33,5 +34,14 @@ fn main() -> ExitCode {
                     ),
             ),
     );
-    project.synth()
+    project.apply(
+        RougePublish::new("dev.foxfire.app")
+            .name("Foxfire")
+            .package("foxfire-mobile")
+            .icon("assets/app-icon.png")
+            // Replace the placeholder with the App Store Connect Apple ID before publishing.
+            .ios(TestFlight::new("0"))
+            .android(PlayInternal),
+    );
+    rouge_framer::run(&project)
 }
