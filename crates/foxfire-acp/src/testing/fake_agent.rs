@@ -446,8 +446,8 @@ impl HandleDispatchFrom<Client> for FakeAgent {
             })
             .await
             .if_request(async |request: CloseSessionRequest, responder| {
-                let _ = self.recorder.close_session.send(request);
-                responder.respond(CloseSessionResponse::new())
+                let _ = self.recorder.close_session.send(request.clone());
+                self.answer_scripted(request, responder, |_| Some(CloseSessionResponse::new()))
             })
             .await
             .if_request(async |request: WorkspaceStatusPayload, responder| {
