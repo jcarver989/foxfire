@@ -82,6 +82,7 @@ cargo test -p foxfire-docker --features docker-tests
 ## Limitations
 
 - Only the branch checked out at Stop is exported, plus the working tree. Other local branches the agent creates are not.
+- A thread's chat channel survives Suspend and Resume, but Stop deletes it with the container.
 - Resume restarts the agent. The conversation continues only if the agent can reload its session.
 - A new thread's agent process starts a moment before its workspace moves to fresh `main`. Launch returns only after the move.
 - Native macOS and iOS builds still need to run on the host.
