@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.2](https://github.com/jcarver989/foxfire/compare/foxfire-core-v0.1.1...foxfire-core-v0.1.2) - 2026-11-24
+
+### Added
+
+- *(core)* format reported session costs for display
+
+### Fixed
+
+- *(core)* keep the replay when a new session rejoins the current one
+
+### Other
+
+- *(core)* separate the session model from native I/O
+
 ## [0.1.1](https://github.com/jcarver989/foxfire/compare/foxfire-core-v0.1.0...foxfire-core-v0.1.1) - 2026-11-19
 
 ### Added
