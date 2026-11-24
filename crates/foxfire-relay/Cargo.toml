@@ -21,6 +21,7 @@ workspace = true
 
 [dependencies]
 agent-client-protocol = { workspace = true }
+chrono = { workspace = true }
 clankerdiff-lspd = { workspace = true, features = ["daemon"] }
 clankerdiff-protocol = { workspace = true }
 clankerdiff-server = { workspace = true }

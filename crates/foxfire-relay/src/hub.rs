@@ -1,15 +1,17 @@
 use crate::wire::{self, field, session_of};
 use crate::workspace::{DiffBridge, Workspace};
+use agent_client_protocol::v2::schema::{InitializeResponse, ReplayFrom, ReplayFromStart, SessionId};
 use agent_client_protocol::{
-    Error, RawJsonRpcId, RawJsonRpcMessage, RawJsonRpcNotification, RawJsonRpcParams, RawJsonRpcRequest,
+    Error, ErrorCode, RawJsonRpcId, RawJsonRpcMessage, RawJsonRpcNotification, RawJsonRpcParams, RawJsonRpcRequest,
     RawJsonRpcResponse, TransportFrame,
 };
-use foxfire_acp::aether::GitDiffCommandPayload;
+use foxfire_acp::aether::{GitDiffCommandPayload, RemoteServerInfo};
 use futures::StreamExt;
 use futures::channel::mpsc::{UnboundedReceiver, UnboundedSender};
-use serde_json::{Value, json};
-use std::collections::{BTreeSet, HashMap};
+use serde_json::{Map, Value, json};
+use std::collections::{BTreeSet, HashMap, VecDeque};
 use std::mem;
+use std::path::PathBuf;
 use tokio::sync::mpsc;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -23,14 +25,22 @@ pub(crate) enum ClientEvent {
 
 pub(crate) struct Hub {
     agent: UnboundedSender<TransportFrame>,
-    initialize: Value,
+    initialize: InitializeResponse,
     workspace: Workspace,
+    live: Option<LiveSession>,
     clients: HashMap<ClientId, Client>,
     sessions: HashMap<String, Session>,
     session_parents: HashMap<String, String>,
     forwarded_client_requests: HashMap<i64, ForwardedClientRequest>,
+    waiting_opens: VecDeque<WaitingOpen>,
     pending_agent_requests: HashMap<i64, PendingAgentRequest>,
     next_request_id: i64,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct LiveSession {
+    pub(crate) id: String,
+    pub(crate) cwd: PathBuf,
 }
 
 struct Client {
@@ -51,10 +61,15 @@ struct ForwardedClientRequest {
     kind: ClientRequestKind,
 }
 
+struct WaitingOpen {
+    client: ClientId,
+    request: RawJsonRpcRequest,
+}
+
 enum ClientRequestKind {
     Other,
-    CreateSession,
-    ResumeSession(String),
+    CreateSession { cwd: PathBuf },
+    ResumeSession { session: LiveSession, answers_new: bool },
     CloseSession(String),
     SetSessionConfigOption(String),
 }
@@ -67,15 +82,22 @@ struct PendingAgentRequest {
 }
 
 impl Hub {
-    pub(crate) fn create(agent: UnboundedSender<TransportFrame>, initialize: Value, workspace: Workspace) -> Self {
+    pub(crate) fn create(
+        agent: UnboundedSender<TransportFrame>,
+        initialize: InitializeResponse,
+        workspace: Workspace,
+        live: Option<LiveSession>,
+    ) -> Self {
         Self {
             agent,
             initialize,
             workspace,
+            live,
             clients: HashMap::new(),
             sessions: HashMap::new(),
             session_parents: HashMap::new(),
             forwarded_client_requests: HashMap::new(),
+            waiting_opens: VecDeque::new(),
             pending_agent_requests: HashMap::new(),
             next_request_id: 1,
         }
@@ -131,10 +153,17 @@ impl Hub {
                 if let Some(connected) = self.clients.get_mut(&client) {
                     connected.initialized = true;
                 }
-                self.send_to_client(client, wire::result(request.id, &self.initialize));
+                let advertised = self.workspace.advertise(self.initialize.clone(), &self.remote_info());
+                self.send_to_client(client, wire::result(request.id, advertised));
             }
-            ("session/new", _) => self.forward_client_request(client, request, ClientRequestKind::CreateSession),
-            ("session/resume", Some(session)) => self.on_client_resume_session(client, request, session),
+            ("session/new", _) | ("session/resume", Some(_)) => {
+                let open = WaitingOpen { client, request };
+                if self.must_wait(&open) {
+                    self.waiting_opens.push_back(open);
+                } else {
+                    self.open_session(open);
+                }
+            }
             ("session/close", Some(session)) => self.on_client_close_session(client, request, session),
             ("session/set_config_option", Some(session)) => {
                 self.forward_client_request(client, request, ClientRequestKind::SetSessionConfigOption(session));
@@ -152,8 +181,73 @@ impl Hub {
         }
     }
 
-    fn on_client_resume_session(&mut self, client: ClientId, mut request: RawJsonRpcRequest, session: String) {
-        let joined = self.sessions.entry(session.clone()).or_default();
+    fn must_wait(&self, open: &WaitingOpen) -> bool {
+        let target = match session_of(open.request.params.as_ref()) {
+            Some(session) if &*open.request.method == "session/resume" => Some(session),
+            _ => self.live.as_ref().map(|live| live.id.clone()),
+        };
+        self.forwarded_client_requests.values().any(|forwarded| match &forwarded.kind {
+            ClientRequestKind::CreateSession { .. } | ClientRequestKind::CloseSession(_) => true,
+            ClientRequestKind::ResumeSession { session, .. } => Some(&session.id) != target.as_ref(),
+            ClientRequestKind::SetSessionConfigOption(_) | ClientRequestKind::Other => false,
+        })
+    }
+
+    fn open_waiting_sessions(&mut self) {
+        while let Some(open) = self.waiting_opens.pop_front() {
+            if self.must_wait(&open) {
+                self.waiting_opens.push_front(open);
+                return;
+            }
+            self.open_session(open);
+        }
+    }
+
+    fn open_session(&mut self, WaitingOpen { client, request }: WaitingOpen) {
+        let cwd = field(request.params.as_ref(), "cwd").and_then(Value::as_str).map(PathBuf::from);
+        let cwd = cwd.unwrap_or_else(|| self.workspace.cwd().to_path_buf());
+        let resumed = session_of(request.params.as_ref()).filter(|_| &*request.method == "session/resume");
+        match (resumed, self.live.clone()) {
+            (Some(id), _) => self.on_client_resume_session(client, request, LiveSession { id, cwd }),
+            (None, Some(live)) => self.join_live_session(client, request, live),
+            (None, None) => self.forward_client_request(client, request, ClientRequestKind::CreateSession { cwd }),
+        }
+    }
+
+    fn on_client_resume_session(&mut self, client: ClientId, request: RawJsonRpcRequest, session: LiveSession) {
+        let watched_elsewhere = self.sessions.iter().find(|(id, watched)| {
+            **id != session.id && watched.subscribers.iter().any(|subscriber| *subscriber != client)
+        });
+        if let Some((watched, _)) = watched_elsewhere {
+            let reason = format!("other clients are using session {watched}, so {} cannot be opened", session.id);
+            let error = Error::invalid_request().data(reason);
+            self.send_to_client(client, wire::response(request.id, Err(Box::new(error.into()))));
+            return;
+        }
+        self.subscribe_and_resume(client, request, session, false);
+    }
+
+    fn join_live_session(&mut self, client: ClientId, mut request: RawJsonRpcRequest, live: LiveSession) {
+        let mut params = match request.params.take() {
+            Some(RawJsonRpcParams::Object(params)) => params,
+            _ => Map::new(),
+        };
+        params.insert("sessionId".to_owned(), json!(live.id));
+        params.insert("cwd".to_owned(), json!(live.cwd));
+        params.insert("replayFrom".to_owned(), json!(ReplayFrom::Start(ReplayFromStart::new())));
+        request.method = "session/resume".into();
+        request.params = Some(RawJsonRpcParams::Object(params));
+        self.subscribe_and_resume(client, request, live, true);
+    }
+
+    fn subscribe_and_resume(
+        &mut self,
+        client: ClientId,
+        mut request: RawJsonRpcRequest,
+        session: LiveSession,
+        answers_new: bool,
+    ) {
+        let joined = self.sessions.entry(session.id.clone()).or_default();
         let mut history = Vec::new();
         if joined.subscribers.is_empty() {
             joined.history.clear();
@@ -164,7 +258,7 @@ impl Hub {
         }
         joined.subscribers.insert(client);
         self.send_frames_to_client(client, history);
-        self.forward_client_request(client, request, ClientRequestKind::ResumeSession(session));
+        self.forward_client_request(client, request, ClientRequestKind::ResumeSession { session, answers_new });
     }
 
     fn on_client_close_session(&mut self, client: ClientId, request: RawJsonRpcRequest, session: String) {
@@ -194,6 +288,15 @@ impl Hub {
             ("$/cancel_request", _) => {
                 let requested = field(notification.params.as_ref(), "requestId").cloned();
                 let requested = requested.and_then(|id| serde_json::from_value::<RawJsonRpcId>(id).ok());
+                let waiting = self
+                    .waiting_opens
+                    .iter()
+                    .position(|open| open.client == client && Some(&open.request.id) == requested.as_ref());
+                if let Some(open) = waiting.and_then(|index| self.waiting_opens.remove(index)) {
+                    let error = Error::request_cancelled();
+                    self.send_to_client(client, wire::response(open.request.id, Err(Box::new(error.into()))));
+                    return;
+                }
                 let matching_request = self
                     .forwarded_client_requests
                     .iter()
@@ -326,37 +429,44 @@ impl Hub {
         let Some(ForwardedClientRequest { client, id, kind }) = self.forwarded_client_requests.remove(&id) else {
             return;
         };
-        let response = wire::readdress(response, id);
-        let result = match &response {
-            RawJsonRpcResponse::Result { result, .. } => Some(result),
-            RawJsonRpcResponse::Error { .. } => None,
+        let mut response = wire::readdress(response, id);
+        let result = match &mut response {
+            RawJsonRpcResponse::Result { result, .. } => Ok(result),
+            RawJsonRpcResponse::Error { error, .. } => Err(ErrorCode::from(error.code)),
         };
         let joined = match (kind, result) {
-            (ClientRequestKind::CreateSession, Some(result)) => {
+            (ClientRequestKind::CreateSession { cwd }, Ok(result)) => {
                 let session = result.get("sessionId").and_then(Value::as_str).map(str::to_owned);
-                if let Some(created) = session.as_ref().map(|session| self.sessions.entry(session.clone()).or_default())
-                {
-                    created.subscribers.insert(client);
+                if let Some(id) = session.clone() {
+                    let created = self.sessions.entry(id.clone()).or_default();
+                    if self.clients.contains_key(&client) {
+                        created.subscribers.insert(client);
+                    }
                     let early = created.history.clone();
                     self.send_frames_to_client(client, early);
+                    self.set_live_session(LiveSession { id, cwd });
                 }
                 session
             }
-            (ClientRequestKind::ResumeSession(session), Some(_)) => Some(session),
-            (ClientRequestKind::ResumeSession(session), None) => {
-                if let Some(watched) = self.sessions.get_mut(&session) {
-                    watched.subscribers.remove(&client);
+            (ClientRequestKind::ResumeSession { session, answers_new }, Ok(result)) => {
+                if answers_new && let Some(result) = result.as_object_mut() {
+                    result.insert("sessionId".to_owned(), json!(session.id));
                 }
+                self.set_live_session(session.clone());
+                Some(session.id)
+            }
+            (ClientRequestKind::ResumeSession { session, .. }, Err(code)) => {
+                self.on_resume_failed(client, &session, code);
                 None
             }
-            (ClientRequestKind::CloseSession(session), Some(_)) => {
+            (ClientRequestKind::CloseSession(session), Ok(_)) => {
                 if self.sessions.get(&session).is_some_and(|closed| closed.subscribers.is_empty()) {
                     self.sessions.remove(&session);
                     self.session_parents.retain(|_, parent| *parent != session);
                 }
                 None
             }
-            (ClientRequestKind::SetSessionConfigOption(session), Some(result)) => {
+            (ClientRequestKind::SetSessionConfigOption(session), Ok(result)) => {
                 if let Some(options) = result.get("configOptions") {
                     let update = json!({
                         "sessionId": session,
@@ -376,6 +486,25 @@ impl Hub {
         self.send_to_client(client, TransportFrame::Single(response.into()));
         if let Some(session) = joined {
             self.deliver_pending_agent_requests(client, &session);
+        }
+        self.open_waiting_sessions();
+    }
+
+    fn set_live_session(&mut self, live: LiveSession) {
+        self.sessions.retain(|session, _| *session == live.id);
+        self.session_parents.retain(|_, parent| *parent == live.id);
+        self.live = Some(live);
+    }
+
+    fn on_resume_failed(&mut self, client: ClientId, session: &LiveSession, code: ErrorCode) {
+        let unwatched = self.sessions.get_mut(&session.id).is_none_or(|watched| {
+            watched.subscribers.remove(&client);
+            watched.subscribers.is_empty()
+        });
+        let unknown = matches!(code, ErrorCode::RESOURCE_NOT_FOUND | ErrorCode::INVALID_PARAMS);
+        if unwatched && unknown && self.live.as_ref() == Some(session) {
+            tracing::warn!(session = session.id, "forgetting the live session, as the agent cannot resume it");
+            self.live = None;
         }
     }
 
@@ -410,11 +539,21 @@ impl Hub {
 
     fn on_client_disconnected(&mut self, client: ClientId) {
         self.clients.remove(&client);
+        self.waiting_opens.retain(|open| open.client != client);
         for session in self.sessions.values_mut() {
             session.subscribers.remove(&client);
         }
         for pending in self.pending_agent_requests.values_mut() {
             pending.recipients.remove(&client);
+        }
+    }
+
+    fn remote_info(&self) -> RemoteServerInfo {
+        match &self.live {
+            Some(live) => {
+                RemoteServerInfo { cwd: live.cwd.clone(), session_id: Some(SessionId::new(live.id.as_str())) }
+            }
+            None => RemoteServerInfo { cwd: self.workspace.cwd().to_path_buf(), session_id: None },
         }
     }
 

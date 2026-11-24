@@ -1,9 +1,10 @@
 use agent_client_protocol::ByteStreams;
 use agent_client_protocol::v2::schema::{
-    ContentBlock, NewSessionRequest, PromptRequest, ReplayFrom, ReplayFromStart, ResumeSessionRequest, SessionUpdate,
-    StateUpdate,
+    ContentBlock, NewSessionRequest, PromptRequest, ReplayFrom, ReplayFromStart, ResumeSessionRequest, SessionId,
+    SessionInfo, SessionUpdate, StateUpdate,
 };
 use clankerdiff_git::testing::RepoFixtureBuilder;
+use foxfire_acp::aether::{RemoteServerInfo, SessionPreviewParams};
 use foxfire_acp::client::{AcpClient, AcpClientError, AcpEvent, connect_acp_client};
 use foxfire_acp::testing::{FakeAgent, FakeAgentRequests, initialize_request};
 use foxfire_acp::websocket::WebSocketTransport;
@@ -36,6 +37,7 @@ pub(crate) enum TestError {
 pub(crate) struct RelayBuilder {
     agent: FakeAgent,
     repository: bool,
+    saved_sessions: Vec<(&'static str, &'static str)>,
 }
 
 pub(crate) struct TestRelay {
@@ -49,7 +51,12 @@ pub(crate) struct TestRelay {
 
 impl RelayBuilder {
     pub(crate) fn new(agent: FakeAgent) -> Self {
-        Self { agent, repository: false }
+        Self { agent, repository: false, saved_sessions: Vec::new() }
+    }
+
+    pub(crate) fn saved_session(mut self, session_id: &'static str, updated_at: &'static str) -> Self {
+        self.saved_sessions.push((session_id, updated_at));
+        self
     }
 
     pub(crate) fn repository(mut self) -> Self {
@@ -65,7 +72,15 @@ impl RelayBuilder {
             let directory = TempDir::new()?;
             (directory.path().to_path_buf(), Box::new(directory))
         };
-        let (agent, requests) = self.agent.capture();
+        let mut agent = self.agent;
+        if !self.saved_sessions.is_empty() {
+            let saved = self
+                .saved_sessions
+                .iter()
+                .map(|(id, updated_at)| SessionInfo::new(*id, cwd.clone()).updated_at((*updated_at).to_owned()));
+            agent = agent.sessions(saved.collect());
+        }
+        let (agent, requests) = agent.capture();
         let (relay_end, agent_end) = tokio::io::duplex(1 << 20);
         let (from_relay, to_relay) = tokio::io::split(agent_end);
         let agent_task = spawn_local(async move {
@@ -102,6 +117,11 @@ impl TestRelay {
         Ok(client)
     }
 
+    pub(crate) async fn settle(&self, client: &AcpClient) -> Result<(), TestError> {
+        client.handle.request(SessionPreviewParams { session_id: SESSION.to_owned() }).await?;
+        Ok(())
+    }
+
     pub(crate) async fn stop_agent(&mut self) {
         self.agent_task.abort();
         let _ = (&mut self.agent_task).await;
@@ -116,6 +136,10 @@ impl TestRelay {
 pub(crate) fn resume(cwd: &Path, replay: bool) -> ResumeSessionRequest {
     let request = ResumeSessionRequest::new(SESSION, cwd.to_path_buf());
     if replay { request.replay_from(ReplayFrom::Start(ReplayFromStart::new())) } else { request }
+}
+
+pub(crate) fn live_session(client: &AcpClient) -> Option<SessionId> {
+    RemoteServerInfo::from_meta(client.initialize_response.meta.as_ref())?.session_id
 }
 
 pub(crate) fn prompt(text: &str) -> PromptRequest {

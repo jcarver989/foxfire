@@ -1,8 +1,11 @@
-use crate::support::{RelayBuilder, SESSION, TestError, prompt, resume, transcript, until};
+use crate::support::{RelayBuilder, SESSION, TestError, live_session, prompt, resume, transcript, until};
+use agent_client_protocol::Error;
 use agent_client_protocol::v2::schema::{
-    CloseSessionRequest, NewSessionResponse, ResumeSessionRequest, ResumeSessionResponse, SessionConfigKind,
-    SessionConfigOption, SessionUpdate, SetSessionConfigOptionRequest, UpdateSessionNotification,
+    CloseSessionRequest, CloseSessionResponse, NewSessionRequest, NewSessionResponse, ResumeSessionRequest,
+    ResumeSessionResponse, SessionConfigKind, SessionConfigOption, SessionUpdate, SetSessionConfigOptionRequest,
+    StopReason, UpdateSessionNotification,
 };
+use foxfire_acp::aether::RemoteServerInfo;
 use foxfire_acp::client::AcpEvent;
 use foxfire_acp::testing::{FakeAgent, idle_notification, message_chunk, model_select, run_local};
 use tokio::task::spawn_local;
@@ -93,6 +96,254 @@ fn a_configuration_change_reaches_every_client_watching_the_session() -> Result<
         })
         .await?;
         assert_eq!(current_values(&options), ["smart"]);
+        Ok(())
+    })
+}
+
+#[test]
+fn a_client_connecting_is_told_of_the_live_session() -> Result<(), TestError> {
+    run_local(async {
+        let relay = RelayBuilder::new(FakeAgent::new(SESSION)).build().await?;
+        let first = relay.creator().await?;
+        assert_eq!(live_session(&first), None);
+
+        let second = relay.client().await?;
+        let advertised = RemoteServerInfo::from_meta(second.initialize_response.meta.as_ref());
+        assert_eq!(advertised, Some(RemoteServerInfo { cwd: relay.cwd(), session_id: Some(SESSION.into()) }));
+        Ok(())
+    })
+}
+
+#[test]
+fn a_client_creating_a_session_is_joined_to_the_live_one() -> Result<(), TestError> {
+    run_local(async {
+        let agent = FakeAgent::new(SESSION).prompt_reply("hi");
+        let mut relay = RelayBuilder::new(agent).build().await?;
+        let mut first = relay.client().await?;
+        let mut second = relay.client().await?;
+        first.handle.request(NewSessionRequest::new(relay.cwd())).await?;
+        first.handle.request(prompt("hello")).await?;
+        assert_eq!(transcript(&mut first).await?, ["hello", "hi"]);
+
+        let joined = second.handle.request(NewSessionRequest::new(relay.cwd())).await?;
+        assert_eq!(joined.session_id, SESSION.into());
+        assert_eq!(transcript(&mut second).await?, ["hello", "hi"]);
+        assert!(relay.agent.new_session.recv().await.is_some());
+        assert!(relay.agent.new_session.try_recv().is_err(), "the agent is asked for one session");
+
+        first.handle.request(prompt("again")).await?;
+        assert_eq!(transcript(&mut first).await?, ["again", "hi"]);
+        assert_eq!(transcript(&mut second).await?, ["again", "hi"]);
+        Ok(())
+    })
+}
+
+#[test]
+fn clients_creating_a_session_at_once_share_it() -> Result<(), TestError> {
+    run_local(async {
+        let agent = FakeAgent::new(SESSION).hold::<NewSessionRequest>();
+        let mut relay = RelayBuilder::new(agent).build().await?;
+        let first = relay.client().await?;
+        let second = relay.client().await?;
+        let creating = spawn_local(first.handle.request(NewSessionRequest::new(relay.cwd())));
+        let (_, responder) = relay.agent.held::<NewSessionRequest>().recv().await.ok_or(TestError::Closed)?;
+        let joining = spawn_local(second.handle.request(NewSessionRequest::new(relay.cwd())));
+        relay.settle(&second).await?;
+
+        responder.respond(NewSessionResponse::new(SESSION))?;
+        let created = creating.await.map_err(std::io::Error::other)??;
+        let joined = joining.await.map_err(std::io::Error::other)??;
+        assert_eq!((created.session_id, joined.session_id), (SESSION.into(), SESSION.into()));
+        assert!(relay.agent.held::<NewSessionRequest>().try_recv().is_err(), "the agent is asked for one session");
+        Ok(())
+    })
+}
+
+#[test]
+fn a_client_waiting_on_a_session_that_fails_to_open_creates_its_own() -> Result<(), TestError> {
+    run_local(async {
+        let agent = FakeAgent::new(SESSION).hold::<NewSessionRequest>();
+        let mut relay = RelayBuilder::new(agent).build().await?;
+        let first = relay.client().await?;
+        let second = relay.client().await?;
+        let failing = spawn_local(first.handle.request(NewSessionRequest::new(relay.cwd())));
+        let (_, refused) = relay.agent.held::<NewSessionRequest>().recv().await.ok_or(TestError::Closed)?;
+        let waiting = spawn_local(second.handle.request(NewSessionRequest::new(relay.cwd())));
+        relay.settle(&second).await?;
+
+        refused.respond_with_error(Error::internal_error())?;
+        assert!(failing.await.map_err(std::io::Error::other)?.is_err());
+        let (_, responder) = relay.agent.held::<NewSessionRequest>().recv().await.ok_or(TestError::Closed)?;
+        responder.respond(NewSessionResponse::new(SESSION))?;
+        assert_eq!(waiting.await.map_err(std::io::Error::other)??.session_id, SESSION.into());
+        Ok(())
+    })
+}
+
+#[test]
+fn a_client_that_gives_up_waiting_for_a_session_never_reaches_the_agent() -> Result<(), TestError> {
+    run_local(async {
+        let agent = FakeAgent::new(SESSION).hold::<NewSessionRequest>();
+        let mut relay = RelayBuilder::new(agent).build().await?;
+        let first = relay.client().await?;
+        let second = relay.client().await?;
+        let creating = spawn_local(first.handle.request(NewSessionRequest::new(relay.cwd())));
+        let (_, responder) = relay.agent.held::<NewSessionRequest>().recv().await.ok_or(TestError::Closed)?;
+        drop(second.handle.request(NewSessionRequest::new(relay.cwd())));
+        relay.settle(&second).await?;
+
+        responder.respond(NewSessionResponse::new(SESSION))?;
+        creating.await.map_err(std::io::Error::other)??;
+        first.handle.request(CloseSessionRequest::new(SESSION)).await?;
+        assert!(relay.agent.close_session.recv().await.is_some(), "only the first client watches the session");
+        assert!(relay.agent.resume.try_recv().is_err());
+        Ok(())
+    })
+}
+
+#[test]
+fn the_live_session_outlives_its_last_client() -> Result<(), TestError> {
+    run_local(async {
+        let agent = FakeAgent::new(SESSION).replay_message(SESSION, "from before");
+        let mut relay = RelayBuilder::new(agent).build().await?;
+        let first = relay.creator().await?;
+        first.handle.request(CloseSessionRequest::new(SESSION)).await?;
+        first.handle.disconnect().await;
+
+        let mut second = relay.client().await?;
+        assert_eq!(live_session(&second), Some(SESSION.into()));
+        let joined = second.handle.request(NewSessionRequest::new(relay.cwd())).await?;
+        assert_eq!(joined.session_id, SESSION.into());
+        assert_eq!(transcript(&mut second).await?, ["from before"]);
+        assert!(relay.agent.new_session.recv().await.is_some());
+        assert!(relay.agent.new_session.try_recv().is_err(), "the agent is asked for one session");
+        Ok(())
+    })
+}
+
+#[test]
+fn a_client_joining_while_the_session_closes_waits_to_resume_it() -> Result<(), TestError> {
+    run_local(async {
+        let agent = FakeAgent::new(SESSION).hold::<CloseSessionRequest>();
+        let mut relay = RelayBuilder::new(agent).build().await?;
+        let first = relay.creator().await?;
+        let second = relay.client().await?;
+        let closing = spawn_local(first.handle.request(CloseSessionRequest::new(SESSION)));
+        let (_, responder) = relay.agent.held::<CloseSessionRequest>().recv().await.ok_or(TestError::Closed)?;
+        let joining = spawn_local(second.handle.request(resume(&relay.cwd(), true)));
+        relay.settle(&second).await?;
+        first.handle.request(SetSessionConfigOptionRequest::new(SESSION, "model", "smart")).await?;
+        assert!(relay.agent.resume.try_recv().is_err(), "the agent would close the session the client had joined");
+
+        responder.respond(CloseSessionResponse::new())?;
+        closing.await.map_err(std::io::Error::other)??;
+        joining.await.map_err(std::io::Error::other)??;
+        assert!(relay.agent.resume.recv().await.is_some_and(|resumed| resumed.replay_from.is_some()));
+        Ok(())
+    })
+}
+
+#[test]
+fn a_client_that_leaves_while_its_session_opens_does_not_keep_it_open() -> Result<(), TestError> {
+    run_local(async {
+        let agent = FakeAgent::new(SESSION).hold::<NewSessionRequest>();
+        let mut relay = RelayBuilder::new(agent).build().await?;
+        let first = relay.client().await?;
+        let second = relay.client().await?;
+        let creating = spawn_local(first.handle.request(NewSessionRequest::new(relay.cwd())));
+        let (_, responder) = relay.agent.held::<NewSessionRequest>().recv().await.ok_or(TestError::Closed)?;
+        let joining = spawn_local(second.handle.request(NewSessionRequest::new(relay.cwd())));
+        relay.settle(&second).await?;
+        first.handle.disconnect().await;
+        assert!(creating.await.map_err(std::io::Error::other)?.is_err());
+
+        responder.respond(NewSessionResponse::new(SESSION))?;
+        assert_eq!(joining.await.map_err(std::io::Error::other)??.session_id, SESSION.into());
+        while second.handle.request(ResumeSessionRequest::new("other", relay.cwd())).await.is_err() {}
+        assert_eq!(live_session(&relay.client().await?), Some("other".into()));
+        Ok(())
+    })
+}
+
+#[test]
+fn a_session_others_watch_cannot_be_swapped_for_another() -> Result<(), TestError> {
+    run_local(async {
+        let mut relay = RelayBuilder::new(FakeAgent::new(SESSION)).build().await?;
+        let first = relay.creator().await?;
+        let second = relay.joiner(false).await?;
+        assert!(relay.agent.resume.recv().await.is_some_and(|resumed| resumed.session_id == SESSION.into()));
+
+        let swapped = second.handle.request(ResumeSessionRequest::new("other", relay.cwd())).await;
+        assert!(swapped.is_err_and(|error| error.to_string().contains(SESSION)), "the error names the live session");
+        assert!(relay.agent.resume.try_recv().is_err());
+        assert_eq!(live_session(&relay.client().await?), Some(SESSION.into()));
+
+        first.handle.request(CloseSessionRequest::new(SESSION)).await?;
+        second.handle.request(ResumeSessionRequest::new("other", relay.cwd())).await?;
+        assert_eq!(live_session(&relay.client().await?), Some("other".into()));
+        Ok(())
+    })
+}
+
+#[test]
+fn a_session_that_cannot_be_found_stops_being_live() -> Result<(), TestError> {
+    run_local(async {
+        let agent = FakeAgent::new(SESSION).hold::<ResumeSessionRequest>();
+        let mut relay = RelayBuilder::new(agent).saved_session("gone", "2026-01-01T00:00:00Z").build().await?;
+        let client = relay.client().await?;
+        assert_eq!(live_session(&client), Some("gone".into()));
+        let joining = spawn_local(client.handle.request(NewSessionRequest::new(relay.cwd())));
+        let (request, responder) = relay.agent.held::<ResumeSessionRequest>().recv().await.ok_or(TestError::Closed)?;
+        assert_eq!(request.session_id, "gone".into());
+        responder.respond_with_error(Error::invalid_params())?;
+        assert!(joining.await.map_err(std::io::Error::other)?.is_err());
+
+        assert_eq!(live_session(&relay.client().await?), None);
+        let created = client.handle.request(NewSessionRequest::new(relay.cwd())).await?;
+        assert_eq!(created.session_id, SESSION.into());
+        Ok(())
+    })
+}
+
+#[test]
+fn a_prompt_sent_during_another_clients_turn_reaches_the_agent() -> Result<(), TestError> {
+    run_local(async {
+        let mut relay = RelayBuilder::new(FakeAgent::new(SESSION)).build().await?;
+        let mut first = relay.creator().await?;
+        let mut second = relay.joiner(false).await?;
+        first.handle.request(prompt("hello")).await?;
+        assert!(relay.agent.prompt.recv().await.is_some());
+
+        let steering = spawn_local(second.handle.request(prompt("stop")));
+        assert!(relay.agent.prompt.recv().await.is_some_and(|steered| steered.prompt == prompt("stop").prompt));
+        relay.agent.turns.insert_waiting();
+        steering.await.map_err(std::io::Error::other)??;
+        relay.agent.turns.reply("stopping");
+        relay.agent.turns.end(StopReason::EndTurn);
+        assert_eq!(transcript(&mut first).await?, ["hello", "stop", "stopping"]);
+        assert_eq!(transcript(&mut second).await?, ["hello", "stop", "stopping"]);
+        Ok(())
+    })
+}
+
+#[test]
+fn a_restarted_relay_adopts_the_most_recent_session() -> Result<(), TestError> {
+    run_local(async {
+        let agent = FakeAgent::new(SESSION).session_page_size(1).replay_message("newest", "from before");
+        let mut relay = RelayBuilder::new(agent)
+            .saved_session("older", "2026-01-01T00:00:00Z")
+            .saved_session("newest", "2026-03-01T00:00:00Z")
+            .saved_session("oldest", "2025-01-01T00:00:00Z")
+            .build()
+            .await?;
+        let mut client = relay.client().await?;
+        assert_eq!(live_session(&client), Some("newest".into()));
+        assert!(relay.agent.resume.try_recv().is_err(), "the session is resumed once a client joins it");
+
+        let joined = client.handle.request(NewSessionRequest::new(relay.cwd())).await?;
+        assert_eq!(joined.session_id, "newest".into());
+        assert_eq!(transcript(&mut client).await?, ["from before"]);
+        assert!(relay.agent.new_session.try_recv().is_err());
         Ok(())
     })
 }

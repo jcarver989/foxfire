@@ -36,14 +36,13 @@ impl Workspace {
         &self.cwd
     }
 
-    pub(crate) fn advertise(&self, mut response: InitializeResponse) -> InitializeResponse {
+    pub(crate) fn advertise(&self, mut response: InitializeResponse, remote: &RemoteServerInfo) -> InitializeResponse {
         let mut capabilities = AetherCapabilities::of(&response.capabilities);
         capabilities.git_diff = self.diff.is_some();
         capabilities.workspace_status = true;
         let mut session = response.capabilities.session.take().unwrap_or_default();
         session.meta = Some(merge(session.meta.take(), capabilities.to_meta()));
         response.capabilities.session = Some(session);
-        let remote = RemoteServerInfo { cwd: self.cwd.clone(), session_id: None };
         response.meta = Some(merge(response.meta.take(), remote.to_meta()));
         response
     }
