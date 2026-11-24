@@ -58,7 +58,6 @@ pub struct FakeAgentRequests {
     pub mcp: mpsc::UnboundedReceiver<McpRequest>,
     pub search: mpsc::UnboundedReceiver<PromptSearchParams>,
     pub close_session: mpsc::UnboundedReceiver<CloseSessionRequest>,
-    /// The method of every `_aether/*` request the agent received, advertised or not.
     pub extensions: mpsc::UnboundedReceiver<String>,
     pub turns: QueuedTurns,
     held: HashMap<TypeId, Box<dyn Any + Send + Sync>>,
@@ -402,6 +401,9 @@ impl HandleDispatchFrom<Client> for FakeAgent {
         message: Dispatch,
         cx: ConnectionTo<Client>,
     ) -> Result<Handled<Dispatch>, acp::Error> {
+        if !matches!(message, Dispatch::Response(..)) && message.method().starts_with('_') {
+            let _ = self.recorder.extensions.send(message.method().to_owned());
+        }
         MatchDispatchFrom::new(message, &cx)
             .if_request(async |request: InitializeRequest, responder| {
                 self.queue.connect(cx.clone());
@@ -525,7 +527,6 @@ impl FakeAgent {
         responder: Responder<T::Response>,
         scripted: impl FnOnce(&T) -> Option<T::Response>,
     ) -> Answered<T> {
-        let _ = self.recorder.extensions.send(request.method().to_owned());
         if !advertised {
             responder.respond_with_error(acp::Error::method_not_found())?;
             return Ok(Handled::Yes);
