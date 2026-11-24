@@ -9,7 +9,7 @@ rust-version = "1.100"
 repository = "https://github.com/jcarver989/foxfire"
 
 [workspace.dependencies]
-agent-client-protocol = { version = "=5.0.0", features = ["unstable_auth_status", "unstable_protocol_v2", "unstable_session_set_title", "unstable_subagents"] }
+agent-client-protocol = { version = "=5.3.0", features = ["unstable_auth_status", "unstable_protocol_v2", "unstable_session_set_title", "unstable_subagents"] }
 base64 = "0.23"
 chrono = { version = "0.4.45", features = ["serde"] }
 clankerdiff-client = { version = "0.10.4", default-features = false }
