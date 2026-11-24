@@ -80,6 +80,7 @@ This is also an internal preview. On a real device, verify keyboard composition,
 - `foxfire-ui`: shared Rouge shell, conversation views, and session backend contract.
 - `foxfire-web`: browser host for the in-memory demo.
 - `foxfire-mobile`: iOS and Android hosts for the in-memory demo.
+- `foxfire-chat`: keeps the chat channels people share around an agent's sessions.
 - `foxfire-relay`: serves a stdio ACP agent, and review of its workspace, to several Foxfire clients over one WebSocket each.
 - `foxfire-docker`: runs desktop Cloud threads in isolated, warm-built containers on a local Docker engine. See [its setup guide](crates/foxfire-docker/README.md).
 

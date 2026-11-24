@@ -2653,6 +2653,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "foxfire-chat"
+version = "0.1.0"
+dependencies = [
+ "agent-client-protocol",
+ "chrono",
+ "foxfire-acp",
+ "serde_json",
+ "tempfile",
+ "thiserror 2.0.21",
+]
+
+[[package]]
 name = "foxfire-core"
 version = "0.1.2"
 dependencies = [
