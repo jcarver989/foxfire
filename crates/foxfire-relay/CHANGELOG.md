@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.2](https://github.com/jcarver989/foxfire/compare/foxfire-relay-v0.1.1...foxfire-relay-v0.1.2) - 2026-11-24
+
+### Added
+
+- *(relay)* serve chat channels
+
 ## [0.1.1](https://github.com/jcarver989/foxfire/compare/foxfire-relay-v0.1.0...foxfire-relay-v0.1.1) - 2026-11-24
 
 ### Fixed

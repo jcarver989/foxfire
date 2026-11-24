@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.2](https://github.com/jcarver989/foxfire/compare/foxfire-docker-v0.1.1...foxfire-docker-v0.1.2) - 2026-11-24
+
+### Other
+
+- *(docker)* say when a thread's chat channel is deleted
+
 ## [0.1.1](https://github.com/jcarver989/foxfire/compare/foxfire-docker-v0.1.0...foxfire-docker-v0.1.1) - 2026-11-24
 
 ### Other
