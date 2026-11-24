@@ -83,6 +83,7 @@ pub fn run(cli: Cli) {
         saved,
     };
     let app = App::new()
+        .icon(include_bytes!("../../../assets/app-icon-desktop.png").as_slice())
         .fonts(bundled_fonts())
         .tokio(runtime.handle().clone())
         .menus(menus::all())
