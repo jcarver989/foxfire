@@ -7,7 +7,7 @@ use agent_client_protocol::v2::schema::{
 use clankerdiff_core::RepoPath;
 use foxfire_acp::aether::{WorkspaceEntry, WorkspaceListResponse, WorkspaceMoveResponse, WorkspaceMoveTarget};
 use foxfire_acp::client::AcpEvent;
-use foxfire_acp::conversation::NoticeLevel;
+use foxfire_acp::conversation::{ConversationItem, NoticeLevel};
 use foxfire_acp::testing::{
     FakeAgent, Question, idle_notification, message_chunk, mode_select, model_select, on_session, running_notification,
     test_connection, texts, user_message,
@@ -167,6 +167,29 @@ fn a_new_session_starts_empty_and_keeps_the_previous_selections() {
         Effect::Dispatch(Command::Agent(AgentCommand::SetConfigOption { session_id, config_id, value, .. }))
             if *session_id == SessionId::new("fresh") && config_id == "model" && *value == "slow".into()
     )));
+}
+
+#[test]
+fn a_new_session_that_rejoins_the_current_one_keeps_its_replay() {
+    for replayed_first in [true, false] {
+        let mut core = SessionCore::new(SessionCoreConfigBuilder::new().build());
+        core.notify("old notice");
+        core.new_session();
+
+        let replay = on_session("test-session", user_message("replayed", vec!["replayed message".into()]));
+        let rejoined = CommandResult::NewSession(Ok(NewSessionResponse::new("test-session")));
+        if replayed_first {
+            receive(&mut core, replay);
+            deliver(&mut core, rejoined);
+        } else {
+            deliver(&mut core, rejoined);
+            receive(&mut core, replay);
+        }
+
+        assert!(core.foreground().is_idle());
+        let texts: Vec<_> = core.conversation().items().iter().filter_map(ConversationItem::text).collect();
+        assert_eq!(texts, ["replayed message"], "replayed first: {replayed_first}");
+    }
 }
 
 #[test]

@@ -73,7 +73,9 @@ impl SessionCore {
             return;
         };
         self.effects.push(Effect::SessionChanged);
-        self.conversation.reset(session_id);
+        if session_id != *self.session_id() {
+            self.conversation.reset(session_id);
+        }
         self.set_config_options(config_options);
         self.restore_config_selections(&previous_selections);
     }
