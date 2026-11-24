@@ -6,8 +6,8 @@ use rouge::reactive::{Entered, Runtime, Signal, signal};
 use rouge_widgets::testing::component_test;
 
 #[test]
-fn a_cell_lights_for_every_tenth() -> Result<(), TestError> {
-    for (share, lit) in [(0.0, 0), (0.1, 1), (0.3, 3), (0.7, 7), (1.0, 10), (1.7, 10)] {
+fn a_cell_lights_for_every_fifth() -> Result<(), TestError> {
+    for (share, lit) in [(0.0, 0), (0.2, 1), (0.4, 2), (0.8, 4), (1.0, 5), (1.7, 5)] {
         let shades = SceneBuilder::default().share(share).build().shades()?;
 
         let (on, off) = shades.split_at(lit);
@@ -21,8 +21,8 @@ fn a_cell_lights_for_every_tenth() -> Result<(), TestError> {
 fn the_newest_cell_is_lit_in_part() -> Result<(), TestError> {
     let shades = SceneBuilder::default().share(0.47).build().shades()?;
 
-    assert_eq!(shades[3], WHITE);
-    assert!(shades[4] < shades[3] && shades[4] > shades[5], "{shades:?}");
+    assert_eq!(shades[1], WHITE);
+    assert!(shades[2] < shades[1] && shades[2] > shades[3], "{shades:?}");
     Ok(())
 }
 
@@ -129,8 +129,8 @@ impl Scene {
     fn shades(&mut self) -> Result<Vec<u8>, TestError> {
         let image = self.ui.render()?;
         let cells = self.ui.bounds_of("cells").ok_or_else(|| TestError::NoTestId("cells".to_owned()))?;
-        let pitch = cells.size.width / CELLS;
-        Ok((0..10u8)
+        let pitch = cells.size.width / f32::from(CELLS);
+        Ok((0..CELLS)
             .map(|index| {
                 let x = cells.origin.x + pitch * (f32::from(index) + 0.5);
                 let y = cells.origin.y + cells.size.height / 2.0;
@@ -140,5 +140,5 @@ impl Scene {
     }
 }
 
-const CELLS: f32 = 10.0;
+const CELLS: u8 = 5;
 const WHITE: u8 = 255;

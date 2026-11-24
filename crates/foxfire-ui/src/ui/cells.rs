@@ -55,7 +55,7 @@ fn breath() -> Keyframes {
         .repeat()
 }
 
-const CELLS: u8 = 10;
+const CELLS: u8 = 5;
 const CELL: f32 = 6.0;
 const GAP: f32 = 2.0;
 const FAINTEST: f32 = 0.45;
