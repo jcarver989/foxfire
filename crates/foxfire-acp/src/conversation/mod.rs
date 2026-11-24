@@ -70,6 +70,7 @@ impl Conversation {
             AcpEvent::AuthStatusUpdated(_)
             | AcpEvent::McpNotification(_)
             | AcpEvent::GitDiffEvent(_)
+            | AcpEvent::ChatChannelEvent(_)
             | AcpEvent::ElicitationRequest { .. }
             | AcpEvent::PermissionRequest { .. } => {}
         }

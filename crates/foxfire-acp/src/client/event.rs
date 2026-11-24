@@ -1,4 +1,5 @@
 use crate::aether::{ContextClearedParams, GitDiffEventPayload, McpNotification};
+use crate::chat::ChatChannelEventPayload;
 use agent_client_protocol::Responder;
 use agent_client_protocol::v2::schema::{
     AuthStatusUpdateNotification, CreateElicitationRequest, CreateElicitationResponse, ElicitationScope,
@@ -12,6 +13,7 @@ pub enum AcpEvent {
     AuthStatusUpdated(AuthStatusUpdateNotification),
     McpNotification(McpNotification),
     GitDiffEvent(GitDiffEventPayload),
+    ChatChannelEvent(ChatChannelEventPayload),
     ElicitationRequest { params: Box<CreateElicitationRequest>, responder: Responder<CreateElicitationResponse> },
     PermissionRequest { params: Box<RequestPermissionRequest>, responder: Responder<RequestPermissionResponse> },
     ConnectionClosed,
@@ -23,6 +25,7 @@ impl AcpEvent {
             Self::SessionUpdate(notification) => Some(&notification.session_id),
             Self::ContextCleared(params) => Some(&params.session_id),
             Self::GitDiffEvent(params) => Some(&params.session_id),
+            Self::ChatChannelEvent(params) => Some(&params.session_id),
             Self::PermissionRequest { params, .. } => Some(&params.session_id),
             Self::ElicitationRequest { params, .. } => match params.scope() {
                 ElicitationScope::Session(scope) => Some(&scope.session_id),

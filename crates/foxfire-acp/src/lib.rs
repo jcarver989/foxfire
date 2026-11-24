@@ -3,6 +3,8 @@
 #[cfg(feature = "protocol")]
 pub mod aether;
 pub mod artifact_review;
+#[cfg(feature = "protocol")]
+pub mod chat;
 pub mod config_option_id;
 #[cfg(feature = "protocol")]
 pub mod content;

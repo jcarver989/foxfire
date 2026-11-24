@@ -55,7 +55,10 @@ impl SessionCore {
                 self.git_review = super::GitReview::Closed;
                 self.effects.push(Effect::ConnectionClosed);
             }
-            AcpEvent::GitDiffEvent(_) | AcpEvent::SessionUpdate(_) | AcpEvent::ContextCleared(_) => {}
+            AcpEvent::GitDiffEvent(_)
+            | AcpEvent::ChatChannelEvent(_)
+            | AcpEvent::SessionUpdate(_)
+            | AcpEvent::ContextCleared(_) => {}
         }
         if current {
             self.announce_if_settled();

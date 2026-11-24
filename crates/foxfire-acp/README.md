@@ -17,6 +17,7 @@ Utilities for the [Agent Client Protocol](https://agentclientprotocol.com/) (ACP
 ## Key Types
 
 - **`aether`** -- The `_aether/*` requests and notifications, `AetherCapabilities`, and the `_meta` Aether reads and writes
+- **`chat`** -- The `_foxfire/channel_*` requests and notifications that `foxfire-relay` answers so people can chat around a session, and their `_meta`
 - **`display_meta`**, **`mcp_status`**, **`artifact_review`**, **`ReasoningEffort`** -- Wire types carried in tool, MCP status, elicitation, and config option metadata
 - **`McpNotification` / `McpRequest`** -- MCP message tunneling over ACP
 - Agent subprocesses -- use upstream `agent_client_protocol::{AcpAgent, AcpAgentConfig, Stdio}`
@@ -28,7 +29,7 @@ Utilities for the [Agent Client Protocol](https://agentclientprotocol.com/) (ACP
 
 | Feature | Description | Default |
 |---------|-------------|---------|
-| `protocol` | The `aether` extension messages and `content` helpers, built on `agent-client-protocol` | via `client` |
+| `protocol` | The `aether` and `chat` extension messages and `content` helpers, built on `agent-client-protocol` | via `client` |
 | `client` | ACP client and conversation model (for UIs connecting to agents); enables `protocol` | yes |
 | `websocket` | Message-oriented WebSocket transport; enables `client` | no |
 | `testing` | Public in-memory ACP test peers and transport helpers (enables `client`) | no |
