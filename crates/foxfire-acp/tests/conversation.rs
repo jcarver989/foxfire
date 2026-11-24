@@ -630,6 +630,26 @@ fn plan_and_usage_updates_replace_the_previous_ones() {
 }
 
 #[test]
+fn a_usage_update_without_a_cost_keeps_the_last_one_until_an_update_clears_it() {
+    let mut conversation = conversation();
+    let usage = |used| acp::UsageUpdate::new(used, 100);
+    let spent = |conversation: &Conversation| {
+        conversation.context_usage().and_then(|usage| usage.cost.value()).map(|cost| cost.amount)
+    };
+
+    conversation.apply_event(&update(acp::SessionUpdate::UsageUpdate(usage(10).cost(acp::Cost::new(2.5, "USD")))));
+    conversation.apply_event(&update(acp::SessionUpdate::UsageUpdate(usage(20))));
+    assert_eq!(conversation.context_usage().map(|usage| usage.used), Some(20));
+    assert_eq!(spent(&conversation), Some(2.5), "an omitted cost is unchanged");
+    assert!(!changes(&mut conversation, &update(acp::SessionUpdate::UsageUpdate(usage(20)))));
+
+    conversation.apply_event(&update(acp::SessionUpdate::UsageUpdate(usage(20).cost(MaybeUndefined::Null))));
+    assert_eq!(spent(&conversation), None, "a null cost clears it");
+    conversation.apply_event(&update(acp::SessionUpdate::UsageUpdate(usage(30))));
+    assert_eq!(spent(&conversation), None);
+}
+
+#[test]
 fn clear_replaces_identity_and_resets_everything() {
     let mut conversation = conversation();
     let previous_id = conversation.id();

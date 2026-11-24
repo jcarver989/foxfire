@@ -222,14 +222,23 @@ impl Conversation {
                     self.advance();
                 }
             }
-            acp::SessionUpdate::UsageUpdate(usage) if self.context_usage.as_ref() != Some(usage) => {
-                self.context_usage = Some(usage.clone());
-                self.advance();
-            }
+            acp::SessionUpdate::UsageUpdate(usage) => self.update_usage(usage.clone()),
             acp::SessionUpdate::SubagentUpdate(update) => self.announce_sub_agent(update),
             _ => {}
         }
         None
+    }
+
+    fn update_usage(&mut self, mut usage: acp::UsageUpdate) {
+        if usage.cost.is_undefined()
+            && let Some(previous) = &self.context_usage
+        {
+            usage.cost = previous.cost.clone();
+        }
+        if self.context_usage.as_ref() != Some(&usage) {
+            self.context_usage = Some(usage);
+            self.advance();
+        }
     }
 
     fn announce_sub_agent(&mut self, update: &acp::SubagentUpdate) {
