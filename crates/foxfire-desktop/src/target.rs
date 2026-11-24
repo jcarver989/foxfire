@@ -18,7 +18,7 @@ use std::sync::Arc;
 use std::time::Duration;
 use tokio::process::{Child, ChildStdin, ChildStdout, Command};
 use tokio::task::{JoinError, spawn_blocking};
-use tokio::time::Instant;
+use tokio::time::{Instant, sleep_until, timeout_at};
 use tokio_tungstenite::tungstenite;
 use tokio_tungstenite::tungstenite::client::IntoClientRequest;
 use tokio_tungstenite::tungstenite::http::Request;
@@ -73,6 +73,8 @@ pub enum ConnectError {
     InvalidHeader { name: String },
     #[error(transparent)]
     WebSocket(#[from] websocket::ConnectError),
+    #[error("the agent did not complete the WebSocket handshake in time")]
+    WebSocketHandshakeTimeout,
     #[error(transparent)]
     Client(#[from] ConnectionError),
     #[error(transparent)]
@@ -166,18 +168,25 @@ impl AgentConnector {
                     }
                     Channel::Websocket(invocation) => {
                         let startup = if remote.is_static() { Duration::ZERO } else { STARTUP_WINDOW };
-                        self.transport.websocket(&self.endpoint(&invocation).await?, startup).await?
+                        let started = Instant::now();
+                        let endpoint = self.endpoint(&invocation).await;
+                        tracing::debug!(target: "foxfire_startup", elapsed_ms = started.elapsed().as_millis(), ok = endpoint.is_ok(), "Endpoint command finished");
+                        self.transport.websocket(&endpoint?, startup).await?
                     }
                 };
-                match cwd {
-                    Some(cwd) => {
-                        Ok(connection.open_with_access(session_id, cwd.into(), WorkspaceAccess::Remote).await?)
-                    }
+                let started = Instant::now();
+                let session = match cwd {
+                    Some(cwd) => connection
+                        .open_with_access(session_id, cwd.into(), WorkspaceAccess::Remote)
+                        .await
+                        .map_err(ConnectError::from),
                     None => connection.open_remote(session_id).await.map_err(|error| match error {
                         ConnectionError::MissingRemoteContract => ConnectError::NoCwd { remote: remote.name.clone() },
                         error @ ConnectionError::Acp(_) => error.into(),
                     }),
-                }
+                };
+                tracing::debug!(target: "foxfire_startup", elapsed_ms = started.elapsed().as_millis(), ok = session.is_ok(), "ACP session open finished");
+                session
             }
         }
     }
@@ -245,20 +254,37 @@ impl Transport for ProcessTransport {
 
     fn websocket<'a>(&'a self, endpoint: &'a Endpoint, startup: Duration) -> TransportFuture<'a, Connection> {
         Box::pin(async move {
-            let deadline = Instant::now() + startup;
+            let started = Instant::now();
+            let deadline = (!startup.is_zero()).then_some(started + startup);
             let mut delay = FIRST_RETRY_DELAY;
-            loop {
-                match websocket::connect(handshake_request(endpoint)?).await {
-                    Ok(transport) => return Ok(Connection::connect_to(client_info(), transport).await?),
-                    Err(websocket::ConnectError::Handshake(error))
-                        if is_starting(&error) && Instant::now() + delay < deadline =>
-                    {
-                        tokio::time::sleep(delay).await;
-                        delay = (delay * 2).min(MAX_RETRY_DELAY);
-                    }
-                    Err(error) => return Err(error.into()),
+            let mut attempts = 0;
+            let transport = loop {
+                let attempt = websocket::connect(handshake_request(endpoint)?);
+                attempts += 1;
+                let result = match deadline {
+                    Some(deadline) => timeout_at(deadline.min(Instant::now() + HANDSHAKE_TIMEOUT), attempt)
+                        .await
+                        .map_err(|_| ConnectError::WebSocketHandshakeTimeout)
+                        .and_then(|result| result.map_err(ConnectError::from)),
+                    None => attempt.await.map_err(ConnectError::from),
+                };
+                let error = match result {
+                    Ok(transport) => break Ok(transport),
+                    Err(error) => error,
+                };
+                let retry_at = Instant::now() + delay;
+                if deadline.is_none_or(|deadline| retry_at >= deadline) || !is_starting(&error) {
+                    break Err(error);
                 }
-            }
+                tracing::debug!(target: "foxfire_startup", attempts, timed_out = matches!(error, ConnectError::WebSocketHandshakeTimeout), delay_ms = delay.as_millis(), "Retrying WebSocket upgrade");
+                sleep_until(retry_at).await;
+                delay = (delay * 2).min(MAX_RETRY_DELAY);
+            };
+            tracing::debug!(target: "foxfire_startup", elapsed_ms = started.elapsed().as_millis(), attempts, ok = transport.is_ok(), "WebSocket upgrade finished");
+            let started = Instant::now();
+            let connection = Connection::connect_to(client_info(), transport?).await;
+            tracing::debug!(target: "foxfire_startup", elapsed_ms = started.elapsed().as_millis(), ok = connection.is_ok(), "ACP initialize finished");
+            Ok(connection?)
         })
     }
 
@@ -287,8 +313,9 @@ pub(crate) fn client_info() -> Implementation {
     Implementation::new(crate::branding::CLIENT_NAME, env!("CARGO_PKG_VERSION"))
 }
 
-const FIRST_RETRY_DELAY: Duration = Duration::from_secs(1);
-const MAX_RETRY_DELAY: Duration = Duration::from_secs(5);
+const HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(2);
+const FIRST_RETRY_DELAY: Duration = Duration::from_millis(250);
+const MAX_RETRY_DELAY: Duration = Duration::from_secs(1);
 
 struct AgentProcess {
     child: Child,
@@ -341,10 +368,14 @@ fn handshake_request(endpoint: &Endpoint) -> Result<Request<()>, ConnectError> {
     Ok(request)
 }
 
-fn is_starting(error: &tungstenite::Error) -> bool {
+fn is_starting(error: &ConnectError) -> bool {
     match error {
-        tungstenite::Error::Io(_) => true,
-        tungstenite::Error::Http(response) => response.status().is_server_error(),
+        ConnectError::WebSocketHandshakeTimeout => true,
+        ConnectError::WebSocket(websocket::ConnectError::Handshake(error)) => match error.as_ref() {
+            tungstenite::Error::Io(_) => true,
+            tungstenite::Error::Http(response) => response.status().is_server_error(),
+            _ => false,
+        },
         _ => false,
     }
 }

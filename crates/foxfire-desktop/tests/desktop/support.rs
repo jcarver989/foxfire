@@ -83,12 +83,21 @@ pub(crate) async fn serve_websocket(agent: FakeAgent) -> WebSocketServer {
     serve_websocket_refusing(agent, 0, StatusCode::OK).await
 }
 
-#[allow(clippy::result_large_err, reason = "tungstenite's handshake callback returns its error response unboxed")]
+pub(crate) async fn serve_websocket_stalling(agent: FakeAgent) -> WebSocketServer {
+    websocket_server(agent, true, 0, StatusCode::OK).await
+}
+
 pub(crate) async fn serve_websocket_refusing(agent: FakeAgent, refusals: usize, status: StatusCode) -> WebSocketServer {
+    websocket_server(agent, false, refusals, status).await
+}
+
+#[allow(clippy::result_large_err, reason = "tungstenite's handshake callback returns its error response unboxed")]
+async fn websocket_server(agent: FakeAgent, stall_first: bool, refusals: usize, status: StatusCode) -> WebSocketServer {
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let url = format!("ws://{}", listener.local_addr().unwrap());
     let (headers_tx, headers) = oneshot::channel();
     tokio::spawn(async move {
+        let _stalled = if stall_first { Some(listener.accept().await.unwrap().0) } else { None };
         for _ in 0..refusals {
             let (stream, _) = listener.accept().await.unwrap();
             refuse(stream, status).await;

@@ -31,7 +31,7 @@ impl Thread {
         let project = cwd.as_deref().map(git_root);
         let target = signal(target);
         let chat = ChatThread::connect(number, cwd, session_id, move |resume| {
-            super::driver::open(connector.clone(), target.get_untracked(), resume)
+            super::driver::open(number, connector.clone(), target.get_untracked(), resume)
         });
         chat.on_event(move |event| {
             if let ThreadEvent::Launched(id) = event {

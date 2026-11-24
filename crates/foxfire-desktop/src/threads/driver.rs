@@ -8,12 +8,23 @@ use rouge::reactive::spawn_tokio;
 use std::future::Future;
 use std::pin::pin;
 use std::sync::Arc;
+use std::time::Instant;
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel};
+use tracing::{Instrument, Span, field};
 
-pub(super) fn open(connector: Arc<AgentConnector>, target: SessionTarget, resume: Option<SessionId>) -> SessionLink {
+pub(super) fn open(
+    thread: usize,
+    connector: Arc<AgentConnector>,
+    target: SessionTarget,
+    resume: Option<SessionId>,
+) -> SessionLink {
     let (commands, commands_rx) = unbounded_channel();
     let (messages, events) = unbounded_channel();
-    spawn_tokio(drive(connector, target, resume, commands_rx, messages));
+    let span = tracing::debug_span!(target: "foxfire_startup", "thread_startup", thread, agent = target.label(), instance = field::Empty);
+    if let Some(instance) = target.instance() {
+        span.record("instance", instance);
+    }
+    spawn_tokio(drive(connector, target, resume, commands_rx, messages).instrument(span));
     SessionLink { commands, events }
 }
 
@@ -24,8 +35,11 @@ async fn drive(
     commands: UnboundedReceiver<Command>,
     messages: UnboundedSender<SessionEvent>,
 ) {
+    let started = Instant::now();
     match connector.launch(&target).await {
         Ok(Some(launched)) => {
+            Span::current().record("instance", launched.as_str());
+            tracing::debug!(target: "foxfire_startup", elapsed_ms = started.elapsed().as_millis(), "Launch command finished");
             target.set_instance(launched.clone());
             if messages.send(SessionEvent::Launched(launched)).is_err() {
                 return;
@@ -46,6 +60,7 @@ async fn drive(
     };
     let (config, mut runtime) = session.into_core();
     if messages.send(SessionEvent::Connected(Box::new(config))).is_ok() {
+        tracing::debug!(target: "foxfire_startup", elapsed_ms = started.elapsed().as_millis(), "Session handed to the UI");
         forward(&mut runtime, connector.review_override(&target), commands, &messages).await;
     }
     runtime.shutdown().await;

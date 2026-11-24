@@ -14,6 +14,7 @@ use std::hash::{Hash, Hasher};
 use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::mpsc::UnboundedSender;
+use web_time::Instant;
 
 pub const UNTITLED: &str = "New thread";
 
@@ -245,15 +246,20 @@ impl Thread {
         self.state.update(|state| state.link = Link::Stopped);
     }
 
-    fn receive(&self, messages: Vec<SessionEvent>) -> bool {
+    fn receive(&self, messages: Vec<SessionEvent>, started: Instant) -> bool {
         if !self.state.is_alive() {
             return false;
         }
+        let mut connected = false;
         batch(|| {
             for message in messages {
+                connected |= matches!(&message, SessionEvent::Connected(_));
                 self.on_driver_message(message);
             }
         });
+        if connected && self.state.is_alive() && self.state.with_untracked(|state| state.connected_core().is_some()) {
+            tracing::debug!(target: "foxfire_startup", thread = self.number, elapsed_ms = started.elapsed().as_millis(), "Composer ready");
+        }
         true
     }
 
@@ -284,6 +290,7 @@ impl Thread {
     }
 
     fn open_session(&self, session_id: Option<SessionId>) {
+        let started = Instant::now();
         self.state.update(|state| state.link = Link::Connecting);
         let thread = *self;
         let driver = self.scope.run(|| {
@@ -291,7 +298,7 @@ impl Thread {
             let receive = spawn(async move {
                 while let Some(event) = events.recv().await {
                     let batch = std::iter::once(event).chain(std::iter::from_fn(|| events.try_recv().ok()));
-                    if !thread.receive(batch.collect()) {
+                    if !thread.receive(batch.collect(), started) {
                         return;
                     }
                 }

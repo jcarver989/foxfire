@@ -1,4 +1,4 @@
-use crate::support::{define_agent, serve_websocket, serve_websocket_refusing};
+use crate::support::{define_agent, serve_websocket, serve_websocket_refusing, serve_websocket_stalling};
 use agent_client_protocol::v2::schema::SessionId;
 use clankerdiff_remote::Invocation;
 use clankerdiff_remote::testing::FakeRemotes;
@@ -7,14 +7,19 @@ use foxfire_acp::testing::FakeAgent;
 use foxfire_acp::websocket;
 use foxfire_core::native::runtime::ReviewOverride;
 use foxfire_core::session_model::WorkspaceAccess;
-use foxfire_desktop::agents::AgentProfile;
+use foxfire_desktop::agents::{AgentProfile, Endpoint};
 use foxfire_desktop::remotes::{Acp, Channel, InstanceState, RemoteSpec};
-use foxfire_desktop::target::{AgentConnector, ConnectError, ProcessTransport, SessionTarget};
+use foxfire_desktop::target::{AgentConnector, ConnectError, ProcessTransport, SessionTarget, Transport};
 use foxfire_desktop::testing::{FAKE_AGENT_LOCK_FILE, launching_remote};
+use futures::FutureExt;
 use serde_json::json;
+use std::collections::BTreeMap;
 use std::fs::{File, TryLockError};
+use std::io;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
+use std::time::Duration;
+use tokio::net::TcpListener;
 use tokio::task::spawn_blocking;
 use tokio_tungstenite::tungstenite::http::StatusCode;
 
@@ -49,6 +54,35 @@ async fn a_websocket_agent_is_reached_at_its_url_with_its_headers_expanded() {
     assert_eq!(session.session_response.session_id, SessionId::new("remote-session"));
     let headers = server.headers.await.unwrap();
     assert_eq!(headers["x-workspace"], workspace.path().to_str().unwrap());
+}
+
+#[tokio::test(start_paused = true)]
+async fn a_stalled_websocket_cannot_outlast_the_remote_startup_window() -> Result<(), TestError> {
+    let listener = TcpListener::bind("127.0.0.1:0").await?;
+    let endpoint = Endpoint { url: format!("ws://{}", listener.local_addr()?), headers: BTreeMap::new() };
+    let startup = Duration::from_secs(1);
+    let mut connect = ProcessTransport.websocket(&endpoint, startup);
+    let (_stalled, _) = tokio::select! {
+        result = &mut connect => panic!("finished before the server accepted the connection: {:?}", result.err()),
+        accepted = listener.accept() => accepted?,
+    };
+
+    tokio::time::advance(startup).await;
+
+    assert!(matches!(connect.now_or_never(), Some(Err(ConnectError::WebSocketHandshakeTimeout))));
+    Ok(())
+}
+
+#[tokio::test]
+async fn a_stalled_websocket_is_retried_on_a_fresh_connection() -> Result<(), TestError> {
+    let server = serve_websocket_stalling(FakeAgent::new("vm-session")).await;
+    let endpoint = Endpoint { url: server.url, headers: BTreeMap::new() };
+
+    let connection = ProcessTransport.websocket(&endpoint, Duration::from_secs(30)).await?;
+    let (session, _) = connection.open(None, "/vm/workspace".into()).await.map_err(ConnectError::from)?.into_core();
+
+    assert_eq!(session.session_response.session_id, SessionId::new("vm-session"));
+    Ok(())
 }
 
 #[tokio::test]
@@ -266,6 +300,14 @@ async fn an_agent_that_cannot_be_reached_says_why() {
 }
 
 type IsExpected = fn(&ConnectError) -> bool;
+
+#[derive(Debug, thiserror::Error)]
+enum TestError {
+    #[error(transparent)]
+    Io(#[from] io::Error),
+    #[error(transparent)]
+    Connect(#[from] ConnectError),
+}
 
 fn target(cwd: &Path, agent: AgentProfile) -> SessionTarget {
     SessionTarget::agent(cwd.into(), agent)
