@@ -26,10 +26,10 @@ clankerdiff-symbols = "0.10.4"
 clankerdiff-ui-core = "0.10.4"
 clap = { version = "4.6", features = ["derive", "env"] }
 crossterm = { version = "0.29", features = ["event-stream"] }
-foxfire-acp = { path = "crates/foxfire-acp", version = "0.1.1" }
-foxfire-core = { path = "crates/foxfire-core", version = "0.1.1" }
+foxfire-acp = { path = "crates/foxfire-acp", version = "0.1.2" }
+foxfire-core = { path = "crates/foxfire-core", version = "0.1.2" }
 foxfire-ui = { path = "crates/foxfire-ui" }
-foxfire-tui = { path = "crates/foxfire-tui", version = "0.1.1" }
+foxfire-tui = { path = "crates/foxfire-tui", version = "0.1.2" }
 futures = "0.3.32"
 indexmap = "2"
 log = "0.4.34"

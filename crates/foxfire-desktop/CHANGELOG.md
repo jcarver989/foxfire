@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.1](https://github.com/jcarver989/foxfire/compare/foxfire-desktop-v0.1.0...foxfire-desktop-v0.1.1) - 2026-11-24
+
+### Added
+
+- *(ui)* shorten the cell meter to five cells
+- *(ui)* show context usage and session cost in the composer
+- *(branding)* add the jade desktop icon and browser favicon
+- *(mobile)* share the hosted demo across web, iOS, and Android
+
+### Fixed
+
+- *(ui)* wrap the composer footer instead of squeezing its controls
+- *(desktop)* bound remote WebSocket startup and trace connection stages
+
+### Other
+
+- *(ui)* extract shared Rouge shell and conversation views
+- *(core)* separate the session model from native I/O
+
 ## [0.1.0](https://github.com/jcarver989/foxfire/releases/tag/foxfire-desktop-v0.1.0) - 2026-11-19
 
 ### Added
