@@ -1,7 +1,6 @@
+use super::{ConnectError, Endpoint};
 use agent_client_protocol::{ConnectTo, Error, Lines, Role};
 use futures::{SinkExt, StreamExt, stream};
-use serde::{Deserialize, Deserializer};
-use std::collections::BTreeMap;
 use std::{io, time::Duration};
 use thiserror::Error;
 use tokio::io::{AsyncRead, AsyncWrite};
@@ -14,19 +13,6 @@ use tokio_tungstenite::tungstenite::protocol::{CloseFrame, frame::coding::CloseC
 use tokio_tungstenite::tungstenite::{self, Bytes, Message};
 use tokio_tungstenite::{MaybeTlsStream, WebSocketStream, connect_async};
 use tokio_util::sync::PollSender;
-
-/// Where an agent's WebSocket is, and the credentials it asks for.
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
-pub struct Endpoint {
-    pub url: String,
-    /// Sent by native clients, as a JSON object when deserialized.
-    #[serde(default, deserialize_with = "header_pairs")]
-    pub headers: Vec<(String, String)>,
-    /// Offered by browsers, which cannot set headers. Native clients leave them out, since a server that selects none
-    /// of the protocols it is offered fails the handshake.
-    #[serde(default)]
-    pub subprotocols: Vec<String>,
-}
 
 #[derive(Debug, Error)]
 pub enum WebSocketError {
@@ -42,17 +28,7 @@ pub enum WebSocketError {
     WriteDeadline,
 }
 
-#[derive(Debug, Error)]
-pub enum ConnectError {
-    #[error("invalid WebSocket URL `{url}`")]
-    InvalidUrl { url: String },
-    #[error("invalid WebSocket header `{name}`")]
-    InvalidHeader { name: String },
-    #[error("another client is already attached to the agent")]
-    Occupied,
-    #[error("failed to connect to the agent's WebSocket: {0}")]
-    Handshake(#[source] Box<tungstenite::Error>),
-}
+pub type HandshakeError = tungstenite::Error;
 
 /// WebSocket transport for ACP
 pub struct WebSocketTransport<T> {
@@ -60,47 +36,12 @@ pub struct WebSocketTransport<T> {
 }
 
 pub async fn connect(endpoint: &Endpoint) -> Result<WebSocketTransport<MaybeTlsStream<TcpStream>>, ConnectError> {
-    match connect_async(endpoint.request()?).await {
+    match connect_async(request(endpoint)?).await {
         Ok((socket, _)) => Ok(WebSocketTransport::new(socket)),
         Err(tungstenite::Error::Http(response)) if response.status() == StatusCode::CONFLICT => {
             Err(ConnectError::Occupied)
         }
         Err(error) => Err(ConnectError::Handshake(Box::new(error))),
-    }
-}
-
-impl Endpoint {
-    pub fn new(url: impl Into<String>) -> Self {
-        Self { url: url.into(), headers: Vec::new(), subprotocols: Vec::new() }
-    }
-
-    fn request(&self) -> Result<Request<()>, ConnectError> {
-        let invalid_url = |_| ConnectError::InvalidUrl { url: self.url.clone() };
-        let mut request = self.url.as_str().into_client_request().map_err(invalid_url)?;
-        for (name, value) in &self.headers {
-            let invalid_header = || ConnectError::InvalidHeader { name: name.clone() };
-            let name = HeaderName::from_bytes(name.as_bytes()).map_err(|_| invalid_header())?;
-            let value = HeaderValue::from_str(value).map_err(|_| invalid_header())?;
-            request.headers_mut().append(name, value);
-        }
-        Ok(request)
-    }
-}
-
-impl ConnectError {
-    /// Whether a later attempt may succeed.
-    pub fn is_retryable(&self) -> bool {
-        match self {
-            Self::InvalidUrl { .. } | Self::InvalidHeader { .. } => false,
-            Self::Occupied => true,
-            Self::Handshake(error) => matches!(
-                error.as_ref(),
-                tungstenite::Error::Io(_)
-                    | tungstenite::Error::Http(_)
-                    | tungstenite::Error::Protocol(_)
-                    | tungstenite::Error::ConnectionClosed
-            ),
-        }
     }
 }
 
@@ -224,6 +165,24 @@ impl<T: AsyncRead + AsyncWrite + Unpin> WebSocketTransport<T> {
     }
 }
 
-fn header_pairs<'de, T: Deserializer<'de>>(deserializer: T) -> Result<Vec<(String, String)>, T::Error> {
-    Ok(BTreeMap::deserialize(deserializer)?.into_iter().collect())
+fn request(endpoint: &Endpoint) -> Result<Request<()>, ConnectError> {
+    let invalid_url = |_| ConnectError::InvalidUrl { url: endpoint.url.clone() };
+    let mut request = endpoint.url.as_str().into_client_request().map_err(invalid_url)?;
+    for (name, value) in &endpoint.headers {
+        let invalid_header = || ConnectError::InvalidHeader { name: name.clone() };
+        let name = HeaderName::from_bytes(name.as_bytes()).map_err(|_| invalid_header())?;
+        let value = HeaderValue::from_str(value).map_err(|_| invalid_header())?;
+        request.headers_mut().append(name, value);
+    }
+    Ok(request)
+}
+
+pub(super) fn is_retryable(error: &HandshakeError) -> bool {
+    matches!(
+        error,
+        tungstenite::Error::Io(_)
+            | tungstenite::Error::Http(_)
+            | tungstenite::Error::Protocol(_)
+            | tungstenite::Error::ConnectionClosed
+    )
 }

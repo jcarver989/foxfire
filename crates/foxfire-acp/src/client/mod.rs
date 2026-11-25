@@ -1,5 +1,6 @@
 mod error;
 mod event;
+pub(crate) mod platform;
 mod session;
 
 pub use error::AcpClientError;
