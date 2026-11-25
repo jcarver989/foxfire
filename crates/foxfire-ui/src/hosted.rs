@@ -10,11 +10,13 @@ use crate::ui::tokens::{BASE_SIZE, Space};
 use crate::ui::{
     ActiveReviewTheme, FoxfireMotion, IconName, InterfaceSize, PanelWidth, SettingsField, SettingsModel,
     ThemePreference, ThreadShell, UI_FONT, UiStyles, appearance, breadcrumb, cloud_section, empty_state, icon_button,
-    row_action, settings, settings_button, sidebar_group, sidebar_thread_row, thread_header, thread_status_icon,
+    people_avatars, row_action, settings, settings_button, sidebar_group, sidebar_thread_row, thread_header,
+    thread_status_icon,
 };
+use foxfire_core::session_core::ChatChannel;
 use indexmap::IndexMap;
 use rouge::core::{AnyView, Div, Role, Styled, View, div, dynamic, each, motion, presentation, show, text, view};
-use rouge::persist::Storage;
+use rouge::persist::{Storage, persisted, provide_storage};
 use rouge::platform::open_url;
 use rouge::reactive::{ReadSignal, Scope, Signal, Stored, effect, memo, signal, sleep, spawn, stored, untrack};
 use std::collections::HashSet;
@@ -34,6 +36,7 @@ pub fn hosted_view(
     effect(move || preference.with(|value| theme.set(value.theme(system.get()))));
     let _ = FoxfireMotion::install(false);
     InterfaceSize::install(BASE_SIZE);
+    provide_storage(storage.clone());
 
     let ready = signal(false);
     let storage = stored(storage);
@@ -57,7 +60,8 @@ pub fn hosted_view(
 
 /// Builds a self-contained demo with scripted replies and no connection to an agent.
 pub fn demo_view(storage: Rc<dyn Storage>) -> impl View {
-    let backend = MemoryBackend::new(vec![Project { id: "demo".to_owned(), name: "Demo project".to_owned() }]);
+    let backend =
+        MemoryBackend::new(vec![Project { id: "demo".to_owned(), name: "Demo project".to_owned() }]).with_chat();
     hosted_view(Rc::new(backend), Rc::new(DemoPlatform), storage)
 }
 
@@ -108,6 +112,7 @@ impl HostedApp {
     fn new(backend: Rc<dyn HostedBackend>, platform: Rc<dyn ChatPlatform>, settings: SettingsModel) -> Self {
         let collapsed = signal(false);
         let width = signal(None);
+        let room_width = persisted("hosted-chat-room-width", signal(None));
         let app = Self {
             backend: stored(backend),
             platform: stored(platform),
@@ -121,6 +126,7 @@ impl HostedApp {
                 memo(move || collapsed.get()),
                 move |value| collapsed.set(value),
                 PanelWidth::new(memo(move || width.get()), move |value| width.set(value)),
+                PanelWidth::new(memo(move || room_width.get()), move |value| room_width.set(value)),
             ),
             inventory_loaded: signal(false),
             cloud_expanded: signal(true),
@@ -284,6 +290,11 @@ impl HostedApp {
             let row_id = row_id.clone();
             move || thread_status_icon(&row_id, status.get())
         });
+        let others = memo(move || {
+            let pane = self.threads.with(|all| all.get(&id()).and_then(|entry| entry.pane));
+            pane.and_then(|(_, thread, _)| thread.with_chat(ChatChannel::others)).unwrap_or_default()
+        });
+        let presence = dynamic(move || others.with(|others| (!others.is_empty()).then(|| people_avatars(others))));
         sidebar_thread_row(
             row_id.clone(),
             selected,
@@ -294,6 +305,7 @@ impl HostedApp {
             None,
             move || self.select(id()),
         )
+        .trailing(presence)
         .action(
             row_action("Stop thread", move || self.stop(id(), |_| {}))
                 .icon(IconName::Square)
@@ -359,14 +371,15 @@ impl HostedApp {
             self.shell.reopen(),
             dynamic(move || breadcrumb().test_id("thread-path").min_w(0.0).current(thread.title())),
             move || thread.with_core(|core| core.session().agent_name().to_owned()).unwrap_or_default(),
-            (),
+            pane.room().header_controls(),
         );
-        view! {
+        let conversation = view! {
             <div relative size_full>
                 {conversation_surface(thread, &pane, false)}
                 {header}
             </div>
-        }
+        };
+        self.shell.with_room(pane.room(), conversation)
     }
 
     async fn refresh(self) {

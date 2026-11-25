@@ -4,6 +4,7 @@ use crate::ui::{Icon, IconName, UiStyles};
 use agent_client_protocol::v2::schema as acp;
 use base64::Engine;
 use base64::engine::general_purpose::STANDARD as BASE64;
+use foxfire_acp::chat::CHAT_MESSAGES_URI;
 use foxfire_core::composer::attachment::{AttachmentKind, PromptAttachment, classify_attachment};
 use rouge::core::{AnyView, Div, Fit, ImageSource, Role, Styled, View, div, image, text, view};
 use std::sync::Arc;
@@ -24,7 +25,10 @@ impl Attachment {
             }
             acp::ContentBlock::Audio(_) => file(IconName::AudioLines, "Audio"),
             acp::ContentBlock::ResourceLink(link) => file(IconName::File, &link.name),
-            acp::ContentBlock::Resource(resource) => file(IconName::File, file_name(resource)),
+            acp::ContentBlock::Resource(resource) => match resource_uri(resource) {
+                CHAT_MESSAGES_URI => file(IconName::MessageCircle, "Channel messages"),
+                uri => file(IconName::File, file_name(uri)),
+            },
             _ => file(IconName::File, "Attachment"),
         }
     }
@@ -70,11 +74,14 @@ fn decode(image: &acp::ImageContent) -> Option<Arc<[u8]>> {
         .map(Arc::from)
 }
 
-fn file_name(resource: &acp::EmbeddedResource) -> &str {
-    let uri = match &resource.resource {
+fn resource_uri(resource: &acp::EmbeddedResource) -> &str {
+    match &resource.resource {
         acp::EmbeddedResourceResource::TextResourceContents(text) => text.uri.as_str(),
         acp::EmbeddedResourceResource::BlobResourceContents(blob) => blob.uri.as_str(),
         _ => "Attachment",
-    };
+    }
+}
+
+fn file_name(uri: &str) -> &str {
     uri.rsplit('/').next().filter(|name| !name.is_empty()).unwrap_or(uri)
 }

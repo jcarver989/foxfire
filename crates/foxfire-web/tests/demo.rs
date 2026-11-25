@@ -1,3 +1,4 @@
+use foxfire_chat::ChatError;
 use foxfire_ui::backend::{HostedBackend, Project, ThreadId};
 use foxfire_ui::memory::MemoryBackend;
 use foxfire_ui::platform::ChatPlatform;
@@ -27,6 +28,7 @@ async fn the_browser_shell_launches_chats_switches_and_stops() -> Result<(), Tes
     ui.click_on("launch-demo")?;
     ui.run(1.0);
     assert!(ui.bounds_of("attach-files").is_none());
+    assert!(ui.bounds_of("toggle-chat-room").is_none(), "nobody shares the thread");
     ui.click_on("composer-text")?;
     ui.type_text("first prompt");
     assert!(ui.press("enter"));
@@ -361,12 +363,160 @@ async fn malformed_and_missing_thread_routes_can_return_to_threads() -> Result<(
     Ok(())
 }
 
+#[tokio::test]
+async fn messages_are_handed_from_the_side_room_to_the_agent_and_back() -> Result<(), ChatTestError> {
+    let _entered = Runtime::new().enter();
+    let mut ui = shared_thread(&shared_backend(), &MemoryStorage::default())?;
+    assert!(ui.bounds_of("thread-presence").is_some());
+    ui.click_on("chat-room-input")?;
+    ui.type_text("Cap backoff at `30s`");
+    assert!(ui.press("enter"));
+    ui.run(0.2);
+    assert!(ui.bounds_of("chat-post-3").is_some());
+
+    ui.hover_on("chat-post-1")?;
+    ui.run(0.2);
+    ui.click_on("chat-select-1")?;
+    ui.click_on("chat-post-2")?;
+    ui.click_on("chat-room-ask-agent")?;
+    ui.run(0.1);
+    assert!(ui.bounds_of("chat-room-selection-bar").is_none());
+    assert!(ui.text_bounds("2 messages from Maya and Theo").is_some());
+    assert!(ui.press("enter"));
+    ui.run(0.2);
+    assert!(ui.bounds_of("composer-chat-sources").is_none());
+    assert!(ui.bounds_of("prompt-author-0").is_some());
+    assert!(ui.text_bounds("Channel messages").is_some(), "the prompt is not an empty bubble");
+    assert!(ui.text_bounds("Moved backoff into the driver.").is_some());
+
+    ui.click_on("close-chat-room")?;
+    ui.run(0.1);
+    ui.hover_on("transcript-row-1")?;
+    ui.run(0.25);
+    ui.click_on("discuss-1")?;
+    ui.run(0.2);
+    assert!(ui.bounds_of("chat-room-anchor-chip").is_some());
+    ui.type_text("Does this need a test?");
+    assert!(ui.press("enter"));
+    ui.run(0.2);
+    assert!(ui.bounds_of("chat-room-anchor-chip").is_none());
+    ui.click_on("chat-anchor-5")?;
+    ui.run(0.2);
+    assert!(ui.bounds_of("jump-to-latest").is_some(), "the transcript shows what was quoted");
+    ui.hover_on("transcript-row-0")?;
+    ui.run(0.25);
+    ui.click_on("discuss-0")?;
+    ui.run(0.2);
+    assert!(ui.press("escape"));
+    ui.run(0.1);
+    assert!(ui.bounds_of("chat-room-anchor-chip").is_none());
+    Ok(())
+}
+
+#[tokio::test]
+async fn the_side_room_follows_new_messages_and_marks_only_what_is_shown_read() -> Result<(), ChatTestError> {
+    let _entered = Runtime::new().enter();
+    let backend = shared_backend();
+    let thread = ThreadId("demo-1".to_owned());
+    let mut ui = shared_thread(&backend, &MemoryStorage::default())?;
+    ui.hover_on("chat-post-1")?;
+    ui.run(0.2);
+    ui.click_on("chat-select-1")?;
+    ui.click_on("chat-room-ask-agent")?;
+    ui.run(0.1);
+    assert!(ui.press("enter"));
+    for number in 0..60 {
+        backend.post(&thread, &format!("filler {number}"))?;
+    }
+    ui.run(0.5);
+    let room = ui.rect_of("chat-room-messages")?;
+    let newest = ui.rect_of("chat-post-63")?;
+    assert!(newest.max().y <= room.max().y, "{newest:?} is below {room:?}");
+
+    ui.click_on("prompt-author-0")?;
+    ui.run(0.5);
+    let source = ui.rect_of("chat-post-1")?;
+    assert!(source.origin.y >= room.origin.y, "{source:?} is above {room:?}");
+
+    backend.post(&thread, "unseen")?;
+    ui.run(0.5);
+    ui.click_on("close-chat-room")?;
+    ui.run(0.1);
+    assert!(ui.bounds_of("chat-room-unread").is_some());
+    ui.click_on("toggle-chat-room")?;
+    ui.run(0.5);
+    assert!(ui.bounds_of("chat-post-64").is_some());
+    ui.click_on("close-chat-room")?;
+    ui.run(0.1);
+    assert!(ui.bounds_of("chat-room-unread").is_none());
+    Ok(())
+}
+
+#[tokio::test]
+async fn the_side_room_keeps_its_width() -> Result<(), ChatTestError> {
+    let _entered = Runtime::new().enter();
+    let storage = MemoryStorage::default();
+    let mut ui = shared_thread(&shared_backend(), &storage)?;
+    let initial = ui.rect_of("chat-room-resizable")?;
+    let edge = Point::new(initial.origin.x, initial.center().y);
+    ui.drag(edge, Point::new(edge.x - 40.0, edge.y));
+    ui.run(1.0);
+    let wider = ui.rect_of("chat-room-resizable")?.size.width;
+    assert!(wider > initial.size.width);
+    drop(ui);
+    let mut restored = shared_thread(&shared_backend(), &storage)?;
+    assert_eq!(restored.rect_of("chat-room-resizable")?.size.width, wider);
+    Ok(())
+}
+
+#[tokio::test]
+async fn the_phone_shell_opens_the_side_room_as_a_sheet() -> Result<(), TestError> {
+    let _entered = Runtime::new().enter();
+    let mut ui = demo(&shared_backend(), &MemoryStorage::default(), InputKind::Touch, (390.0, 844.0));
+    ui.tap_on("launch-demo")?;
+    ui.run(1.0);
+    assert!(ui.bounds_of("chat-room-sheet").is_none(), "the room never covers a phone unasked");
+    ui.tap_on("toggle-chat-room")?;
+    ui.run(0.5);
+    assert!(ui.bounds_of("chat-room-sheet").is_some());
+    assert!(ui.bounds_of("chat-post-1").is_some());
+    Ok(())
+}
+
+#[derive(Debug, thiserror::Error)]
+enum ChatTestError {
+    #[error(transparent)]
+    Ui(#[from] TestError),
+    #[error(transparent)]
+    Chat(#[from] ChatError),
+}
+
+fn shared_backend() -> MemoryBackend {
+    MemoryBackend::new(vec![Project { id: "demo".to_owned(), name: "Demo project".to_owned() }])
+        .with_reply(vec!["Moved backoff into the driver.".to_owned()], Duration::ZERO)
+        .with_chat()
+}
+
+fn shared_thread(backend: &MemoryBackend, storage: &MemoryStorage) -> Result<TestUi, TestError> {
+    let mut ui = demo(backend, storage, InputKind::Pointer, (1360.0, 840.0));
+    ui.hover_on("project-demo")?;
+    ui.run(0.25);
+    ui.click_on("launch-demo")?;
+    ui.run(1.0);
+    Ok(ui)
+}
+
 fn touch_demo(width: f32, height: f32) -> TestUi {
     let backend = MemoryBackend::new(vec![Project { id: "demo".to_owned(), name: "Demo project".to_owned() }]);
+    demo(&backend, &MemoryStorage::default(), InputKind::Touch, (width, height))
+}
+
+fn demo(backend: &MemoryBackend, storage: &MemoryStorage, input: InputKind, (width, height): (f32, f32)) -> TestUi {
+    let (backend, storage) = (backend.clone(), storage.clone());
     component_test()
         .size(width, height)
-        .input(InputKind::Touch)
-        .build(move || web_view(Rc::new(backend), Rc::new(NoPlatform), Rc::new(MemoryStorage::default())))
+        .input(input)
+        .build(move || web_view(Rc::new(backend), Rc::new(NoPlatform), Rc::new(storage)))
 }
 
 struct NoPlatform;

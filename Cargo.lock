@@ -2812,6 +2812,7 @@ version = "0.1.0"
 dependencies = [
  "agent-client-protocol",
  "base64 0.23.1",
+ "chrono",
  "clankerdiff-client",
  "clankerdiff-core",
  "clankerdiff-markdown",
@@ -2834,9 +2835,11 @@ dependencies = [
 name = "foxfire-web"
 version = "0.1.0"
 dependencies = [
+ "foxfire-chat",
  "foxfire-ui",
  "rouge",
  "rouge-widgets",
+ "thiserror 2.0.21",
  "tokio",
  "wasm-bindgen",
 ]

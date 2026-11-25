@@ -1,17 +1,19 @@
 mod completion;
 mod queued;
 
-use super::attachment::{chip, preview};
+use super::attachment::{chip, chip_icon, preview};
+use super::room::ChatRoom;
 use crate::platform::ChatPlatform;
 use crate::thread::{Thread, ThreadEvent, ThreadStatus};
-use crate::ui::tokens::{COMPOSER_POPUP_HEIGHT, CONTROL_HEIGHT_LARGE, ICON_SIZE, ROW_HEIGHT, Radius, Space};
+use crate::ui::tokens::{COMPOSER_POPUP_HEIGHT, CONTROL_HEIGHT_LARGE, HAIRLINE, ICON_SIZE, ROW_HEIGHT, Radius, Space};
 use crate::ui::typography::READING;
 use crate::ui::{
     IconButton, IconName, Material, MaterialExt, PickerItem, SearchPickerEvent, SearchPickerHandle, UI_FONT,
-    icon_button, picker_closed, popping, presence, search_picker,
+    format_names, icon_button, picker_closed, popping, presence, search_picker,
 };
 use crate::ui::{chord, spawn_in};
 use completion::{CompletionItem, CompletionMenu, active_token};
+use foxfire_acp::chat::Participant;
 use foxfire_core::composer::attachment::{AttachedFile, PromptAttachment, attach_missing};
 use foxfire_core::composer::completion_token::Trigger;
 use foxfire_core::composer::prompt_history::PromptHistory;
@@ -22,7 +24,7 @@ use foxfire_core::session_model::WorkspaceAccess;
 use queued::queued_prompts;
 use rouge::core::{
     AnyView, Apply, ClipboardMedia, Color, Cursor, Editable, Fill, FocusHandle, FocusPolicy, Key, KeyEvent, Modifiers,
-    Role, Styled, View, div, dynamic, editable, focus_handle, presentation, px, show, view,
+    Role, Styled, Theme, View, div, dynamic, editable, focus_handle, presentation, px, show, view,
 };
 use rouge::reactive::{Callback, Scope, Signal, Stored, batch, effect, memo, signal, stored, untrack};
 use std::ops::Range;
@@ -39,6 +41,7 @@ pub struct Composer {
     selection: Signal<Range<usize>>,
     mentions: Signal<Vec<PromptAttachment>>,
     media: Signal<Vec<PromptAttachment>>,
+    room: ChatRoom,
     history: Stored<PromptHistory>,
     recalled: Stored<bool>,
     popup: Signal<Popup>,
@@ -57,13 +60,14 @@ enum Popup {
 }
 
 impl Composer {
-    pub fn new(thread: Thread, platform: Rc<dyn ChatPlatform>) -> Self {
+    pub fn new(thread: Thread, platform: Rc<dyn ChatPlatform>, room: ChatRoom) -> Self {
         let composer = Self {
             thread,
             text: signal(String::new()),
             selection: signal(0..0),
             mentions: signal(Vec::new()),
             media: signal(Vec::new()),
+            room,
             history: stored(PromptHistory::default()),
             recalled: stored(false),
             popup: signal(Popup::Closed),
@@ -89,6 +93,11 @@ impl Composer {
             composer.text.get();
             composer.selection.get();
             untrack(|| composer.refresh_completion());
+        });
+        effect(move || {
+            if room.attached.with(|attached| !attached.is_empty()) {
+                untrack(|| composer.focus());
+            }
         });
         let listing = memo(move || thread.listed_files());
         effect(move || {
@@ -142,8 +151,13 @@ impl Composer {
             memo(move || thread.with_core(|core| core.queued_prompts().to_vec()).filter(|prompts| !prompts.is_empty()));
         let completion = memo(move || self.completion());
         let search = memo(move || self.popup.with(|popup| matches!(popup, Popup::Search(_))));
+        let theme = Theme::current();
         let editor = view! {
-            <div w_full flex col gap=Space::X1 focusable_glass={move || self.focus.is_focused()}>
+            <div w_full flex col gap=Space::X1
+                 focusable_glass={move || self.focus.is_focused() || self.room.is_shared()}
+                 border={move || if self.room.is_shared() { HAIRLINE } else { 0.0 }}
+                 border_color={move || theme.get().accent.with_alpha(SHARED_BORDER_ALPHA)}>
+                <dynamic>{self.sources()}</dynamic>
                 <dynamic>{self.attachments()}</dynamic>
                 {self.input()}
                 {self.actions()}
@@ -199,7 +213,11 @@ impl Composer {
     fn actions(self) -> impl View {
         let thread = self.thread;
         let touch = presentation().get_untracked().is_touch();
-        let empty = memo(move || self.text.with(|text| text.trim().is_empty()) && self.media.with(Vec::is_empty));
+        let empty = memo(move || {
+            self.text.with(|text| text.trim().is_empty())
+                && self.media.with(Vec::is_empty)
+                && self.room.attached.with(Vec::is_empty)
+        });
         let running = memo(move || running(thread.status()));
         let stopping = memo(move || running.get() && empty.get());
         let (side, glyph) = if touch { (CONTROL_HEIGHT_LARGE, Space::X3) } else { (ROW_HEIGHT, Space::X2) };
@@ -237,6 +255,28 @@ impl Composer {
                 </div>
             </div>
         }
+    }
+
+    /// The channel messages the next prompt is sent with.
+    fn sources(self) -> Option<AnyView> {
+        let sources = self.room.attached.get();
+        let authors = self.thread.with_chat(|chat| {
+            let authors = sources.iter().filter_map(|seq| Some(chat.person(&chat.messages.get(seq)?.author)));
+            let mut authors: Vec<Participant> = authors.collect();
+            authors.sort_by(|a, b| a.id.cmp(&b.id));
+            authors.dedup();
+            format_names(&authors)
+        })?;
+        let noun = if sources.len() == 1 { "message" } else { "messages" };
+        let label = format!("{} {noun} from {authors}", sources.len());
+        (!sources.is_empty()).then(|| {
+            let chip = chip("composer-chat-sources".to_owned(), chip_icon(IconName::MessageCircle), &label);
+            let remove = view! {
+                <icon_button test_id="composer-chat-sources-remove" icon=IconName::X label="Remove messages"
+                             on_click={move || self.room.attached.set(Vec::new())}/>
+            };
+            view! { <div px=Space::X2 pt=Space::X2 flex>{chip.py(0.0).pr(0.0).child(remove)}</div> }.into_any()
+        })
     }
 
     fn attachments(self) -> Option<AnyView> {
@@ -303,11 +343,12 @@ impl Composer {
     fn send(self) {
         let text = self.text.get_untracked();
         let media = self.media.get_untracked();
-        if text.trim().is_empty() && media.is_empty() {
+        let sources = self.room.attached.get_untracked();
+        if text.trim().is_empty() && media.is_empty() && sources.is_empty() {
             return;
         }
         let mentions = mentioned(&text, &self.mentions.get_untracked());
-        let submission = Submission { text: text.clone(), mentions, media, ..Submission::default() };
+        let submission = Submission { text: text.clone(), mentions, media, sources };
         self.history.update(|history| history.push(&text));
         batch(|| {
             self.close_completion();
@@ -315,6 +356,7 @@ impl Composer {
             self.selection.set(0..0);
             self.media.set(Vec::new());
             self.mentions.set(Vec::new());
+            self.room.attached.set(Vec::new());
         });
         self.thread.send(submission);
     }
@@ -561,6 +603,9 @@ impl Composer {
         }
         self.mentions.update(|mentions| attach_missing(mentions, submission.mentions.iter().cloned()));
         self.media.update(|media| attach_missing(media, submission.media.iter().cloned()));
+        if !submission.sources.is_empty() {
+            self.room.attached.set(submission.sources.clone());
+        }
     }
 }
 
@@ -568,7 +613,7 @@ fn running(status: ThreadStatus) -> bool {
     matches!(status, ThreadStatus::Running | ThreadStatus::Background | ThreadStatus::NeedsInput)
 }
 
-fn round_button(
+pub(super) fn round_button(
     id: &'static str,
     icon: IconName,
     (label, keys): (&'static str, &'static str),
@@ -594,7 +639,7 @@ fn round_button(
 }
 
 #[derive(Clone, Copy)]
-enum Face {
+pub(super) enum Face {
     Filled,
     Idle,
     Busy,
@@ -622,6 +667,7 @@ fn floor_boundary(text: &str, index: usize) -> usize {
     text.floor_char_boundary(index.min(text.len()))
 }
 
+const SHARED_BORDER_ALPHA: f32 = 0.6;
 const MIN_ROWS: usize = 1;
 const MAX_ROWS: usize = 12;
 const SEARCH_PROMPTS_KEYS: &str = "secondary-r";
