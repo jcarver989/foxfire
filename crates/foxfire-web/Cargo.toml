@@ -23,4 +23,6 @@ rouge-widgets = { workspace = true }
 wasm-bindgen = "0.2"
 
 [dev-dependencies]
+foxfire-chat = { workspace = true }
+thiserror = { workspace = true }
 tokio = { workspace = true, features = ["rt", "macros"] }

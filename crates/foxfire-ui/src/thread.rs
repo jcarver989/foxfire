@@ -7,7 +7,7 @@ use foxfire_core::command::{Command, Reply};
 use foxfire_core::composer::file_listing::{FileListing, RepoFiles};
 use foxfire_core::composer::submission::Submission;
 use foxfire_core::elicitation::{ArtifactReviewElicitationMeta, Elicitation, ElicitationId};
-use foxfire_core::session_core::{Effect, SessionCore};
+use foxfire_core::session_core::{ChatChannel, Effect, SessionCore};
 use rouge::reactive::{Callback, Scope, Signal, Stored, Task, batch, signal, spawn, stored};
 use std::fmt::{Debug, Formatter, Result as FmtResult};
 use std::hash::{Hash, Hasher};
@@ -209,6 +209,11 @@ impl Thread {
 
     pub fn can_search_prompts(&self) -> bool {
         self.with_connected_core(|core| core.session().capabilities().prompt_search).unwrap_or(false)
+    }
+
+    /// Reads the session's chat channel while other people share it.
+    pub fn with_chat<T>(&self, read: impl FnOnce(&ChatChannel) -> T) -> Option<T> {
+        self.with_core(|core| core.chat().map(read)).flatten()
     }
 
     pub fn update_core(&self, change: impl FnOnce(&mut SessionCore)) {

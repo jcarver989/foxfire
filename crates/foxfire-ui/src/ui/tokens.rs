@@ -1,5 +1,7 @@
 pub use rouge_widgets::tokens::*;
 
+pub const AVATAR_SIZE_SMALL: f32 = 5.0 * UNIT;
+
 pub const UNREAD_DOT_SIZE: f32 = 2.0 * UNIT;
 
 pub const TWO_LINE_ROW_HEIGHT: f32 = 11.0 * UNIT;

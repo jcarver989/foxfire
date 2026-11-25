@@ -3,9 +3,10 @@ use crate::thread::{Thread, ThreadStatus};
 use crate::ui::tokens::{HAIRLINE, Pace, Space};
 use crate::ui::{
     ButtonVariant, IconName, Material, MaterialExt, NoticeTone, UiStyles, backdrop, button, disclosure, icon_button,
-    notification,
+    notification, person_avatar,
 };
 use clankerdiff_rouge::{ReviewHandle, diff_view};
+use foxfire_acp::chat::Participant;
 use rouge::core::{
     AnyView, Cursor, Div, Fit, ImageSource, Role, Styled, View, WindowHandle, div, image, pct, px, text, view,
 };
@@ -46,6 +47,19 @@ pub(crate) fn prompt(
             {body}
             {files}
         </div>
+    }
+}
+
+pub(crate) fn prompt_author(row: usize, author: &Participant, summary: String, on_click: Option<Callback>) -> Div {
+    let header = view! {
+        <div test_id={format!("prompt-author-{row}")} mb=Space::X1 flex items_center gap=Space::X2>
+            {person_avatar(author)}
+            <text small muted no_wrap>{summary}</text>
+        </div>
+    };
+    match on_click {
+        Some(on_click) => header.cursor(Cursor::Pointer).on_click(move |_| on_click.call()),
+        None => header,
     }
 }
 

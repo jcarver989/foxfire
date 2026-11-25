@@ -365,6 +365,13 @@ fn title(tool: &ToolCall) -> String {
     tool.headline().unwrap_or("Tool call").to_owned()
 }
 
+pub(super) fn excerpt(tool: &ToolCall) -> String {
+    let paths = tool.changed_paths();
+    let path = paths.first().map(|path| path.to_string_lossy());
+    let detail = tool.bash_command().or_else(|| tool.display_value()).and_then(first_line).or(path.as_deref());
+    detail.map_or_else(|| title(tool), |detail| format!("{} {detail}", title(tool)))
+}
+
 pub(super) fn details_text(tool: &ToolCall, full: bool) -> String {
     detail_sections(tool, full)
         .map(|(_, text, _)| text)

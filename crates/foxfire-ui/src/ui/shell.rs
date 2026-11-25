@@ -3,6 +3,7 @@ use super::{
     FoxfireState, Icon, IconName, ListRow, ResizablePanel, Side, StyledExt, UI_FONT, UiStyles, chord, empty_state,
     foxfire, hint, icon_button, icon_slot, list_row, resizable_panel, section_header, selection, tree_row,
 };
+use crate::ChatRoom;
 use crate::thread::ThreadStatus;
 use rouge::core::{
     AnyView, Div, Motion, Role, Styled, View, div, dynamic, motion, presentation, scroll, show, text, view, window_size,
@@ -11,8 +12,9 @@ use rouge::reactive::{Callback, Memo, effect, signal, untrack};
 
 pub const MIN_MAIN_WIDTH: f32 = 80.0 * UNIT;
 pub const TOGGLE_SIDEBAR_KEYS: &str = "secondary-b";
-/// The narrowest, usual and widest the sidebar can be.
+/// The narrowest, usual and widest each panel can be.
 const SIDEBAR_WIDTHS: [f32; 3] = [50.0 * UNIT, 68.0 * UNIT, 120.0 * UNIT];
+const ROOM_WIDTHS: [f32; 3] = [64.0 * UNIT, 84.0 * UNIT, 120.0 * UNIT];
 const SIDEBAR_ENTRY_SLIDE: f32 = Space::X6.px();
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -31,13 +33,26 @@ pub struct ThreadShell {
     collapsed: Memo<bool>,
     set_collapsed: Callback<(bool,)>,
     width: PanelWidth,
+    room_width: PanelWidth,
     slide: Motion,
     fade: Motion,
 }
 
 impl ThreadShell {
-    pub fn new(collapsed: Memo<bool>, set_collapsed: impl Fn(bool) + 'static, width: PanelWidth) -> Self {
-        Self { collapsed, set_collapsed: Callback::from(set_collapsed), width, slide: motion(0.0), fade: motion(1.0) }
+    pub fn new(
+        collapsed: Memo<bool>,
+        set_collapsed: impl Fn(bool) + 'static,
+        width: PanelWidth,
+        room_width: PanelWidth,
+    ) -> Self {
+        Self {
+            collapsed,
+            set_collapsed: Callback::from(set_collapsed),
+            width,
+            room_width,
+            slide: motion(0.0),
+            fade: motion(1.0),
+        }
     }
 
     pub fn view<T: View, U: View>(
@@ -57,6 +72,20 @@ impl ThreadShell {
         }
         .bind_key(chord(TOGGLE_SIDEBAR_KEYS), ToggleSidebar)
         .on_action(move |_: &ToggleSidebar| self.toggle())
+    }
+
+    /// A conversation with its side room beside it.
+    pub fn with_room(self, room: ChatRoom, conversation: impl View) -> Div {
+        let side = dynamic(move || {
+            let panel = || self.room_width.panel(Side::Right, ROOM_WIDTHS, room.panel()).test_id("chat-room-resizable");
+            room.is_open().then(|| untrack(panel))
+        });
+        view! {
+            <div size_full flex>
+                <div relative flex_1 min_w=0.0 h_full>{conversation}</div>
+                {side}
+            </div>
+        }
     }
 
     /// A leading control for the thread header, shown only when the sidebar is closed.

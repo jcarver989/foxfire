@@ -155,6 +155,9 @@ impl DesktopApp {
                 PanelWidth::new(memo(move || registry.with(|state| state.sidebar_width)), move |width| {
                     registry.update(|state| state.sidebar_width = width);
                 }),
+                PanelWidth::new(memo(move || registry.with(|state| state.chat_room_width)), move |width| {
+                    registry.update(|state| state.chat_room_width = width);
+                }),
             ),
             views: stored(HashMap::new()),
             modal: signal(None),

@@ -40,6 +40,7 @@ pub struct State {
     pub reduced_motion: bool,
     pub participant_id: String,
     pub display_name: String,
+    pub chat_room_width: Option<f32>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]

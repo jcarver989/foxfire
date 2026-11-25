@@ -2,7 +2,7 @@ use crate::platform::ChatPlatform;
 use crate::thread::{Thread, ThreadStatus};
 use crate::ui::tokens::{BAR_HEIGHT, CONTROL_HEIGHT_LARGE, ICON_SIZE_SMALL, ROW_HEIGHT, Space, UNIT};
 use crate::ui::{FoxfireState, UiStyles, column_grid, foxfire, kindling, popping, reading_cell, scroll_edge};
-use crate::{Composer, ElicitationCard, SessionOptions, StatusLine, Transcript, reconnect_banner};
+use crate::{ChatRoom, Composer, ElicitationCard, SessionOptions, StatusLine, Transcript, reconnect_banner};
 use agent_client_protocol::v2::schema::ToolCallLocation;
 use rouge::core::{Div, Motion, Rect, Role, Styled, TextAlign, View, auto, div, presentation, px, show, text, view};
 use rouge::reactive::{Memo, Signal, memo, signal};
@@ -17,6 +17,7 @@ pub struct ChatPane {
     composer_bounds: Signal<Rect>,
     transcript: Transcript,
     composer: Composer,
+    room: ChatRoom,
     options: SessionOptions,
     status: StatusLine,
     elicitation: ElicitationCard,
@@ -31,8 +32,9 @@ impl ChatPane {
         open_review: impl Fn() + 'static,
     ) -> Self {
         let (dock, stage) = (signal(Rect::ZERO), signal(Rect::ZERO));
-        let composer = Composer::new(thread, platform.clone());
-        let transcript = Transcript::new(thread, platform.clone(), dock, stage, open_location, move |typed| {
+        let room = ChatRoom::new(thread, platform.clone());
+        let composer = Composer::new(thread, platform.clone(), room);
+        let transcript = Transcript::new(thread, platform.clone(), room, dock, stage, open_location, move |typed| {
             composer.type_text(&typed);
         });
         Self {
@@ -45,6 +47,7 @@ impl ChatPane {
             status: StatusLine::new(thread),
             elicitation: ElicitationCard::new(thread, platform, open_review),
             composer,
+            room,
         }
     }
 
@@ -58,6 +61,10 @@ impl ChatPane {
 
     pub fn composer(self) -> Composer {
         self.composer
+    }
+
+    pub fn room(self) -> ChatRoom {
+        self.room
     }
 
     pub fn transcript(self) -> impl View {

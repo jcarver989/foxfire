@@ -7,9 +7,12 @@ mod tools;
 pub use message::reconnect_banner;
 
 use super::attachment::Attachment;
+use super::room::{ChatRoom, ask_summary};
 use crate::platform::ChatPlatform;
 use crate::thread::{Thread, ThreadStatus};
-use crate::ui::tokens::{CONTENT_MAX_WIDTH, GRID_COLUMNS, HEADER_HEIGHT, ROW_HEIGHT, SCROLLBAR_WIDTH, Space};
+use crate::ui::tokens::{
+    CONTENT_MAX_WIDTH, GRID_COLUMNS, HEADER_HEIGHT, Pace, ROW_HEIGHT, Radius, SCROLLBAR_WIDTH, Space,
+};
 use crate::ui::{
     ActiveReviewTheme, IconName, Material, MaterialExt, UiStyles, column_grid, empty_state, grid_cell, icon_button,
     reading_cell, reading_span, vertical_scrollbar,
@@ -17,11 +20,16 @@ use crate::ui::{
 use agent_client_protocol::v2::schema as acp;
 use clankerdiff_core::DiffDocument;
 use clankerdiff_rouge::{DiffViewerEvent, DiffViewerOptions, ReviewController, ReviewHandle, ReviewOutput};
+use foxfire_acp::chat::ChatChannelAnchor;
+use foxfire_acp::content::{first_text, prompt_title};
 use foxfire_acp::conversation::{
     ConversationContent, ConversationId, ConversationItem, ConversationItemId, Notice, NoticeLevel,
 };
+use foxfire_core::session_core::SessionCore;
 use groups::{Group, GroupKind, groups};
-use message::{error, full_diff, image_preview, message_actions, notice, prompt, reconnect_button, thinking_block};
+use message::{
+    error, full_diff, image_preview, message_actions, notice, prompt, prompt_author, reconnect_button, thinking_block,
+};
 use rouge::core::{
     Align, AnyView, FocusHandle, KeyEvent, Rect, Role, RowKey, Styled, TextAlign, View, VirtualListHandle,
     WindowHandle, div, dynamic, focus_handle, px, show, text, view, virtual_list, virtual_list_handle, window_handle,
@@ -56,6 +64,7 @@ pub struct Transcript {
     summary: Memo<Summary>,
     projection: Memo<Vec<ProjectedRow>>,
     on_location: Callback<(acp::ToolCallLocation,)>,
+    room: ChatRoom,
     platform: Stored<Rc<dyn ChatPlatform>>,
     window: WindowHandle,
     scope: Scope,
@@ -107,6 +116,7 @@ impl Transcript {
     pub fn new(
         thread: Thread,
         platform: Rc<dyn ChatPlatform>,
+        room: ChatRoom,
         dock: Signal<Rect>,
         stage: Signal<Rect>,
         on_location: impl Fn(acp::ToolCallLocation) + 'static,
@@ -152,6 +162,7 @@ impl Transcript {
             summary,
             projection,
             on_location: Callback::from(on_location),
+            room,
             platform: stored(platform),
             window: window_handle(),
             scope: Scope::new(),
@@ -162,6 +173,12 @@ impl Transcript {
 
     fn observe(self) {
         let summary = self.summary;
+        effect(move || {
+            if let Some(item) = self.room.sought.get() {
+                self.room.sought.set(None);
+                untrack(|| self.reveal(&item));
+            }
+        });
         let previous: Cell<(Option<ConversationId>, usize)> = Cell::new((None, 0));
         effect(move || {
             let current = summary.with(|summary| (summary.conversation, summary.items.len()));
@@ -176,6 +193,26 @@ impl Transcript {
                 });
             }
         });
+    }
+
+    /// Brings the item with a protocol id into view.
+    fn reveal(self, protocol_id: &str) {
+        let found = self.thread.with_core(|core| {
+            core.conversation().items().iter().position(|item| item.protocol_id() == Some(protocol_id))
+        });
+        let Some(index) = found.flatten() else {
+            return;
+        };
+        self.following.set(false);
+        let folds: Vec<Fold> = self.summary.with_untracked(|summary| {
+            let groups = summary.groups.iter().filter(|group| group.rows.contains(&index));
+            groups.map(|group| Fold::Rows(group.kind, summary.items[group.rows.start])).collect()
+        });
+        self.unfolded.update(|unfolded| unfolded.extend(folds));
+        let row = self.projection.with_untracked(|rows| rows.iter().position(|row| row.index == index));
+        if let Some(row) = row {
+            self.list.scroll_to_row(row, Align::Center);
+        }
     }
 
     /// The columns the reading column spans, for whatever shares the transcript's grid.
@@ -344,7 +381,8 @@ impl Transcript {
         let content = (!folded).then(|| {
             let indented = group.as_ref().is_some_and(|group| group.kind == GroupKind::Run);
             let item = self.item(index, kind, hovered);
-            if indented { div().pl(Space::X4).child(item) } else { div().child(item) }
+            let row = if indented { div().pl(Space::X4).child(item) } else { div().child(item) };
+            row.relative().child(self.discuss(index, kind, hovered))
         });
         let turn_header = header.is_some() && group.as_ref().is_some_and(|group| group.kind == GroupKind::Turn);
         let top = if index == 0 { HEADER_HEIGHT } else { 0.0 };
@@ -373,6 +411,30 @@ impl Transcript {
             </div>
         }
         .into_any()
+    }
+
+    /// Quotes an item in the side room, which needs an id everyone there knows the item by.
+    fn discuss(self, index: usize, kind: Kind, hovered: Signal<bool>) -> impl View {
+        let (thread, room) = (self.thread, self.room);
+        let quoted = memo(move || {
+            room.is_shared().then_some(())?;
+            thread.with_core(|core| quote_of(core.conversation().items().get(index)?)).flatten()
+        });
+        dynamic(move || {
+            let anchor = quoted.get()?;
+            let button = view! {
+                <div absolute bg=Role::Canvas rounded=Radius::Control transition=Pace::Move unselectable
+                     opacity={move || if hovered.get() { 1.0 } else { 0.0 }}>
+                    <icon_button test_id={format!("discuss-{index}")} icon=IconName::MessageCircle label="Discuss"
+                                 on_click={move || room.discuss(anchor.clone())}/>
+                </div>
+            };
+            Some(match kind {
+                Kind::User => button.left(0.0).bottom(0.0),
+                Kind::Tool => button.right(0.0).top(0.0),
+                _ => button.right(0.0).bottom(0.0),
+            })
+        })
     }
 
     fn item(self, index: usize, kind: Kind, hovered: Signal<bool>) -> AnyView {
@@ -418,14 +480,14 @@ impl Transcript {
     }
 
     fn user(self, index: usize, hovered: Signal<bool>) -> AnyView {
-        let Some((id, text, blocks)) = self
+        let Some((id, message_id, text, blocks)) = self
             .thread
             .with_core(|core| {
                 let item = core.conversation().items().get(index)?;
                 let ConversationContent::User(blocks) = item.content() else {
                     return None;
                 };
-                Some((item.id(), prompt_text(blocks), blocks.clone()))
+                Some((item.id(), item.message_id().cloned(), prompt_text(blocks), blocks.clone()))
             })
             .flatten()
         else {
@@ -446,8 +508,27 @@ impl Transcript {
                 .clone()
         });
         let open = Callback::from(move |bytes: Arc<[u8]>| self.preview.set(Some(bytes)));
+        let (thread, room) = (self.thread, self.room);
+        let asked = memo(move || {
+            let read = |core: &SessionCore| {
+                let chat = core.chat()?;
+                let ask = chat.ask(message_id.as_ref()?)?;
+                Some((chat.person(&ask.author), ask_summary(core, chat, ask), ask.sources().first().copied()))
+            };
+            thread.with_core(read).flatten()
+        });
+        let author = dynamic(move || {
+            let (author, summary, source) = asked.get()?;
+            Some(prompt_author(
+                index,
+                &author,
+                summary,
+                source.map(|seq| Callback::from(move || room.show_message(seq))),
+            ))
+        });
         view! {
             <div flex col items_end>
+                {author}
                 {prompt(index, text.clone(), &attachments, open)}
                 {message_actions(index, text, hovered, self.window)}
             </div>
@@ -575,6 +656,16 @@ fn kind_of(item: &ConversationItem) -> Kind {
     }
 }
 
+fn quote_of(item: &ConversationItem) -> Option<ChatChannelAnchor> {
+    let excerpt = match item.content() {
+        ConversationContent::User(blocks) => prompt_title(first_text(blocks)),
+        ConversationContent::Assistant(_) if !item.is_open() => prompt_title(item.text().as_deref()),
+        ConversationContent::Tool(tool) => tools::excerpt(tool),
+        _ => return None,
+    };
+    Some(ChatChannelAnchor { item: item.protocol_id()?.to_owned(), excerpt })
+}
+
 fn prompt_text(blocks: &[acp::ContentBlock]) -> String {
     blocks
         .iter()
@@ -585,7 +676,7 @@ fn prompt_text(blocks: &[acp::ContentBlock]) -> String {
         .collect()
 }
 
-fn hash(value: &impl Hash) -> u64 {
+pub(crate) fn hash(value: &impl Hash) -> u64 {
     let mut hasher = DefaultHasher::new();
     value.hash(&mut hasher);
     hasher.finish()

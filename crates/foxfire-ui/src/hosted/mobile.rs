@@ -166,7 +166,11 @@ fn conversation(app: HostedApp, id: Option<ThreadId>, confirm_end: impl Fn(Threa
                 .map_or_else(|| "Conversation".to_owned(), |id| app.thread_title(id))
         })
     };
-    let actions = show(
+    let ready = memo(move || info.get().filter(|info| info.state == HostedState::Ready).map(|info| info.id));
+    let room = move || Some(app.conversation_pane(ready.get()?).1.room());
+    let people = dynamic(move || room().map(|room| untrack(|| room.toggle_button(IconName::MessageCircle))));
+    let sheet = dynamic(move || room().map(|room| untrack(|| room.sheet())));
+    let end = show(
         move || info.get().is_some(),
         move || {
             let on_end = move || {
@@ -198,8 +202,9 @@ fn conversation(app: HostedApp, id: Option<ThreadId>, confirm_end: impl Fn(Threa
     let keyboard = keyboard_inset();
     view! {
         <div test_id="conversation-screen" size_full flex col focus_scope bg=Role::Canvas>
-            {nav_bar(title).test_id("conversation-nav").trailing(actions)}
+            {nav_bar(title).test_id("conversation-nav").trailing(view! { <div flex items_center gap=Space::X1>{people}{end}</div> })}
             <div flex_1 min_h=0.0 pb={move || keyboard.get()}>{main}</div>
+            {sheet}
         </div>
     }
 }
