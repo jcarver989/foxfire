@@ -1,5 +1,7 @@
 pub mod backend;
 mod chat;
+#[cfg(not(target_arch = "wasm32"))]
+pub mod driver;
 mod elicitation;
 pub mod hosted;
 pub mod memory;
