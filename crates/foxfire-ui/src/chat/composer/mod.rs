@@ -307,7 +307,7 @@ impl Composer {
             return;
         }
         let mentions = mentioned(&text, &self.mentions.get_untracked());
-        let submission = Submission { text: text.clone(), mentions, media };
+        let submission = Submission { text: text.clone(), mentions, media, ..Submission::default() };
         self.history.update(|history| history.push(&text));
         batch(|| {
             self.close_completion();

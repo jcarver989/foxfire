@@ -102,6 +102,7 @@ fn a_prompt_result_reports_whether_the_agent_accepted_cancelled_or_failed_it() {
             request_id,
             session_id: "new".into(),
             content: vec![ContentBlock::from("hello")],
+            sources: Vec::new(),
         }));
         let (request, responder) = peer.held::<PromptRequest>().recv().await.unwrap();
         assert_eq!(request.prompt, vec![ContentBlock::Text(TextContent::new("hello"))]);
@@ -122,6 +123,7 @@ fn a_prompt_result_reports_whether_the_agent_accepted_cancelled_or_failed_it() {
                 request_id,
                 session_id: "new".into(),
                 content: vec![ContentBlock::from("queued")],
+                sources: Vec::new(),
             }));
             let (_, responder) = peer.held::<PromptRequest>().recv().await.unwrap();
             responder.respond_with_error(error).unwrap();

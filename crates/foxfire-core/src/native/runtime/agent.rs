@@ -1,4 +1,4 @@
-use crate::command::{AgentCommand, CommandResult, PromptRejection, Reply};
+use crate::command::{AgentCommand, ChatCommand, ChatReply, CommandResult, PromptRejection, Reply};
 use crate::connection::{list_sessions, resume_request};
 use crate::session_model::initial_workspace_status;
 use agent_client_protocol::v2::schema::{
@@ -9,6 +9,7 @@ use agent_client_protocol::{ErrorCode, JsonRpcRequest};
 use foxfire_acp::aether::{
     McpRequest, SessionPreviewParams, WorkspaceListParams, WorkspaceMoveParams, WorkspaceStatusPayload,
 };
+use foxfire_acp::chat::{FoxfireMeta, PromptMeta};
 use foxfire_acp::client::{AcpClientError, AcpClientHandle};
 use futures::FutureExt;
 use futures::future::BoxFuture;
@@ -22,9 +23,14 @@ pub(super) fn execute(
     requests: &mut Requests,
 ) -> Option<CommandResult> {
     match command {
-        AgentCommand::Prompt { request_id, session_id, content } => {
-            submit_request(handle, requests, PromptRequest::new(session_id, content), move |result| {
-                CommandResult::Prompt { request_id, result: result.map(drop).map_err(prompt_rejection) }
+        AgentCommand::Prompt { request_id, session_id, content, sources } => {
+            let mut request = PromptRequest::new(session_id, content);
+            if !sources.is_empty() {
+                request = request.meta(PromptMeta { sources }.to_meta());
+            }
+            submit_request(handle, requests, request, move |result| CommandResult::Prompt {
+                request_id,
+                result: result.map(drop).map_err(prompt_rejection),
             });
         }
         AgentCommand::Cancel { session_id } => {
@@ -88,6 +94,28 @@ pub(super) fn execute(
                 CommandResult::WorkspaceResolved { cwd, status }
             });
         }
+        AgentCommand::Chat(ChatCommand::Join(params)) => {
+            let session_id = params.session_id.clone();
+            submit_request(handle, requests, params, move |result| CommandResult::Chat {
+                session_id,
+                reply: ChatReply::Joined(result),
+            });
+        }
+        AgentCommand::Chat(ChatCommand::Post(params)) => {
+            let (session_id, key) = (params.session_id.clone(), params.key.clone());
+            submit_request(handle, requests, params, move |result| CommandResult::Chat {
+                session_id,
+                reply: ChatReply::Posted { key, result },
+            });
+        }
+        AgentCommand::Chat(ChatCommand::History(params)) => {
+            let session_id = params.session_id.clone();
+            submit_request(handle, requests, params, move |result| CommandResult::Chat {
+                session_id,
+                reply: ChatReply::History(result),
+            });
+        }
+        AgentCommand::Chat(ChatCommand::Read(params)) => return Some(CommandResult::Notified(handle.notify(params))),
     }
     None
 }

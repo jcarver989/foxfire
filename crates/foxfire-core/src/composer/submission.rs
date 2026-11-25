@@ -5,6 +5,8 @@ pub struct Submission {
     pub text: String,
     pub mentions: Vec<PromptAttachment>,
     pub media: Vec<PromptAttachment>,
+    /// The channel messages the prompt is sent with, by `seq`.
+    pub sources: Vec<i64>,
 }
 
 impl Submission {

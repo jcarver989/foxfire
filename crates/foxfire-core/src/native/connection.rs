@@ -7,11 +7,19 @@ use agent_client_protocol::v2::schema::{
 };
 use agent_client_protocol::{Client, ConnectTo};
 use foxfire_acp::aether::{RemoteServerInfo, SessionPreviewParams};
+use foxfire_acp::chat::{ClientMeta, FoxfireMeta, Participant};
 use foxfire_acp::client::{AcpClient, AcpClientError, AcpClientHandle, connect_acp_client, initialize_request};
 use std::path::{Path, PathBuf};
 
 pub struct Connection {
     client: AcpClient,
+    participant: Option<Participant>,
+}
+
+/// The program connecting, and the person using it if they chat.
+pub struct ClientInfo {
+    pub program: Implementation,
+    pub participant: Option<Participant>,
 }
 
 pub struct Session {
@@ -19,6 +27,7 @@ pub struct Session {
     response: NewSessionResponse,
     working_dir: PathBuf,
     workspace_access: WorkspaceAccess,
+    participant: Option<Participant>,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -31,11 +40,16 @@ pub enum ConnectionError {
 
 impl Connection {
     pub async fn connect_to(
-        client_info: Implementation,
+        client: impl Into<ClientInfo>,
         agent: impl ConnectTo<Client> + 'static,
     ) -> Result<Self, ConnectionError> {
-        let client = connect_acp_client(agent, initialize_request(client_info)).await?;
-        Ok(Self { client })
+        let ClientInfo { program, participant } = client.into();
+        let mut request = initialize_request(program);
+        if participant.is_some() {
+            request = request.meta(ClientMeta { participant: participant.clone() }.to_meta());
+        }
+        let client = connect_acp_client(agent, request).await?;
+        Ok(Self { client, participant })
     }
 
     pub async fn open(self, session_id: Option<SessionId>, working_dir: PathBuf) -> Result<Session, ConnectionError> {
@@ -80,12 +94,18 @@ impl Connection {
         working_dir: PathBuf,
         workspace_access: WorkspaceAccess,
     ) -> Result<Session, ConnectionError> {
-        let Self { client } = self;
+        let Self { client, participant } = self;
         let response = match session_id {
             Some(session_id) => resume(&client, session_id, working_dir.clone()).await?,
             None => client.handle.request(NewSessionRequest::new(working_dir.clone())).await?,
         };
-        Ok(Session { client, response, working_dir, workspace_access })
+        Ok(Session { client, response, working_dir, workspace_access, participant })
+    }
+}
+
+impl From<Implementation> for ClientInfo {
+    fn from(program: Implementation) -> Self {
+        Self { program, participant: None }
     }
 }
 
@@ -103,13 +123,14 @@ impl Session {
     }
 
     pub fn into_core(self) -> (SessionCoreConfig, SessionRuntime) {
-        let Self { client, response, working_dir, workspace_access } = self;
+        let Self { client, response, working_dir, workspace_access, participant } = self;
         let config = SessionCoreConfig {
             initialize_response: client.initialize_response,
             session_response: response,
             workspace_status: initial_workspace_status(&working_dir),
             working_dir,
             workspace_access,
+            participant,
         };
         (config, SessionRuntime::new(client.handle, client.event_rx))
     }

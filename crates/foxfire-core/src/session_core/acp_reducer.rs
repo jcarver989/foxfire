@@ -55,6 +55,11 @@ impl SessionCore {
                 self.git_review = super::GitReview::Closed;
                 self.effects.push(Effect::ConnectionClosed);
             }
+            AcpEvent::ChatChannelEvent(payload) if payload.session_id == *self.session_id() => {
+                if let Some(chat) = &mut self.chat {
+                    chat.apply(payload.event);
+                }
+            }
             AcpEvent::GitDiffEvent(_)
             | AcpEvent::ChatChannelEvent(_)
             | AcpEvent::SessionUpdate(_)

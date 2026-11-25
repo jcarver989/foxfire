@@ -154,6 +154,7 @@ impl Session {
             working_dir: format!("/workspace/{}", self.info.project.id).into(),
             workspace_status: WorkspaceStatus { display_dir: self.info.project.name.clone(), git_ref: None },
             workspace_access: WorkspaceAccess::Remote,
+            participant: None,
         };
         let _ = sender.send(SessionEvent::Connected(Box::new(config)));
         for update in &self.history {

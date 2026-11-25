@@ -3,6 +3,7 @@ use crate::session_model::{WorkspaceAccess, WorkspaceStatus, initial_workspace_s
 use agent_client_protocol::schema::ProtocolVersion;
 use agent_client_protocol::v2::schema as acp;
 use foxfire_acp::aether::{AetherCapabilities, AetherMeta};
+use foxfire_acp::chat::{FoxfireCapabilities, FoxfireMeta, Participant};
 use foxfire_acp::testing::FakeAgent;
 use std::path::PathBuf;
 
@@ -11,6 +12,7 @@ pub struct SessionCoreConfigBuilder {
     workspace_access: WorkspaceAccess,
     workspace_status: Option<WorkspaceStatus>,
     capabilities: AetherCapabilities,
+    participant: Option<Participant>,
     prompt_capabilities: acp::PromptCapabilities,
     config_options: Vec<acp::SessionConfigOption>,
     auth_methods: Vec<acp::AuthMethod>,
@@ -24,6 +26,7 @@ impl Default for SessionCoreConfigBuilder {
             workspace_access: WorkspaceAccess::Local,
             workspace_status: None,
             capabilities: AetherCapabilities { workspace_status: true, ..AetherCapabilities::default() },
+            participant: None,
             prompt_capabilities: acp::PromptCapabilities::new(),
             config_options: Vec::new(),
             auth_methods: Vec::new(),
@@ -98,6 +101,11 @@ impl SessionCoreConfigBuilder {
         self
     }
 
+    pub fn chat(mut self, participant: Participant) -> Self {
+        self.participant = Some(participant);
+        self
+    }
+
     /// A fake agent that advertises what this session's client was told it supports.
     pub fn agent(&self) -> FakeAgent {
         let config = self.build();
@@ -113,9 +121,10 @@ impl SessionCoreConfigBuilder {
     }
 
     pub fn build(&self) -> SessionCoreConfig {
-        let session_capabilities = acp::SessionCapabilities::new()
-            .prompt(self.prompt_capabilities.clone())
-            .meta(Some(self.capabilities.to_meta()));
+        let mut meta = self.capabilities.to_meta();
+        meta.extend(FoxfireCapabilities { chat: self.participant.is_some() }.to_meta());
+        let session_capabilities =
+            acp::SessionCapabilities::new().prompt(self.prompt_capabilities.clone()).meta(Some(meta));
         SessionCoreConfig {
             initialize_response: acp::InitializeResponse::new(
                 ProtocolVersion::V2,
@@ -138,6 +147,7 @@ impl SessionCoreConfigBuilder {
                 WorkspaceAccess::Remote => initial_workspace_status(&self.working_dir),
             }),
             workspace_access: self.workspace_access,
+            participant: self.participant.clone(),
         }
     }
 }

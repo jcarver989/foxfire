@@ -82,8 +82,10 @@ impl SessionCore {
     fn start_prompt(&mut self, submission: Submission, attachments: Vec<acp::ContentBlock>) {
         let request_id = RequestId::next();
         let text = (!submission.text.trim().is_empty()).then(|| acp::ContentBlock::from(submission.text.clone()));
-        let content = text.into_iter().chain(attachments).collect();
+        let sources = submission.sources.clone();
+        let quoted = self.chat.as_ref().and_then(|chat| chat.quote(&sources));
+        let content = text.into_iter().chain(quoted).chain(attachments).collect();
         self.queued_prompts.push(QueuedPrompt { request_id, submission });
-        self.dispatch(AgentCommand::Prompt { request_id, session_id: self.session_id().clone(), content });
+        self.dispatch(AgentCommand::Prompt { request_id, session_id: self.session_id().clone(), content, sources });
     }
 }

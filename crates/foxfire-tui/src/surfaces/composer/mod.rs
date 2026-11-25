@@ -100,7 +100,7 @@ impl Composer {
         self.history.push(&text);
         self.overlay = None;
         self.mentions.clear();
-        Submission { text, mentions, media }
+        Submission { text, mentions, media, ..Submission::default() }
     }
 
     pub fn restore_submission(&mut self, submission: Submission) {

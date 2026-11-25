@@ -1,7 +1,9 @@
 mod acp_reducer;
+mod chat;
 mod prompts;
 mod transitions;
 
+pub use chat::{ChatChannel, Earlier, PendingPost};
 pub use prompts::QueuedPrompt;
 
 use crate::command::{AgentCommand, Command, CommandResult, GitReviewCommand, Reply, ReviewSource};
@@ -13,6 +15,7 @@ use crate::session_model::{SessionModel, SessionSetting, WorkspaceAccess, Worksp
 use agent_client_protocol::v2::schema as acp;
 use clankerdiff_client::{ClientState, DiffReviewEvent};
 use foxfire_acp::aether::WorkspaceEntry;
+use foxfire_acp::chat::{FoxfireCapabilities, Participant};
 use foxfire_acp::client::AcpEvent;
 use foxfire_acp::conversation::{Conversation, NoticeLevel};
 use std::path::PathBuf;
@@ -34,6 +37,8 @@ pub struct SessionCore {
     elicitation: Option<PendingElicitation>,
     git_review: GitReview,
     prompt_search: PromptSearchState,
+    me: Option<Participant>,
+    chat: Option<ChatChannel>,
     effects: Vec<Effect>,
 }
 
@@ -43,6 +48,7 @@ pub struct SessionCoreConfig {
     pub working_dir: PathBuf,
     pub workspace_status: WorkspaceStatus,
     pub workspace_access: WorkspaceAccess,
+    pub participant: Option<Participant>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -91,7 +97,9 @@ pub enum ForegroundOperation {
 impl SessionCore {
     pub fn new(config: SessionCoreConfig) -> Self {
         let conversation = Conversation::new(config.session_response.session_id.clone());
-        Self {
+        let chats = FoxfireCapabilities::of(&config.initialize_response.capabilities).chat;
+        let me = config.participant.clone().filter(|_| chats);
+        let mut core = Self {
             session: SessionModel::from_config(config),
             conversation,
             available_commands: Vec::new(),
@@ -101,8 +109,12 @@ impl SessionCore {
             elicitation: None,
             git_review: GitReview::Closed,
             prompt_search: PromptSearchState::default(),
+            me,
+            chat: None,
             effects: Vec::new(),
-        }
+        };
+        core.join_chat();
+        core
     }
 
     pub fn session(&self) -> &SessionModel {
@@ -316,6 +328,11 @@ impl SessionCore {
             CommandResult::ElicitationWithdrawn(request) => {
                 if self.elicitation.as_ref().is_some_and(|pending| pending.request_id == request) {
                     self.dismiss_elicitation();
+                }
+            }
+            CommandResult::Chat { session_id, reply } => {
+                if let Some(chat) = self.chat.as_mut().filter(|_| session_id == *self.conversation.session_id()) {
+                    chat.on_reply(reply);
                 }
             }
             CommandResult::Reply(reply) => self.reply(reply),

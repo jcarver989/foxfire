@@ -4,6 +4,7 @@
 mod support;
 
 mod attachments;
+mod chat;
 mod completion_token;
 mod connection;
 mod elicitation_form;

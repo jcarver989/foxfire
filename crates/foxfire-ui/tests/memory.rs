@@ -146,7 +146,12 @@ fn connected(link: &mut SessionLink) -> Result<acp::SessionId, TestError> {
 fn prompt(link: &SessionLink, id: &acp::SessionId, text: &str) -> Result<(), TestError> {
     send(
         link,
-        AgentCommand::Prompt { request_id: RequestId::next(), session_id: id.clone(), content: vec![text.into()] },
+        AgentCommand::Prompt {
+            request_id: RequestId::next(),
+            session_id: id.clone(),
+            content: vec![text.into()],
+            sources: Vec::new(),
+        },
     )
 }
 
