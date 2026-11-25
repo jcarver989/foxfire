@@ -1,6 +1,6 @@
 use crate::target::{AgentConnector, SessionTarget};
 use agent_client_protocol::v2::schema::SessionId;
-use foxfire_core::native::runtime::ReviewOverride;
+use foxfire_core::runtime::ReviewOverride;
 use foxfire_ui::backend::SessionLink;
 use foxfire_ui::driver::{OpenedSession, drive};
 use std::sync::Arc;

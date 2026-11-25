@@ -2695,6 +2695,7 @@ dependencies = [
  "tokio",
  "tracing",
  "url",
+ "wasm-bindgen-test",
 ]
 
 [[package]]

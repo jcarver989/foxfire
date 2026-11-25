@@ -6,7 +6,7 @@ use foxfire_acp::aether::RemoteServerInfo;
 use foxfire_acp::testing::FakeAgent;
 use foxfire_acp::websocket::{self, Endpoint};
 use foxfire_core::connection::Connection;
-use foxfire_core::native::runtime::ReviewOverride;
+use foxfire_core::runtime::ReviewOverride;
 use foxfire_core::session_model::WorkspaceAccess;
 use foxfire_desktop::agents::AgentProfile;
 use foxfire_desktop::remotes::{Acp, Channel, InstanceState, RemoteSpec};

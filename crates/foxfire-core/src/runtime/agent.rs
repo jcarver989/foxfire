@@ -1,3 +1,4 @@
+use super::Task;
 use crate::command::{AgentCommand, ChatCommand, ChatReply, CommandResult, PromptRejection, Reply};
 use crate::connection::{list_sessions, resume_request};
 use crate::session_model::initial_workspace_status;
@@ -12,10 +13,9 @@ use foxfire_acp::aether::{
 use foxfire_acp::chat::{FoxfireMeta, PromptMeta};
 use foxfire_acp::client::{AcpClientError, AcpClientHandle};
 use futures::FutureExt;
-use futures::future::BoxFuture;
 use futures::stream::FuturesUnordered;
 
-pub(super) type Requests = FuturesUnordered<BoxFuture<'static, CommandResult>>;
+pub(super) type Requests = FuturesUnordered<Task>;
 
 pub(super) fn execute(
     handle: &AcpClientHandle,
@@ -134,5 +134,5 @@ fn submit_request<T: JsonRpcRequest + Send + 'static>(
     complete: impl FnOnce(Result<T::Response, AcpClientError>) -> CommandResult + Send + 'static,
 ) {
     let response = handle.request(request);
-    requests.push(response.map(complete).boxed());
+    requests.push(Box::pin(response.map(complete)));
 }

@@ -47,17 +47,18 @@ serde_json = { workspace = true }
 tracing = { workspace = true }
 thiserror = { workspace = true }
 mime_guess = { workspace = true }
+tokio = { workspace = true, features = ["macros", "sync"] }
+url = { workspace = true }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 base64 = { workspace = true }
-url = { workspace = true }
 agent-client-protocol = { workspace = true, features = ["process"] }
 clankerdiff-remote = { workspace = true }
 clankerdiff-server = { workspace = true }
 tempfile = { workspace = true }
 tokio = { workspace = true, features = ["rt", "macros", "sync", "process", "io-std"] }
 
-[dev-dependencies]
+[target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
 foxfire-core = { path = ".", features = ["testing"] }
 foxfire-acp = { workspace = true, features = ["client", "testing"] }
 clankerdiff-core = { workspace = true }
@@ -66,3 +67,7 @@ clankerdiff-git = { workspace = true }
 serde_json = { workspace = true }
 tempfile = { workspace = true }
 tokio = { workspace = true, features = ["rt", "rt-multi-thread", "macros", "sync"] }
+
+[target.'cfg(target_arch = "wasm32")'.dev-dependencies]
+foxfire-acp = { workspace = true, features = ["client", "websocket"] }
+wasm-bindgen-test = "0.3"

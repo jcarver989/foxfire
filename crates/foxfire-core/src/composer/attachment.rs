@@ -1,5 +1,7 @@
+use crate::session_model::WorkspaceAccess;
 use agent_client_protocol::v2::schema as acp;
 use std::path::{Path, PathBuf};
+use url::Url;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PromptAttachment {
@@ -44,6 +46,15 @@ impl PromptAttachment {
 
     pub fn in_workspace(path: PathBuf, root: &Path) -> Self {
         Self { origin: AttachmentOrigin::Agent, ..Self::new(path, root) }
+    }
+
+    /// Names a file that only the agent can read.
+    pub(crate) fn link(&self, access: WorkspaceAccess) -> Option<acp::ContentBlock> {
+        (access == WorkspaceAccess::Remote && self.origin == AttachmentOrigin::Agent).then(|| {
+            let mut url = Url::parse("file:///").expect("a valid base URL");
+            url.set_path(&self.path.to_string_lossy());
+            acp::ContentBlock::ResourceLink(acp::ResourceLink::new(self.display_name.clone(), url.to_string()))
+        })
     }
 }
 

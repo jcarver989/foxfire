@@ -1,32 +1,36 @@
-use std::future::Future;
-use std::path::PathBuf;
-use std::pin::Pin;
-use std::process::Stdio;
-use std::sync::Arc;
-
+use super::agent::Requests;
+use super::host;
+use crate::command::{CommandResult, GitReviewCommand, Reply, ReviewSource};
 use agent_client_protocol::v2::schema::SessionId;
+#[cfg(not(target_arch = "wasm32"))]
+use clankerdiff_client::ConnectionHeader;
 use clankerdiff_client::protocol::client::ClientCommand;
 use clankerdiff_client::protocol::server::ServerMessage;
-use clankerdiff_client::transport::StreamTransport;
 use clankerdiff_client::{
-    ClientError, ClientMessageTransport, ClientOptions, ClientState, ClientSubscription, ConnectionHeader,
-    ConnectionState, DiffClient, DiffReviewEvent, LookupReply, MaybeSend, RemoteError, RemoteErrorCode,
+    ClientError, ClientMessageTransport, ClientOptions, ClientState, ClientSubscription, ConnectionState, DiffClient,
+    DiffReviewEvent, LookupReply, MaybeSend,
 };
+#[cfg(not(target_arch = "wasm32"))]
 use clankerdiff_remote::Invocation;
-use clankerdiff_server::{DiffServer, ServerError, ServerOptions};
 use foxfire_acp::aether::{GitDiffClosePayload, GitDiffCommandPayload};
 use foxfire_acp::client::AcpClientHandle;
-use tokio::process::{Child, Command};
+#[cfg(not(target_arch = "wasm32"))]
+use std::any::Any;
+use std::future::Future;
+use std::pin::Pin;
+use std::sync::Arc;
 use tokio::sync::mpsc;
-use tokio::task::JoinSet;
-
-use crate::command::{CommandResult, GitReviewCommand, Reply, ReviewSource};
 
 /// A host-configured review source that takes precedence over the session's default.
 #[derive(Debug, Clone)]
 pub enum ReviewOverride {
+    #[cfg(not(target_arch = "wasm32"))]
     Stdio(Invocation),
-    WebSocket { url: String, headers: Vec<ConnectionHeader> },
+    #[cfg(not(target_arch = "wasm32"))]
+    WebSocket {
+        url: String,
+        headers: Vec<ConnectionHeader>,
+    },
     Unavailable(String),
 }
 
@@ -38,21 +42,31 @@ pub(super) struct GitReviewRuntime {
 
 enum Review {
     Closed,
-    Opening(Pin<Box<dyn Future<Output = Result<ReviewConnection, ClientError>> + Send>>),
+    Opening(Opening),
     Open(Box<ReviewConnection>),
 }
 
-struct ReviewConnection {
+#[cfg(not(target_arch = "wasm32"))]
+pub(super) type Opening = Pin<Box<dyn Future<Output = Result<ReviewConnection, ClientError>> + Send>>;
+#[cfg(target_arch = "wasm32")]
+pub(super) type Opening = Pin<Box<dyn Future<Output = Result<ReviewConnection, ClientError>>>>;
+
+pub(super) struct ReviewConnection {
     client: DiffClient,
     subscription: ClientSubscription,
     server: ReviewServer,
 }
 
-enum ReviewServer {
-    Agent { session_id: SessionId, messages: mpsc::UnboundedSender<ServerMessage> },
-    Local { _server: DiffServer },
-    Process { _child: Child },
-    Remote,
+pub(super) enum ReviewServer {
+    Agent {
+        session_id: SessionId,
+        messages: mpsc::UnboundedSender<ServerMessage>,
+    },
+    /// Something the host opened, which lasts as long as the review does.
+    #[cfg(not(target_arch = "wasm32"))]
+    Host {
+        _opened: Box<dyn Any + Send>,
+    },
 }
 
 impl GitReviewRuntime {
@@ -64,14 +78,10 @@ impl GitReviewRuntime {
         self.source_override = source;
     }
 
-    pub(super) fn dispatch(
-        &mut self,
-        command: GitReviewCommand,
-        tasks: &mut JoinSet<CommandResult>,
-    ) -> Option<CommandResult> {
+    pub(super) fn dispatch(&mut self, command: GitReviewCommand, requests: &mut Requests) -> Option<CommandResult> {
         match command {
             GitReviewCommand::Open(source) => self.open(source),
-            GitReviewCommand::Event(event) => self.on_event(event, tasks),
+            GitReviewCommand::Event(event) => self.on_event(event, requests),
             GitReviewCommand::Close => {
                 self.close();
                 None
@@ -115,8 +125,6 @@ impl GitReviewRuntime {
     fn open(&mut self, source: ReviewSource) -> Option<CommandResult> {
         self.close();
         self.review = match (self.source_override.clone(), source) {
-            (Some(ReviewOverride::Stdio(invocation)), _) => Review::Opening(Box::pin(open_process(invocation))),
-            (Some(ReviewOverride::WebSocket { url, headers }), _) => Review::Opening(Box::pin(connect(url, headers))),
             (Some(ReviewOverride::Unavailable(reason)), _) | (None, ReviewSource::Unavailable(reason)) => {
                 return Some(CommandResult::GitReview(failed(ClientError::Transport(reason))));
             }
@@ -130,24 +138,28 @@ impl GitReviewRuntime {
                 let client = DiffClient::spawn(transport, ClientOptions::default());
                 Review::Open(Box::new(ReviewConnection::new(client, ReviewServer::Agent { session_id, messages })))
             }
-            (None, ReviewSource::Local(path)) => Review::Opening(Box::pin(open_local(path))),
+            (None, ReviewSource::Local(path)) => Review::Opening(host::open_local_review(path)),
+            #[cfg(not(target_arch = "wasm32"))]
+            (Some(source), _) => Review::Opening(host::open_review(source)),
         };
         None
     }
 
-    fn on_event(&mut self, event: DiffReviewEvent, tasks: &mut JoinSet<CommandResult>) -> Option<CommandResult> {
+    fn on_event(&mut self, event: DiffReviewEvent, requests: &mut Requests) -> Option<CommandResult> {
         match (&self.review, event) {
             (Review::Open(connection), DiffReviewEvent::Lookup(lookup)) => {
                 let client = connection.client.clone();
-                tasks.spawn(async move { CommandResult::Reply(Reply::GitReviewLookup(client.lookup(lookup).await)) });
+                requests.push(Box::pin(async move {
+                    CommandResult::Reply(Reply::GitReviewLookup(client.lookup(lookup).await))
+                }));
                 None
             }
             (Review::Open(connection), event) => match connection.client.dispatch(event) {
                 Ok(Some(reply)) => {
-                    tasks.spawn(async move {
+                    requests.push(Box::pin(async move {
                         let result = reply.await.unwrap_or(Err(ClientError::Disconnected));
                         CommandResult::Reply(Reply::GitReviewAction(result))
-                    });
+                    }));
                     None
                 }
                 Ok(None) => None,
@@ -163,7 +175,7 @@ impl GitReviewRuntime {
 }
 
 impl ReviewConnection {
-    fn new(client: DiffClient, server: ReviewServer) -> Self {
+    pub(super) fn new(client: DiffClient, server: ReviewServer) -> Self {
         Self { subscription: client.subscribe(), client, server }
     }
 }
@@ -188,42 +200,6 @@ impl ClientMessageTransport for AcpClientTransport {
     }
 
     async fn close(&mut self) {}
-}
-
-async fn open_local(path: PathBuf) -> Result<ReviewConnection, ClientError> {
-    let unreadable =
-        |error: ServerError| ClientError::Remote(RemoteError::new(RemoteErrorCode::Git, error.to_string()));
-    let server = DiffServer::open(path, ServerOptions::default()).await.map_err(unreadable)?;
-    let client = DiffClient::from_transport(server.connect().map_err(unreadable)?, ClientOptions::default()).await?;
-    Ok(ReviewConnection::new(client, ReviewServer::Local { _server: server }))
-}
-
-async fn open_process(Invocation { program, args, dir, env }: Invocation) -> Result<ReviewConnection, ClientError> {
-    let mut child = Command::new(&program)
-        .args(&args)
-        .envs(&env)
-        .current_dir(&dir)
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::inherit())
-        .kill_on_drop(true)
-        .spawn()
-        .map_err(|error| ClientError::Transport(format!("failed to start `{program}`: {error}")))?;
-    let (Some(stdin), Some(stdout)) = (child.stdin.take(), child.stdout.take()) else {
-        unreachable!("both pipes were requested at spawn");
-    };
-    let client = DiffClient::from_messages(StreamTransport::new(stdout, stdin), ClientOptions::default())
-        .await
-        .map_err(|error| match error {
-            ClientError::Disconnected => ClientError::Transport(format!("`{program}` exited before serving a diff")),
-            error => error,
-        })?;
-    Ok(ReviewConnection::new(client, ReviewServer::Process { _child: child }))
-}
-
-async fn connect(url: String, headers: Vec<ConnectionHeader>) -> Result<ReviewConnection, ClientError> {
-    let client = DiffClient::connect_with_headers(&url, ClientOptions::default(), headers).await?;
-    Ok(ReviewConnection::new(client, ReviewServer::Remote))
 }
 
 fn failed(error: ClientError) -> Arc<ClientState> {

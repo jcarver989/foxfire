@@ -1,8 +1,6 @@
 mod attachments;
-pub mod connection;
 pub mod fs;
 mod git;
-pub mod runtime;
 
 pub use attachments::{build_attachments, classify_paths};
 
