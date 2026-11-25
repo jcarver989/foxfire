@@ -330,13 +330,15 @@ impl HostedApp {
     fn thread_title(self, id: &ThreadId) -> String {
         self.threads
             .with(|all| all.get(id).and_then(|entry| entry.pane))
-            .map_or_else(|| UNTITLED.to_owned(), |(_, thread, _)| thread.title())
+            .and_then(|(_, thread, _)| thread.title())
+            .unwrap_or_else(|| UNTITLED.to_owned())
     }
 
     fn thread_status(self, id: &ThreadId) -> ThreadStatus {
         self.threads.with(|all| {
             all.get(id).map_or(ThreadStatus::Dormant, |entry| match &entry.info.state {
                 HostedState::Starting => ThreadStatus::Connecting,
+                HostedState::Suspended | HostedState::Ended => ThreadStatus::Dormant,
                 HostedState::Failed(_) => ThreadStatus::Errored,
                 HostedState::Ready => entry.pane.map_or(ThreadStatus::Idle, |(_, thread, _)| thread.status()),
             })
@@ -369,7 +371,7 @@ impl HostedApp {
         let header = thread_header(
             move || gutter.get(),
             self.shell.reopen(),
-            dynamic(move || breadcrumb().test_id("thread-path").min_w(0.0).current(thread.title())),
+            dynamic(move || breadcrumb().test_id("thread-path").min_w(0.0).current(thread.title().unwrap_or_else(|| UNTITLED.to_owned()))),
             move || thread.with_core(|core| core.session().agent_name().to_owned()).unwrap_or_default(),
             pane.room().header_controls(),
         );
@@ -486,6 +488,8 @@ fn conversation_surface(thread: Thread, pane: &ChatPane, in_flow_header: bool) -
 fn waiting(info: HostedThread) -> impl View {
     let title = match info.state {
         HostedState::Ready | HostedState::Starting => "Starting thread".to_owned(),
+        HostedState::Suspended => "Thread suspended".to_owned(),
+        HostedState::Ended => "Thread ended".to_owned(),
         HostedState::Failed(error) => error,
     };
     view! {

@@ -1,4 +1,5 @@
 use agent_client_protocol::v2::schema::SessionId;
+use chrono::{DateTime, Utc};
 use foxfire_acp::client::AcpClientError;
 use foxfire_acp::websocket;
 use foxfire_core::command::Command;
@@ -59,17 +60,43 @@ pub struct HostedThread {
     pub id: ThreadId,
     pub project: Project,
     pub state: HostedState,
+    /// What the thread is called, once it has been prompted or renamed.
+    pub title: Option<String>,
+    pub created_by: User,
+    pub created_at: DateTime<Utc>,
+    /// When the backend ends the thread, if it does so by itself.
+    pub expires_at: Option<DateTime<Utc>>,
+}
+
+/// Someone who uses a hosted backend.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct User {
+    pub id: String,
+    pub name: String,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum HostedState {
     Starting,
     Ready,
+    /// Keeps its session, and resumes when it is opened.
+    Suspended,
+    /// Can no longer be opened.
+    Ended,
     Failed(String),
 }
 
-#[derive(Debug, thiserror::Error)]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum ThreadTitle {
+    /// Taken from the first prompt, and kept only if the thread has no title yet.
+    Suggested(String),
+    Chosen(String),
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, thiserror::Error)]
 pub enum BackendError {
+    #[error("Sign in to continue")]
+    Unauthenticated,
     #[error("Unknown project: {0}")]
     UnknownProject(String),
     #[error("Thread not found: {}", .0.0)]
@@ -80,19 +107,22 @@ pub enum BackendError {
 
 pub type BackendFuture<'a, T> = Pin<Box<dyn Future<Output = Result<T, BackendError>> + 'a>>;
 
-/// Lifecycle operations required by the web shell, independent of a particular HTTP API.
+/// Lifecycle operations required by a thread list, independent of a particular HTTP API.
 pub trait HostedBackend: 'static {
-    /// Attaches to an existing thread, optionally resuming its ACP session.
+    /// Attaches to an existing thread, resuming it if it is suspended, and optionally resuming its ACP session.
     fn open(&self, target: ThreadId, resume: Option<SessionId>) -> SessionLink;
     fn projects(&self) -> BackendFuture<'_, Vec<Project>>;
     fn list_threads(&self) -> BackendFuture<'_, Vec<HostedThread>>;
     fn launch(&self, project: String) -> BackendFuture<'_, HostedThread>;
+    fn rename(&self, id: ThreadId, title: ThreadTitle) -> BackendFuture<'_, ()>;
+    fn suspend(&self, id: ThreadId) -> BackendFuture<'_, ()>;
     fn stop(&self, id: ThreadId) -> BackendFuture<'_, ()>;
 }
 
 impl From<BackendError> for ConnectFailure {
     fn from(error: BackendError) -> Self {
         let reason = match &error {
+            BackendError::Unauthenticated => Self::Unauthenticated,
             BackendError::Unavailable(_) => Self::Retryable,
             BackendError::UnknownThread(_) => Self::Ended,
             BackendError::UnknownProject(_) => Self::Other,

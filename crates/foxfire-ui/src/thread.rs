@@ -126,7 +126,8 @@ impl Thread {
         self.cwd.get()
     }
 
-    pub fn title(&self) -> String {
+    /// What the first prompt calls the thread.
+    pub fn title(&self) -> Option<String> {
         self.state.with(|state| {
             let prompt = state.core.as_ref().and_then(|core| {
                 core.conversation().items().iter().find_map(|item| match item.content() {
@@ -134,7 +135,7 @@ impl Thread {
                     _ => None,
                 })
             });
-            prompt.map_or_else(|| UNTITLED.to_owned(), |blocks| prompt_title(first_text(blocks)))
+            prompt.map(|blocks| prompt_title(first_text(blocks)))
         })
     }
 
