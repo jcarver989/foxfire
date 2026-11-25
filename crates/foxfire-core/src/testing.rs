@@ -1,7 +1,9 @@
 mod git_diff_server;
+mod live_session;
 mod session_config;
 mod workspace;
 use git_diff_server::FakeGitDiffServer;
+pub use live_session::LiveSession;
 pub use session_config::SessionCoreConfigBuilder;
 pub use workspace::TestWorkspace;
 
