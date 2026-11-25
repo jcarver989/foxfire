@@ -35,5 +35,8 @@ tokio = { workspace = true, features = ["sync"] }
 tracing = { workspace = true }
 web-time = "1"
 
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+foxfire-acp = { workspace = true, features = ["websocket"] }
+
 [dev-dependencies]
 tokio = { workspace = true, features = ["macros", "rt"] }
