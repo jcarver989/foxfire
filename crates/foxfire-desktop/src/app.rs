@@ -16,8 +16,8 @@ use crate::threads::{Attention, Thread, ThreadEvent, ThreadManager};
 use crate::ui::DEFAULT_INTERFACE_SIZE;
 use crate::ui::tokens::{MODAL_WIDTH, MotionScale, PICKER_LIST_HEIGHT};
 use crate::ui::{
-    ActiveReviewTheme, FoxfireMotion, InterfaceSize, Material, PickerItem, SearchPickerHandle, ThreadShell, Toasts,
-    appearance, backdrop, key_hints, picker_closed, search_picker,
+    ActiveReviewTheme, FoxfireMotion, InterfaceSize, Material, PanelWidth, PickerItem, SearchPickerHandle, ThreadShell,
+    Toasts, appearance, backdrop, key_hints, picker_closed, search_picker,
 };
 use clankerdiff_core::RepoPath;
 use clankerdiff_remote::Remotes;
@@ -151,9 +151,10 @@ impl DesktopApp {
             sidebar,
             shell: ThreadShell::new(
                 memo(move || registry.with(|state| state.sidebar_collapsed)),
-                memo(move || registry.with(|state| state.sidebar_width)),
                 move |collapsed| registry.update(|state| state.sidebar_collapsed = collapsed),
-                move |width| registry.update(|state| state.sidebar_width = width),
+                PanelWidth::new(memo(move || registry.with(|state| state.sidebar_width)), move |width| {
+                    registry.update(|state| state.sidebar_width = width);
+                }),
             ),
             views: stored(HashMap::new()),
             modal: signal(None),
