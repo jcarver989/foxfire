@@ -2860,11 +2860,16 @@ dependencies = [
 name = "foxfire-web"
 version = "0.1.0"
 dependencies = [
+ "agent-client-protocol",
+ "foxfire-acp",
  "foxfire-chat",
+ "foxfire-core",
+ "foxfire-relay",
  "foxfire-shell",
  "foxfire-ui",
  "rouge",
  "rouge-widgets",
+ "tempfile",
  "thiserror 2.0.21",
  "tokio",
  "wasm-bindgen",

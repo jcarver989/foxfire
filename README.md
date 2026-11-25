@@ -33,6 +33,8 @@ Use the **Settings** gear in the sidebar or Threads header to choose **System**,
 
 The replies are scripted, and threads live only in the page's memory: switching threads keeps their history, refreshing the page clears it. No agent, API server, account, or credentials are required. Add `?rouge_backend=gl` to test Rouge's WebGL2 renderer.
 
+To use a running relay instead, add `?relay=ws://HOST:PORT` and select its thread. The relay exposes one existing session, so there are no controls to create or end threads.
+
 To supply a different backend, implement `foxfire_ui::backend::HostedBackend` and pass it to `foxfire_web::web_view(backend, platform, storage)`. The third argument is a Rouge `Storage` implementation for appearance preferences. Desktop supplies a session-opening function backed by its existing agent connector; its local and Cloud configuration are unchanged.
 
 ## iOS demo
@@ -79,7 +81,7 @@ This is also an internal preview. On a real device, verify keyboard composition,
 - `foxfire-desktop`: native desktop client.
 - `foxfire-ui`: brand-neutral Rouge views and headless controllers for a host to build an agent app from, and the session backend contract.
 - `foxfire-shell`: Foxfire's own shell, mark, words, and in-memory demo, shared by its apps.
-- `foxfire-web`: browser host for the in-memory demo.
+- `foxfire-web`: browser host for the in-memory demo, or for a relay's live session with `?relay=ws://…`.
 - `foxfire-mobile`: iOS and Android hosts for the in-memory demo.
 - `foxfire-chat`: keeps the chat channels people share around an agent's sessions.
 - `foxfire-relay`: serves a stdio ACP agent, and review of its workspace, to several Foxfire clients over one WebSocket each.

@@ -15,11 +15,17 @@
   <canvas id="foxfire" aria-label="Foxfire"></canvas>
   <p id="startup" role="status">Loading Foxfire…</p>
   <script type="module">
-    import init, { mount } from './foxfire_web.js';
+    import init, { connect, mount } from './foxfire_web.js';
     const status = document.getElementById('startup');
     try {
       await init();
-      mount('foxfire');
+      const query = new URLSearchParams(location.search);
+      const relay = query.get('relay');
+      if (relay) {
+        connect('foxfire', relay, query.get('name') ?? 'You');
+      } else {
+        mount('foxfire');
+      }
       status.remove();
     } catch (error) {
       console.error(error);
