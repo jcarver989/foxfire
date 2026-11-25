@@ -20,7 +20,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::net::TcpListener;
-use tokio::task::spawn_blocking;
+use tokio::task::{spawn_blocking, yield_now};
 use tokio_tungstenite::tungstenite::http::StatusCode;
 
 #[tokio::test]
@@ -65,6 +65,7 @@ async fn a_stalled_websocket_cannot_outlast_the_remote_startup_window() -> Resul
     let (_stalled, _) = tokio::select! {
         result = &mut connect => panic!("finished before the server accepted the connection: {:?}", result.err()),
         accepted = listener.accept() => accepted?,
+        () = hold_the_clock() => unreachable!(),
     };
 
     tokio::time::advance(startup).await;
@@ -326,6 +327,13 @@ fn assert_websocket(source: Option<ReviewOverride>, expected: &str, expected_hea
 
 fn words(words: &[&str]) -> Vec<String> {
     words.iter().map(|word| (*word).to_owned()).collect()
+}
+
+/// Paused time jumps to the next timer whenever the runtime is idle, even if it is waiting on a socket.
+async fn hold_the_clock() {
+    loop {
+        yield_now().await;
+    }
 }
 
 fn connector() -> AgentConnector {
