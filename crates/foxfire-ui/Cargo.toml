@@ -5,8 +5,16 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "Shared Rouge UI for Foxfire frontends"
-publish = false
+description = "Rouge views and headless controllers for Agent Client Protocol (ACP) apps"
+keywords = ["acp", "agent", "chat", "foxfire", "rouge"]
+categories = ["gui"]
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+
+[package.metadata.dist]
+dist = false
 
 [features]
 testing = []
