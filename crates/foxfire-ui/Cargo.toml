@@ -23,6 +23,7 @@ clankerdiff-markdown = { workspace = true }
 clankerdiff-rouge = { workspace = true }
 clankerdiff-ui-core = { workspace = true }
 foxfire-acp = { workspace = true }
+foxfire-chat = { workspace = true }
 foxfire-core = { workspace = true }
 indexmap = { workspace = true }
 rouge = { workspace = true, features = ["markdown", "open-url", "persist"] }

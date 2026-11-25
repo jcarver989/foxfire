@@ -2818,6 +2818,7 @@ dependencies = [
  "clankerdiff-rouge",
  "clankerdiff-ui-core",
  "foxfire-acp",
+ "foxfire-chat",
  "foxfire-core",
  "indexmap 2.14.2",
  "rouge",
