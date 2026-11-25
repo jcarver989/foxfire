@@ -7,6 +7,7 @@ pub mod memory;
 mod pane;
 pub mod platform;
 pub mod thread;
+pub mod thread_list;
 pub mod ui;
 
 pub use chat::{ChatRoom, Composer, SessionOptions, StatusLine, Transcript, reconnect_banner};

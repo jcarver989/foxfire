@@ -1,9 +1,10 @@
 use agent_client_protocol::schema::MaybeUndefined;
 
 use agent_client_protocol::v2::schema as acp;
+use foxfire_acp::chat::ChatChannelJoinParams;
 use foxfire_acp::client::AcpEvent;
 use foxfire_acp::content::first_text;
-use foxfire_core::command::{AgentCommand, Command, CommandResult, RequestId};
+use foxfire_core::command::{AgentCommand, ChatCommand, ChatReply, Command, CommandResult, RequestId};
 use foxfire_core::elicitation::{ElicitationAnswer, PendingElicitation};
 use foxfire_core::session_core::Input;
 use foxfire_ui::backend::{
@@ -81,6 +82,26 @@ async fn a_new_attachment_replays_only_its_thread_history_once() -> Result<(), T
 }
 
 #[tokio::test]
+async fn a_detached_client_no_longer_receives_channel_events() -> Result<(), TestError> {
+    let _entered = Runtime::new().enter();
+    let backend = backend().with_chat();
+    let thread = backend.launch("demo".into()).await?;
+    let mut link = backend.open(thread.id.clone(), None);
+    let join = ChatChannelJoinParams { session_id: connected(&mut link)?, after: None };
+    send(&link, AgentCommand::Chat(ChatCommand::Join(join)))?;
+    assert!(pending(&mut link).iter().any(|event| matches!(
+        event,
+        SessionEvent::Input(Input::Result(CommandResult::Chat { reply: ChatReply::Joined(Ok(_)), .. }))
+    )));
+
+    drop(link.commands);
+    poll_tasks();
+    backend.post(&thread.id, "after detach")?;
+    assert!(matches!(link.events.try_recv(), Err(TryRecvError::Disconnected)));
+    Ok(())
+}
+
+#[tokio::test]
 async fn stop_removes_the_thread_and_closes_its_active_attachments() -> Result<(), TestError> {
     let _entered = Runtime::new().enter();
     let backend = backend();
@@ -103,6 +124,8 @@ async fn stop_removes_the_thread_and_closes_its_active_attachments() -> Result<(
 
 #[derive(Debug, thiserror::Error)]
 enum TestError {
+    #[error(transparent)]
+    Chat(#[from] foxfire_chat::ChatError),
     #[error(transparent)]
     Backend(#[from] BackendError),
     #[error(transparent)]
