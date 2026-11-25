@@ -1,7 +1,7 @@
 use super::tokens::{HEADER_HEIGHT, ICON_SIZE, PANEL_GUTTER, Pace, ROW_HEIGHT, Space, TWO_LINE_ROW_HEIGHT, UNIT};
 use super::{
-    FoxfireState, Icon, IconName, ListRow, Side, StyledExt, UI_FONT, UiStyles, chord, empty_state, foxfire, hint,
-    icon_button, icon_slot, list_row, resizable_panel, section_header, selection, tree_row,
+    FoxfireState, Icon, IconName, ListRow, ResizablePanel, Side, StyledExt, UI_FONT, UiStyles, chord, empty_state,
+    foxfire, hint, icon_button, icon_slot, list_row, resizable_panel, section_header, selection, tree_row,
 };
 use crate::thread::ThreadStatus;
 use rouge::core::{
@@ -11,40 +11,33 @@ use rouge::reactive::{Callback, Memo, effect, signal, untrack};
 
 pub const MIN_MAIN_WIDTH: f32 = 80.0 * UNIT;
 pub const TOGGLE_SIDEBAR_KEYS: &str = "secondary-b";
-const DEFAULT_SIDEBAR_WIDTH: f32 = 68.0 * UNIT;
-const MIN_SIDEBAR_WIDTH: f32 = 50.0 * UNIT;
-const MAX_SIDEBAR_WIDTH: f32 = 120.0 * UNIT;
+/// The narrowest, usual and widest the sidebar can be.
+const SIDEBAR_WIDTHS: [f32; 3] = [50.0 * UNIT, 68.0 * UNIT, 120.0 * UNIT];
 const SIDEBAR_ENTRY_SLIDE: f32 = Space::X6.px();
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ToggleSidebar;
 
+/// How wide a host remembers the user leaving a panel.
+#[derive(Clone, Copy)]
+pub struct PanelWidth {
+    saved: Memo<Option<f32>>,
+    set: Callback<(Option<f32>,)>,
+}
+
 /// Shared window layout. Hosts own the sidebar preferences and supply content and actions.
 #[derive(Clone, Copy)]
 pub struct ThreadShell {
     collapsed: Memo<bool>,
-    width: Memo<Option<f32>>,
     set_collapsed: Callback<(bool,)>,
-    set_width: Callback<(Option<f32>,)>,
+    width: PanelWidth,
     slide: Motion,
     fade: Motion,
 }
 
 impl ThreadShell {
-    pub fn new(
-        collapsed: Memo<bool>,
-        width: Memo<Option<f32>>,
-        set_collapsed: impl Fn(bool) + 'static,
-        set_width: impl Fn(Option<f32>) + 'static,
-    ) -> Self {
-        Self {
-            collapsed,
-            width,
-            set_collapsed: Callback::from(set_collapsed),
-            set_width: Callback::from(set_width),
-            slide: motion(0.0),
-            fade: motion(1.0),
-        }
+    pub fn new(collapsed: Memo<bool>, set_collapsed: impl Fn(bool) + 'static, width: PanelWidth) -> Self {
+        Self { collapsed, set_collapsed: Callback::from(set_collapsed), width, slide: motion(0.0), fade: motion(1.0) }
     }
 
     pub fn view<T: View, U: View>(
@@ -93,31 +86,9 @@ impl ThreadShell {
 
     fn sidebar(self, controls: impl View, sections: impl View) -> AnyView {
         let contents = self.sidebar_contents(controls, sections);
-        let window = window_size();
-        let fit = move |width: f32, available: f32| {
-            let max = (available - MIN_MAIN_WIDTH).clamp(MIN_SIDEBAR_WIDTH, MAX_SIDEBAR_WIDTH);
-            (width.clamp(MIN_SIDEBAR_WIDTH, max) / UNIT).floor() * UNIT
-        };
-        let width =
-            signal(fit(self.width.get_untracked().unwrap_or(DEFAULT_SIDEBAR_WIDTH), window.get_untracked().width));
-        effect(move || {
-            width.set_if_changed(fit(self.width.get().unwrap_or(DEFAULT_SIDEBAR_WIDTH), window.get().width));
-        });
-        let on_resize = move |requested| {
-            let chosen = fit(requested, window.get_untracked().width);
-            if self.width.get_untracked() != Some(chosen) {
-                self.set_width.call(Some(chosen));
-            }
-            width.set_if_changed(chosen);
-        };
-        let on_reset = move || self.set_width.call(None);
         view! {
             <div h_full flex_none flex translate_x={self.slide} opacity={self.fade}>
-                <resizable_panel test_id="sidebar" edge=Side::Left size=width min_size=MIN_SIDEBAR_WIDTH
-                                 max_size=MAX_SIDEBAR_WIDTH reset_size=DEFAULT_SIDEBAR_WIDTH
-                                 on_resize=on_resize on_reset=on_reset h_full flex col bg=Role::Chrome>
-                    {contents}
-                </resizable_panel>
+                {self.width.panel(Side::Left, SIDEBAR_WIDTHS, contents).test_id("sidebar")}
             </div>
         }
         .into_any()
@@ -154,6 +125,39 @@ impl ThreadShell {
             self.fade.animate_to(1.0, Pace::Enter);
         }
         self.set_collapsed.call(!opening);
+    }
+}
+
+impl PanelWidth {
+    pub fn new(saved: Memo<Option<f32>>, set: impl Fn(Option<f32>) + 'static) -> Self {
+        Self { saved, set: Callback::from(set) }
+    }
+
+    /// A panel at the remembered width, or the closest that leaves room for the rest of the window.
+    fn panel(self, edge: Side, [min, default, max]: [f32; 3], content: impl View) -> ResizablePanel {
+        let window = window_size();
+        let fit = move |width: f32, available: f32| {
+            let max = (available - MIN_MAIN_WIDTH).clamp(min, max);
+            (width.clamp(min, max) / UNIT).floor() * UNIT
+        };
+        let width = signal(fit(self.saved.get_untracked().unwrap_or(default), window.get_untracked().width));
+        effect(move || {
+            width.set_if_changed(fit(self.saved.get().unwrap_or(default), window.get().width));
+        });
+        let on_resize = move |requested| {
+            let chosen = fit(requested, window.get_untracked().width);
+            if self.saved.get_untracked() != Some(chosen) {
+                self.set.call(Some(chosen));
+            }
+            width.set_if_changed(chosen);
+        };
+        let on_reset = move || self.set.call(None);
+        view! {
+            <resizable_panel edge size=width min_size=min max_size=max reset_size=default on_resize=on_resize
+                             on_reset=on_reset h_full flex col bg=Role::Chrome>
+                {content}
+            </resizable_panel>
+        }
     }
 }
 

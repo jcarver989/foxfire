@@ -8,9 +8,9 @@ use crate::platform::ChatPlatform;
 use crate::thread::{Thread, ThreadStatus, UNTITLED};
 use crate::ui::tokens::{BASE_SIZE, Space};
 use crate::ui::{
-    ActiveReviewTheme, FoxfireMotion, IconName, InterfaceSize, SettingsField, SettingsModel, ThemePreference,
-    ThreadShell, UI_FONT, UiStyles, appearance, breadcrumb, cloud_section, empty_state, icon_button, row_action,
-    settings, settings_button, sidebar_group, sidebar_thread_row, thread_header, thread_status_icon,
+    ActiveReviewTheme, FoxfireMotion, IconName, InterfaceSize, PanelWidth, SettingsField, SettingsModel,
+    ThemePreference, ThreadShell, UI_FONT, UiStyles, appearance, breadcrumb, cloud_section, empty_state, icon_button,
+    row_action, settings, settings_button, sidebar_group, sidebar_thread_row, thread_header, thread_status_icon,
 };
 use indexmap::IndexMap;
 use rouge::core::{AnyView, Div, Role, Styled, View, div, dynamic, each, motion, presentation, show, text, view};
@@ -119,9 +119,8 @@ impl HostedApp {
             settings,
             shell: ThreadShell::new(
                 memo(move || collapsed.get()),
-                memo(move || width.get()),
                 move |value| collapsed.set(value),
-                move |value| width.set(value),
+                PanelWidth::new(memo(move || width.get()), move |value| width.set(value)),
             ),
             inventory_loaded: signal(false),
             cloud_expanded: signal(true),
