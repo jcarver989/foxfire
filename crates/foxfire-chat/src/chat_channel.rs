@@ -30,8 +30,8 @@ struct Member {
 }
 
 impl<T: Copy + Eq + Hash> ChatChannel<T> {
-    pub(crate) fn open(session: SessionId, path: &Path) -> Result<Self, ChatError> {
-        let (log, events) = Log::open(path)?;
+    pub(crate) fn open(session: SessionId, path: Option<&Path>) -> Result<Self, ChatError> {
+        let (log, events) = path.map(Log::open).transpose()?.unwrap_or_default();
         let mut channel = Self { session, log, members: Vec::new(), messages: Vec::new(), connections: HashMap::new() };
         for event in events {
             channel.apply(event);
