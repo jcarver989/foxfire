@@ -27,7 +27,7 @@ pub mod variables;
 
 pub use app::{
     DesktopApp, DesktopConfig, NewCloudThread, NewThread, OpenFile, OpenSettings, OpenThreadSwitcher, SelectNextThread,
-    SelectPreviousThread, ShowChat, ShowFiles, ToggleSidebar,
+    SelectPreviousThread, ShowChat, ShowFiles, ToggleChatRoom, ToggleSidebar,
 };
 pub use clankerdiff_ui_core::{AppearanceMode, ThemePreference};
 

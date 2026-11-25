@@ -7,6 +7,8 @@ use crate::sessions::SessionKey;
 use crate::threads::{Thread, ThreadManager, ThreadStatus};
 use chrono::{DateTime, Utc};
 use clankerdiff_core::format_age;
+use foxfire_acp::chat::Participant;
+use foxfire_core::session_core::ChatChannel;
 use std::path::{Path, PathBuf};
 use std::time::SystemTime;
 
@@ -41,6 +43,7 @@ pub(super) struct Row {
     pub(super) icon: RowIcon,
     pub(super) unread: bool,
     pub(super) selected: bool,
+    pub(super) present: Vec<Participant>,
     pub(super) actions: Vec<RowAction>,
     pub(super) kind: RowKind,
 }
@@ -196,6 +199,7 @@ impl Listing<'_> {
             icon: status.map_or(RowIcon::Instance(state), RowIcon::Status),
             unread,
             selected,
+            present: thread.and_then(|thread| thread.with_chat(ChatChannel::others)).unwrap_or_default(),
             actions,
             kind: RowKind::Cloud {
                 remote: Box::new(remote.clone()),
@@ -221,6 +225,7 @@ impl Listing<'_> {
             icon: RowIcon::Status(thread.status()),
             unread,
             selected,
+            present: thread.with_chat(ChatChannel::others).unwrap_or_default(),
             actions,
             kind: RowKind::Local { session_id, age: Some(relative_time(thread.opened_at(), self.now)), editing },
             thread: Some(thread),

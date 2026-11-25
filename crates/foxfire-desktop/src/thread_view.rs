@@ -98,6 +98,10 @@ impl ThreadView {
         show_tab(self.thread, self.tab, self.changes_seen, tab);
     }
 
+    pub(crate) fn toggle_chat_room(self) {
+        self.chat.room().toggle();
+    }
+
     pub(crate) fn open_file(self, path: RepoPath, line: Option<u32>) {
         self.show(ThreadTab::Files);
         self.files.open(path, line);
@@ -107,12 +111,13 @@ impl ThreadView {
         let tab = self.tab;
         let chat = memo(move || tab.get() == ThreadTab::Chat);
         let body = self.body(chat, motion(1.0));
-        view! {
+        let conversation = view! {
             <div relative size_full>
                 {body}
                 {self.header(shell)}
             </div>
-        }
+        };
+        shell.with_room(self.chat.room(), conversation)
     }
 
     fn header(self, shell: ThreadShell) -> impl View {
@@ -137,7 +142,9 @@ impl ThreadView {
             shell.reopen(),
             path,
             move || agent.clone(),
-            self.switch(),
+            view! {
+                <div flex_none flex items_center gap=Space::X2>{self.chat.room().header_controls()}{self.switch()}</div>
+            },
         )
     }
 
