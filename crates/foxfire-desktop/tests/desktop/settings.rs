@@ -60,6 +60,20 @@ fn the_interface_size_steps_and_is_typed_from_settings() -> Result<(), TestError
 }
 
 #[test]
+fn the_display_name_can_be_cleared() -> Result<(), TestError> {
+    let mut harness = DesktopHarnessBuilder::default().build();
+    harness.press("secondary-,");
+    harness.click("display-name")?;
+    harness.type_text("J");
+    assert_eq!(harness.registry().participant().name, "J");
+    harness.press("backspace");
+    assert_eq!(harness.registry().participant().name, "");
+    harness.type_text("Maya");
+    assert_eq!(harness.registry().participant().name, "Maya");
+    Ok(())
+}
+
+#[test]
 fn clicking_outside_settings_closes_it() {
     let mut harness = DesktopHarnessBuilder::default().build();
 

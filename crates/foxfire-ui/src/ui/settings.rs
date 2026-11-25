@@ -2,7 +2,7 @@ use super::tokens::{Space, UNIT};
 use super::{
     ActiveReviewTheme, ButtonVariant, IconButton, IconName, InterfaceSize, Material, ModalSize, ThemePickerEvent,
     UiStyles, button, icon_button, key_hints, modal, number_field, search_picker, segment, segmented_control,
-    theme_picker, toggle,
+    text_input, theme_picker, toggle,
 };
 use clankerdiff_ui_core::{Appearance, AppearanceMode, ReviewTheme, ThemeChoice, ThemePreference};
 use rouge::core::{AnyView, Div, Styled, View, div, dynamic, pct, presentation, scroll, text, view};
@@ -35,6 +35,7 @@ pub struct SettingsModel {
     pub appearance: SettingsField<ThemePreference>,
     pub reduced_motion: Option<SettingsField<bool>>,
     pub interface_size: Option<InterfaceSize>,
+    pub display_name: Option<SettingsField<String>>,
 }
 
 /// The shared sidebar entry point for Settings.
@@ -92,6 +93,9 @@ fn overview(model: SettingsModel, active: ActiveReviewTheme, touch_picker: Optio
     let theme = model.appearance;
     let touch = touch_picker.is_some();
     let general = [
+        model.display_name.map(|field| {
+            row("Display name", "Shown to others in shared threads; applies on reconnect", display_name(field), touch)
+        }),
         model
             .reduced_motion
             .map(|field| row("Reduce motion", "Stills the activity marks and every panel", motion(field), touch)),
@@ -120,6 +124,20 @@ fn overview(model: SettingsModel, active: ActiveReviewTheme, touch_picker: Optio
     } else {
         content.children(appearance)
     }
+}
+
+fn display_name(field: SettingsField<String>) -> AnyView {
+    let typed = signal(field.value.get_untracked());
+    effect(move || {
+        typed.set_if_changed(field.value.get());
+    });
+    effect(move || {
+        let next = typed.get();
+        if field.value.get_untracked() != next {
+            field.set.call(next);
+        }
+    });
+    view! { <text_input test_id="display-name" value=typed placeholder="Your name" w=DISPLAY_NAME_WIDTH/> }.into_any()
 }
 
 fn motion(field: SettingsField<bool>) -> AnyView {
@@ -269,3 +287,4 @@ fn row(label: &'static str, detail: &'static str, control: AnyView, stacked: boo
 }
 
 const INTERFACE_SIZE_WIDTH: f32 = 30.0 * UNIT;
+const DISPLAY_NAME_WIDTH: f32 = 48.0 * UNIT;

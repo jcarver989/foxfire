@@ -5,18 +5,18 @@ use crate::platform::{Notification, PathPrompt, Platform, PlatformFuture};
 use crate::registry::{self, Registry, STATE_KEY, State};
 use crate::remotes::{Acp, Fleet, InstanceState, RemoteSpec};
 use crate::sessions::{ListFuture, SessionSource};
-use crate::target::{AgentConnector, ConnectError, Transport, TransportFuture, client_info};
+use crate::target::{AgentConnector, ConnectError, Transport, TransportFuture};
 use crate::threads::{Thread, ThreadManager, ThreadStatus};
 use crate::ui::KINDLED_AFTER;
 use crate::ui::tokens::BASE_SIZE;
 use crate::{ActiveReviewTheme, DesktopApp, DesktopConfig, window_size};
 use agent_client_protocol::v2::schema::{AbsolutePath, SessionId, SessionInfo};
+use agent_client_protocol::{Client, DynConnectTo};
 use chrono::{DateTime, Utc};
 use clankerdiff_remote::RemotesFile;
 use clankerdiff_remote::testing::FakeRemotes;
 use clankerdiff_ui_core::ReviewTheme;
 use foxfire_acp::testing::{Channel, FakeAgent, FakeAgentRequests, QueuedTurns};
-use foxfire_core::connection::Connection;
 use foxfire_core::testing::{FakeGit, git_diff_agent};
 use rouge::core::testing::{TestError, TestUi};
 use rouge::core::{Clipboard, ClipboardMedia, PasteRequest, Point, Rect, Size, window_focused, zoom};
@@ -353,7 +353,7 @@ impl FakeConnector {
 }
 
 impl Transport for FakeConnector {
-    fn stdio<'a>(&'a self, line: &'a CommandLine, dir: &'a Path) -> TransportFuture<'a, Connection> {
+    fn stdio<'a>(&'a self, line: &'a CommandLine, dir: &'a Path) -> TransportFuture<'a, DynConnectTo<Client>> {
         Box::pin(async move {
             let agent = self.lock().take(dir).ok_or_else(|| ConnectError::Spawn {
                 program: line.command().display().to_string(),
@@ -361,11 +361,11 @@ impl Transport for FakeConnector {
             })?;
             let (agent_transport, client_transport) = Channel::duplex();
             self.serve(dir, agent, agent_transport);
-            Ok(Connection::connect_to(client_info(), client_transport).await?)
+            Ok(DynConnectTo::new(client_transport))
         })
     }
 
-    fn websocket<'a>(&'a self, endpoint: &'a Endpoint, _: Duration) -> TransportFuture<'a, Connection> {
+    fn websocket<'a>(&'a self, endpoint: &'a Endpoint, _: Duration) -> TransportFuture<'a, DynConnectTo<Client>> {
         Box::pin(async move {
             Err(ConnectError::Spawn {
                 program: endpoint.url.clone(),

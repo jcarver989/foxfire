@@ -132,6 +132,10 @@ impl DesktopApp {
                     .update(|state| state.interface_size = (committed != DEFAULT_INTERFACE_SIZE).then_some(committed));
             });
         });
+        registry.update(State::identify);
+        let participant = memo(move || registry.participant());
+        let identified = connector.clone();
+        effect(move || identified.identify(participant.get()));
         let agents = Catalogs::new(auto_add_agent(agents, platform.as_ref(), registry));
         let threads = ThreadManager::new(connector, agents, clock.clone());
         let history = History::new(sessions);

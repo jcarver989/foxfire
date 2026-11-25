@@ -50,6 +50,7 @@ pub fn hosted_view(
         }),
         reduced_motion: None,
         interface_size: None,
+        display_name: None,
     };
     show(move || ready.get(), move || HostedApp::new(backend.clone(), platform.clone(), model).view())
 }
