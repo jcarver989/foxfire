@@ -1,12 +1,14 @@
 use crate::backend::{
     BackendError, BackendFuture, HostedBackend, HostedState, HostedThread, Project, SessionEvent, SessionLink, ThreadId,
 };
-use agent_client_protocol::RawJsonRpcId;
 use agent_client_protocol::schema::ProtocolVersion;
 use agent_client_protocol::v2::schema as acp;
-use foxfire_acp::client::AcpEvent;
+use agent_client_protocol::{Error, RawJsonRpcId};
+use foxfire_acp::chat::{ChatChannelJoinParams, ChatChannelPostParams, FoxfireCapabilities, FoxfireMeta, Participant};
+use foxfire_acp::client::{AcpClientError, AcpEvent};
 use foxfire_acp::content::first_text;
-use foxfire_core::command::{AgentCommand, Command, CommandResult, PromptRejection, RequestId};
+use foxfire_chat::{Ask, ChatChannels, ChatError, Delivery};
+use foxfire_core::command::{AgentCommand, ChatCommand, ChatReply, Command, CommandResult, PromptRejection, RequestId};
 use foxfire_core::composer::attachment::AttachmentOutcome;
 use foxfire_core::elicitation::{Elicitation, ElicitationAnswer, PendingElicitation, PermissionChoice};
 use foxfire_core::session_core::Input;
@@ -27,6 +29,7 @@ pub struct MemoryBackend {
     state: Rc<RefCell<Inventory>>,
     reply: Rc<Vec<String>>,
     delay: Duration,
+    chat: bool,
 }
 
 #[derive(Default)]
@@ -42,6 +45,13 @@ struct Session {
     turn: Option<Turn>,
     next: u64,
     stopped: watch::Sender<bool>,
+    chat: Option<Chat>,
+}
+
+/// The session's channel, where `PEOPLE` came before any link did.
+struct Chat {
+    channels: ChatChannels<usize>,
+    links: Vec<UnboundedSender<SessionEvent>>,
 }
 
 struct Turn {
@@ -62,6 +72,7 @@ impl MemoryBackend {
                 "No agent or server was contacted.".to_owned(),
             ]),
             delay: Duration::from_millis(220),
+            chat: false,
         }
     }
 
@@ -70,6 +81,21 @@ impl MemoryBackend {
         self.reply = Rc::new(chunks);
         self.delay = delay;
         self
+    }
+
+    /// Puts a few people in the chat channel of every thread.
+    pub fn with_chat(mut self) -> Self {
+        self.chat = true;
+        self
+    }
+
+    /// Posts to the thread's chat channel as the first person in it.
+    pub fn post(&self, thread: &ThreadId, body: &str) -> Result<(), ChatError> {
+        let session = self.state.borrow().threads.get(thread).cloned();
+        match session.and_then(|session| session.borrow_mut().chat.as_mut().map(|chat| chat.post(0, thread, body))) {
+            Some(posted) => posted,
+            None => Err(ChatError::NotJoined),
+        }
     }
 }
 
@@ -96,6 +122,8 @@ impl HostedBackend for MemoryBackend {
             inventory.next += 1;
             let id = ThreadId(format!("demo-{}", inventory.next));
             let info = HostedThread { id: id.clone(), project, state: HostedState::Ready };
+            let chat = self.chat.then(|| Chat::with_people(&id)).transpose();
+            let chat = chat.map_err(|error| BackendError::Unavailable(error.to_string()))?;
             inventory.threads.insert(
                 id,
                 Rc::new(RefCell::new(Session {
@@ -105,6 +133,7 @@ impl HostedBackend for MemoryBackend {
                     turn: None,
                     next: 0,
                     stopped: watch::Sender::new(false),
+                    chat,
                 })),
             );
             Ok(info)
@@ -149,12 +178,12 @@ impl Session {
 
     fn attach(&mut self, sender: &UnboundedSender<SessionEvent>) {
         let config = SessionCoreConfig {
-            initialize_response: demo_initialize(),
+            initialize_response: demo_initialize(self.chat.is_some()),
             session_response: acp::NewSessionResponse::new(self.session_id()),
             working_dir: format!("/workspace/{}", self.info.project.id).into(),
             workspace_status: WorkspaceStatus { display_dir: self.info.project.name.clone(), git_ref: None },
             workspace_access: WorkspaceAccess::Remote,
-            participant: None,
+            participant: Some(person(YOU)),
         };
         let _ = sender.send(SessionEvent::Connected(Box::new(config)));
         for update in &self.history {
@@ -190,6 +219,7 @@ async fn run(
     delay: Duration,
 ) {
     let mut stopped = session.borrow().stopped.subscribe();
+    let client = session.borrow_mut().chat.as_mut().map(|chat| chat.connect(&sender));
     while !*stopped.borrow_and_update() {
         let command = tokio::select! {
             _ = stopped.changed() => break,
@@ -201,7 +231,7 @@ async fn run(
         };
         let mut state = session.borrow_mut();
         match command {
-            Command::Agent(AgentCommand::Prompt { request_id, content, .. }) => {
+            Command::Agent(AgentCommand::Prompt { request_id, content, sources, .. }) => {
                 if state.turn.is_some() {
                     answer(
                         &sender,
@@ -213,9 +243,14 @@ async fn run(
                 state.next += 1;
                 let number = state.next;
                 let echo = first_text(&content).unwrap_or_default().trim().to_owned();
-                state.update(acp::SessionUpdate::UserMessage(
-                    acp::UserMessage::new(format!("user-{number}")).content(content),
-                ));
+                let id = format!("user-{number}");
+                state.update(acp::SessionUpdate::UserMessage(acp::UserMessage::new(id.clone()).content(content)));
+                let session_id = state.session_id();
+                if let Some(chat) = &mut state.chat {
+                    let ask = Ask { session_id, author: person(YOU), body: echo.clone(), sources };
+                    let recorded = chat.channels.record_ask(ask, id.into());
+                    chat.deliver(recorded.unwrap_or_default());
+                }
                 state
                     .update(acp::SessionUpdate::StateUpdate(acp::StateUpdate::Running(acp::RunningStateUpdate::new())));
                 let task = spawn(respond(session.clone(), number, sender.clone(), echo, reply.clone(), delay));
@@ -227,6 +262,11 @@ async fn run(
                 });
             }
             Command::Agent(AgentCommand::Cancel { .. }) => state.finish(acp::StopReason::Cancelled),
+            Command::Agent(AgentCommand::Chat(command)) => {
+                if let Some((chat, client)) = state.chat.as_mut().zip(client) {
+                    chat.request(client, command);
+                }
+            }
             Command::PrepareSubmission { .. } => {
                 let outcome = AttachmentOutcome {
                     blocks: Vec::new(),
@@ -235,6 +275,69 @@ async fn run(
                 let _ = sender.send(SessionEvent::Input(Input::Result(CommandResult::SubmissionPrepared(outcome))));
             }
             _ => {}
+        }
+    }
+}
+
+impl Chat {
+    fn with_people(thread: &ThreadId) -> Result<Self, ChatError> {
+        let mut chat = Self { channels: ChatChannels::in_memory(), links: Vec::new() };
+        for (client, (who, said)) in PEOPLE.into_iter().enumerate() {
+            let params = ChatChannelJoinParams { session_id: thread.0.clone().into(), after: None };
+            chat.channels.join(client, &person(who), &params)?;
+            chat.post(client, thread, said)?;
+        }
+        Ok(chat)
+    }
+
+    fn connect(&mut self, link: &UnboundedSender<SessionEvent>) -> usize {
+        self.links.push(link.clone());
+        PEOPLE.len() + self.links.len() - 1
+    }
+
+    fn post(&mut self, client: usize, thread: &ThreadId, body: &str) -> Result<(), ChatError> {
+        let (session_id, key, body) = (thread.0.clone().into(), body.to_owned(), body.to_owned());
+        let post = ChatChannelPostParams { session_id, key, body, anchor: None, after_item: None };
+        let (_, deliveries) = self.channels.post(client, post)?;
+        self.deliver(deliveries);
+        Ok(())
+    }
+
+    fn request(&mut self, client: usize, command: ChatCommand) {
+        let (session_id, reply, deliveries) = match command {
+            ChatCommand::Join(params) => {
+                let (joined, deliveries) = answered(self.channels.join(client, &person(YOU), &params));
+                (params.session_id, ChatReply::Joined(joined), deliveries)
+            }
+            ChatCommand::Post(params) => {
+                let (session_id, key) = (params.session_id.clone(), params.key.clone());
+                let (result, deliveries) = answered(self.channels.post(client, params));
+                (session_id, ChatReply::Posted { key, result }, deliveries)
+            }
+            ChatCommand::History(params) => {
+                let page = self.channels.history(client, &params).map_err(|error| refusal(&error));
+                (params.session_id, ChatReply::History(page), Vec::new())
+            }
+            ChatCommand::Read(params) => {
+                let deliveries = self.channels.read(client, &params).unwrap_or_default();
+                return self.deliver(deliveries);
+            }
+        };
+        self.send(client, Input::Result(CommandResult::Chat { session_id, reply }));
+        self.deliver(deliveries);
+    }
+
+    fn deliver(&self, deliveries: Vec<Delivery<usize>>) {
+        for Delivery { to, payload } in deliveries {
+            for client in to {
+                self.send(client, Input::Event(AcpEvent::ChatChannelEvent(payload.clone())));
+            }
+        }
+    }
+
+    fn send(&self, client: usize, input: Input) {
+        if let Some(link) = client.checked_sub(PEOPLE.len()).and_then(|link| self.links.get(link)) {
+            let _ = link.send(SessionEvent::Input(input));
         }
     }
 }
@@ -284,10 +387,35 @@ fn demo_permission() -> Elicitation {
     }
 }
 
-fn demo_initialize() -> acp::InitializeResponse {
+fn demo_initialize(chat: bool) -> acp::InitializeResponse {
+    let session = acp::SessionCapabilities::new().meta(Some(FoxfireCapabilities { chat }.to_meta()));
     acp::InitializeResponse::new(ProtocolVersion::V2, acp::Implementation::new("Demo agent", "0.1.0"))
+        .capabilities(acp::AgentCapabilities::new().session(session))
+}
+
+fn answered<T>(
+    result: Result<(T, Vec<Delivery<usize>>), ChatError>,
+) -> (Result<T, AcpClientError>, Vec<Delivery<usize>>) {
+    match result {
+        Ok((answer, deliveries)) => (Ok(answer), deliveries),
+        Err(error) => (Err(refusal(&error)), Vec::new()),
+    }
+}
+
+fn refusal(error: &ChatError) -> AcpClientError {
+    AcpClientError::Protocol(Error::invalid_request().data(error.to_string()))
+}
+
+fn person(name: &str) -> Participant {
+    Participant { id: name.to_lowercase(), name: name.to_owned() }
 }
 
 fn answer(sender: &UnboundedSender<SessionEvent>, request_id: RequestId, result: Result<(), PromptRejection>) {
     let _ = sender.send(SessionEvent::Input(Input::Result(CommandResult::Prompt { request_id, result })));
 }
+
+const YOU: &str = "You";
+const PEOPLE: [(&str, &str); 2] = [
+    ("Maya", "Resuming a sandbox is dropping everyone again."),
+    ("Theo", "Only after a suspend for me. First boot is always fine."),
+];
