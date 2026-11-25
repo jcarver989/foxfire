@@ -82,6 +82,14 @@ impl ConversationItem {
         self.message_id.as_ref()
     }
 
+    /// The id every client of the session knows this item by, which a host's own notices lack.
+    pub fn protocol_id(&self) -> Option<&str> {
+        match &self.content {
+            ConversationContent::Tool(tool) => Some(tool.id()),
+            _ => self.message_id.as_ref().map(|id| id.0.as_ref()),
+        }
+    }
+
     pub fn revision(&self) -> Revision {
         self.revision
     }
