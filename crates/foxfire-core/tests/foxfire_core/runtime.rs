@@ -4,7 +4,7 @@ use clankerdiff_remote::Invocation;
 use foxfire_acp::client::{AcpClientError, AcpEvent, connect_acp_client};
 use foxfire_acp::testing::{Channel, FakeAgent, initialize_request};
 use foxfire_core::command::{AgentCommand, Command, CommandResult, GitReviewCommand, ReviewSource};
-use foxfire_core::native::runtime::{ReviewOverride, SessionRuntime};
+use foxfire_core::runtime::{ReviewOverride, SessionRuntime};
 use foxfire_core::session_core::Input;
 use foxfire_core::session_model::initial_workspace_status;
 use foxfire_core::testing::TestWorkspace;

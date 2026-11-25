@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+# Runs the browser tests in headless Chrome against a fake agent.
+set -euo pipefail
+cd "$(dirname "$0")/.."
+cargo build --locked -p foxfire-acp --example fake_agent_server --features testing,websocket
+target_dir=$(cargo metadata --locked --format-version 1 --no-deps | sed -E 's/.*"target_directory":"([^"]+)".*/\1/')
+export CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUNNER=wasm-bindgen-test-runner
+exec "$target_dir/debug/examples/fake_agent_server" bash -c '
+    cargo test --locked --target wasm32-unknown-unknown -p foxfire-acp --features websocket --test browser_websocket &&
+    cargo test --locked --target wasm32-unknown-unknown -p foxfire-core --test browser_runtime
+'

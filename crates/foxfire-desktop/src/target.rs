@@ -7,7 +7,7 @@ use clankerdiff_remote::{AcpTarget, Channel, Invocation, RemoteError, RemoteSpec
 use foxfire_acp::chat::Participant;
 use foxfire_acp::websocket::{self, Endpoint};
 use foxfire_core::connection::{ClientInfo, Connection, ConnectionError, Session};
-use foxfire_core::native::runtime::ReviewOverride;
+use foxfire_core::runtime::ReviewOverride;
 use foxfire_core::session_model::WorkspaceAccess;
 use foxfire_ui::backend::ConnectFailure;
 use serde::de::DeserializeOwned;

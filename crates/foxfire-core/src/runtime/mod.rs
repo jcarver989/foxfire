@@ -1,26 +1,39 @@
 mod agent;
+#[cfg(target_arch = "wasm32")]
+mod browser_host;
 mod git_review;
+#[cfg(not(target_arch = "wasm32"))]
+mod native_host;
 
 pub use git_review::ReviewOverride;
 
-use super::{build_attachments, local_status};
+#[cfg(target_arch = "wasm32")]
+use browser_host as host;
+#[cfg(not(target_arch = "wasm32"))]
+use native_host as host;
+
 use crate::command::{Command, CommandResult};
 use crate::session_core::Input;
 use agent::Requests;
 use agent_client_protocol::{RawJsonRpcId, RequestCancellation};
 use foxfire_acp::client::{AcpClientHandle, AcpEvent};
 use futures::StreamExt;
+#[cfg(not(target_arch = "wasm32"))]
+use futures::future::BoxFuture;
+#[cfg(target_arch = "wasm32")]
+use futures::future::LocalBoxFuture;
+use futures::future::{AbortHandle, Abortable, abortable};
+use futures::stream::FuturesUnordered;
 use git_review::GitReviewRuntime;
 use std::collections::VecDeque;
 use tokio::sync::mpsc::UnboundedReceiver;
-use tokio::task::{AbortHandle, JoinSet};
 
 pub struct SessionRuntime {
     handle: AcpClientHandle,
     events: UnboundedReceiver<AcpEvent>,
     events_closed: bool,
     requests: Requests,
-    tasks: JoinSet<CommandResult>,
+    tasks: FuturesUnordered<Abortable<Task>>,
     preparing: Option<AbortHandle>,
     watching: Option<AbortHandle>,
     git_review: GitReviewRuntime,
@@ -35,7 +48,7 @@ impl SessionRuntime {
             events,
             events_closed: false,
             requests: Requests::new(),
-            tasks: JoinSet::new(),
+            tasks: FuturesUnordered::new(),
             preparing: None,
             watching: None,
             ready: VecDeque::new(),
@@ -50,18 +63,16 @@ impl SessionRuntime {
     pub fn dispatch(&mut self, command: Command) {
         let result = match command {
             Command::Agent(command) => agent::execute(&self.handle, command, &mut self.requests),
-            Command::GitReview(command) => self.git_review.dispatch(command, &mut self.tasks),
+            Command::GitReview(command) => self.git_review.dispatch(command, &mut self.requests),
             Command::PrepareSubmission { attachments, access } => {
-                let preparing = self
-                    .tasks
-                    .spawn_blocking(move || CommandResult::SubmissionPrepared(build_attachments(&attachments, access)));
+                let preparing = self.start(host::prepare_submission(attachments, access));
                 if let Some(superseded) = self.preparing.replace(preparing) {
                     superseded.abort();
                 }
                 None
             }
             Command::ReadWorkspaceStatus { cwd } => {
-                self.tasks.spawn_blocking(move || CommandResult::WorkspaceResolved { status: local_status(&cwd), cwd });
+                self.start(host::resolve_workspace(cwd));
                 None
             }
         };
@@ -90,8 +101,10 @@ impl SessionRuntime {
                 Some(result) = self.requests.next(), if !self.requests.is_empty() => {
                     return Input::Result(result);
                 }
-                Some(result) = next_task(&mut self.tasks, &mut self.preparing), if !self.tasks.is_empty() => {
-                    return Input::Result(result);
+                Some(result) = self.tasks.next(), if !self.tasks.is_empty() => {
+                    if let Ok(result) = result {
+                        return Input::Result(result);
+                    }
                 }
             }
         }
@@ -110,7 +123,7 @@ impl SessionRuntime {
         self.git_review.close();
         self.handle.disconnect().await;
         self.requests.clear();
-        self.tasks.shutdown().await;
+        self.tasks.clear();
     }
 
     fn route(&mut self, event: AcpEvent) -> Option<AcpEvent> {
@@ -132,31 +145,24 @@ impl SessionRuntime {
 
     fn watch(&mut self, cancellation: RequestCancellation, id: &RawJsonRpcId) {
         let id = id.clone();
-        let watching = self.tasks.spawn(async move {
+        let watching = self.start(Box::pin(async move {
             cancellation.cancelled().await;
             CommandResult::ElicitationWithdrawn(id)
-        });
+        }));
         if let Some(superseded) = self.watching.replace(watching) {
             superseded.abort();
         }
     }
-}
 
-/// A superseded submission's attachments may still finish reading after the
-/// abort, so only the latest preparation's result is passed on.
-async fn next_task(tasks: &mut JoinSet<CommandResult>, preparing: &mut Option<AbortHandle>) -> Option<CommandResult> {
-    loop {
-        match tasks.join_next_with_id().await? {
-            Ok((id, result)) => {
-                if preparing.as_ref().is_some_and(|handle| handle.id() == id) {
-                    *preparing = None;
-                } else if matches!(result, CommandResult::SubmissionPrepared(_)) {
-                    continue;
-                }
-                return Some(result);
-            }
-            Err(error) if error.is_cancelled() => {}
-            Err(error) => return Some(CommandResult::BackgroundFailed(error.to_string())),
-        }
+    fn start(&mut self, task: Task) -> AbortHandle {
+        let (task, handle) = abortable(task);
+        self.tasks.push(task);
+        handle
     }
 }
+
+/// Work that runs while the session does. Only native sessions move between threads.
+#[cfg(not(target_arch = "wasm32"))]
+type Task = BoxFuture<'static, CommandResult>;
+#[cfg(target_arch = "wasm32")]
+type Task = LocalBoxFuture<'static, CommandResult>;

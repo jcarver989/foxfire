@@ -1,5 +1,5 @@
 use crate::composer::attachment::{
-    AttachedFile, AttachmentKind, AttachmentOrigin, AttachmentOutcome, PromptAttachment, classify_attachment,
+    AttachedFile, AttachmentKind, AttachmentOutcome, PromptAttachment, classify_attachment,
 };
 use crate::session_model::WorkspaceAccess;
 use agent_client_protocol::v2::schema as acp;
@@ -47,8 +47,8 @@ fn file_uri(path: &Path, display_name: &str) -> Result<String, String> {
 pub fn build_attachments(attachments: &[PromptAttachment], access: WorkspaceAccess) -> AttachmentOutcome {
     let mut outcome = AttachmentOutcome::default();
     for attachment in attachments {
-        if access == WorkspaceAccess::Remote && attachment.origin == AttachmentOrigin::Agent {
-            outcome.blocks.push(workspace_link(attachment));
+        if let Some(link) = attachment.link(access) {
+            outcome.blocks.push(link);
             continue;
         }
         let encoded = read_capped(&attachment.path, &attachment.display_name, MAX_MEDIA_BYTES + 1)
@@ -134,12 +134,6 @@ fn encode_text_block(
         ))),
         warning,
     ))
-}
-
-fn workspace_link(attachment: &PromptAttachment) -> acp::ContentBlock {
-    let mut url = Url::parse("file:///").expect("a valid base URL");
-    url.set_path(&attachment.path.to_string_lossy());
-    acp::ContentBlock::ResourceLink(acp::ResourceLink::new(attachment.display_name.clone(), url.to_string()))
 }
 
 fn attached_uri(display_name: &str) -> String {
