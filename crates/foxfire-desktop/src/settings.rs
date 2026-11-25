@@ -14,6 +14,12 @@ pub(crate) fn settings(registry: Registry, on_close: impl Fn() + 'static) -> imp
             move |reduced| registry.update(|state| state.reduced_motion = reduced),
         )),
         interface_size: Some(InterfaceSize::current()),
+        display_name: Some(SettingsField::new(
+            memo(move || registry.with(|state| state.display_name.clone())),
+            move |name: String| {
+                registry.update(|state| name.trim().clone_into(&mut state.display_name));
+            },
+        )),
     };
     settings_view(model, on_close)
 }

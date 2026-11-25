@@ -1,10 +1,11 @@
 use crate::support::{define_agent, serve_websocket, serve_websocket_refusing, serve_websocket_stalling};
-use agent_client_protocol::v2::schema::SessionId;
+use agent_client_protocol::v2::schema::{Implementation, SessionId};
 use clankerdiff_remote::Invocation;
 use clankerdiff_remote::testing::FakeRemotes;
 use foxfire_acp::aether::RemoteServerInfo;
 use foxfire_acp::testing::FakeAgent;
 use foxfire_acp::websocket;
+use foxfire_core::connection::Connection;
 use foxfire_core::native::runtime::ReviewOverride;
 use foxfire_core::session_model::WorkspaceAccess;
 use foxfire_desktop::agents::{AgentProfile, Endpoint};
@@ -78,7 +79,10 @@ async fn a_stalled_websocket_is_retried_on_a_fresh_connection() -> Result<(), Te
     let server = serve_websocket_stalling(FakeAgent::new("vm-session")).await;
     let endpoint = Endpoint { url: server.url, headers: BTreeMap::new() };
 
-    let connection = ProcessTransport.websocket(&endpoint, Duration::from_secs(30)).await?;
+    let transport = ProcessTransport.websocket(&endpoint, Duration::from_secs(30)).await?;
+    let connection = Connection::connect_to(Implementation::new("foxfire-test", "1"), transport)
+        .await
+        .map_err(ConnectError::from)?;
     let (session, _) = connection.open(None, "/vm/workspace".into()).await.map_err(ConnectError::from)?.into_core();
 
     assert_eq!(session.session_response.session_id, SessionId::new("vm-session"));

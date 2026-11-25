@@ -1,5 +1,6 @@
 use crate::sessions::SessionKey;
 use clankerdiff_ui_core::ThemePreference;
+use foxfire_acp::chat::Participant;
 use rouge::persist::Storage;
 use rouge::reactive::{Signal, effect, signal, spawn};
 use serde::{Deserialize, Serialize};
@@ -8,6 +9,7 @@ use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
+use uuid::Uuid;
 
 /// The key everything the desktop app remembers is saved under, in `state.json` for file storage.
 pub const STATE_KEY: &str = "state";
@@ -36,6 +38,8 @@ pub struct State {
     pub sidebar_collapsed: bool,
     pub theme: ThemePreference,
     pub reduced_motion: bool,
+    pub participant_id: String,
+    pub display_name: String,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
@@ -103,9 +107,21 @@ impl Registry {
         change(&mut next);
         self.state.set_if_changed(next);
     }
+
+    /// Who the user is in a chat channel, without a name if they have not chosen one.
+    pub fn participant(&self) -> Participant {
+        self.with(|state| Participant { id: state.participant_id.clone(), name: state.display_name.clone() })
+    }
 }
 
 impl State {
+    /// Gives the user an id to chat under, the first time they need one.
+    pub fn identify(&mut self) {
+        if self.participant_id.is_empty() {
+            self.participant_id = Uuid::new_v4().to_string();
+        }
+    }
+
     pub fn add_project(&mut self, root: PathBuf) {
         if !self.projects.contains(&root) {
             self.projects.push(root);
