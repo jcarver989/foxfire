@@ -9,6 +9,9 @@ pub const FOXFIRE_META_NAMESPACE: &str = "foxfire";
 
 pub const FOXFIRE_METHOD_PREFIX: &str = "_foxfire/";
 
+/// Names the channel messages a prompt is sent with, as a resource in its content.
+pub const CHAT_MESSAGES_URI: &str = "foxfire://chat/messages";
+
 pub trait FoxfireMeta: Serialize + DeserializeOwned + Default {
     #[must_use]
     fn to_meta(&self) -> Meta {
@@ -78,6 +81,16 @@ pub struct ChatMessage {
     pub sent_at_ms: i64,
     #[serde(flatten)]
     pub kind: ChatMessageKind,
+}
+
+impl ChatMessage {
+    /// The messages an ask was sent with, which is none for a post.
+    pub fn sources(&self) -> &[i64] {
+        match &self.kind {
+            ChatMessageKind::Ask { sources, .. } => sources,
+            ChatMessageKind::Post { .. } => &[],
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
