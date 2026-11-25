@@ -51,6 +51,8 @@ pub struct OpenSettings;
 pub struct NewThread;
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct NewCloudThread;
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ToggleChatRoom;
 pub(crate) use crate::ui::TOGGLE_SIDEBAR_KEYS;
 pub use crate::ui::ToggleSidebar;
 
@@ -102,6 +104,7 @@ pub(crate) const SHOW_CHAT_KEYS: &str = "secondary-1";
 pub(crate) const SHOW_FILES_KEYS: &str = "secondary-2";
 pub(crate) const OPEN_FILE_KEYS: &str = "secondary-p";
 pub(crate) const SETTINGS_KEYS: &str = "secondary-,";
+pub(crate) const TOGGLE_CHAT_ROOM_KEYS: &str = "secondary-j";
 
 impl DesktopApp {
     pub fn new(config: DesktopConfig) -> Self {
@@ -220,7 +223,8 @@ impl DesktopApp {
             .bind_key(chord(SHOW_CHAT_KEYS), ShowChat)
             .bind_key(chord(SHOW_FILES_KEYS), ShowFiles)
             .bind_key(chord(OPEN_FILE_KEYS), OpenFile)
-            .bind_key(chord(SETTINGS_KEYS), OpenSettings);
+            .bind_key(chord(SETTINGS_KEYS), OpenSettings)
+            .bind_key(chord(TOGGLE_CHAT_ROOM_KEYS), ToggleChatRoom);
         root.on_action(move |_: &NewThread| self.sidebar.new_thread())
             .on_action(move |_: &NewCloudThread| self.sidebar.new_cloud_thread())
             .on_action(move |_: &SelectNextThread| self.step_selection(1))
@@ -230,6 +234,7 @@ impl DesktopApp {
             .on_action(move |_: &ShowChat| self.show_tab(ThreadTab::Chat))
             .on_action(move |_: &ShowFiles| self.show_tab(ThreadTab::Files))
             .on_action(move |_: &OpenFile| self.open_file_picker())
+            .on_action(move |_: &ToggleChatRoom| self.toggle_chat_room())
     }
 
     fn observe(self) {
@@ -432,6 +437,12 @@ impl DesktopApp {
 
     fn close_modal(self) {
         self.modal.set(None);
+    }
+
+    fn toggle_chat_room(self) {
+        if let Some(thread) = self.threads.selected() {
+            self.view_of(thread).toggle_chat_room();
+        }
     }
 
     fn show_tab(self, tab: ThreadTab) {

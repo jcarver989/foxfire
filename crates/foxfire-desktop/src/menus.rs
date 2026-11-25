@@ -1,8 +1,8 @@
 use crate::app::{
     NEW_CLOUD_THREAD_KEYS, NEW_THREAD_KEYS, NEXT_THREAD_KEYS, NewCloudThread, NewThread, OPEN_FILE_KEYS, OpenFile,
     OpenSettings, OpenThreadSwitcher, PREVIOUS_THREAD_KEYS, SETTINGS_KEYS, SHOW_CHAT_KEYS, SHOW_FILES_KEYS,
-    SWITCHER_KEYS, SelectNextThread, SelectPreviousThread, ShowChat, ShowFiles, TOGGLE_SIDEBAR_KEYS, ToggleSidebar,
-    chord,
+    SWITCHER_KEYS, SelectNextThread, SelectPreviousThread, ShowChat, ShowFiles, TOGGLE_CHAT_ROOM_KEYS,
+    TOGGLE_SIDEBAR_KEYS, ToggleChatRoom, ToggleSidebar, chord,
 };
 use crate::branding::APP_NAME;
 use crate::ui::SizeAction;
@@ -13,6 +13,7 @@ pub(crate) fn all() -> Vec<Menu> {
         "View",
         vec![
             MenuItem::action("Toggle Sidebar", ToggleSidebar).shortcut(chord(TOGGLE_SIDEBAR_KEYS)),
+            MenuItem::action("Toggle People", ToggleChatRoom).shortcut(chord(TOGGLE_CHAT_ROOM_KEYS)),
             MenuItem::Separator,
             MenuItem::action("Bigger", SizeAction::Increase),
             MenuItem::action("Smaller", SizeAction::Decrease),

@@ -4,8 +4,8 @@ use crate::remotes::{InstanceState, Lifecycle};
 use crate::threads::ThreadStatus;
 use crate::ui::tokens::{ICON_SIZE, Radius, UNREAD_DOT_SIZE};
 use crate::ui::{
-    FoxfireState, Icon, IconName, UiStyles, foxfire, hint, icon_button, inline_edit, row_action, sidebar_thread_row,
-    thread_status_icon,
+    FoxfireState, Icon, IconName, UiStyles, foxfire, hint, icon_button, inline_edit, people_avatars, row_action,
+    sidebar_thread_row, thread_status_icon,
 };
 use rouge::core::{AnyView, MenuItem as WindowMenuItem, Role, Styled, View, div, text, view};
 use rouge::widgets::context_menu;
@@ -65,6 +65,9 @@ pub(super) fn row(sidebar: &Sidebar, row: &Row) -> AnyView {
     };
     let entry = sidebar_thread_row(selector.clone(), move || selected, title, icon, subtitle, open).child(reconnect);
     let entry = match age {
+        _ if !row.present.is_empty() => {
+            entry.trailing(div().test_id(format!("{selector}-people")).child(people_avatars(&row.present)))
+        }
         Some(age) => entry.trailing(age_label(&selector, age)),
         None => entry,
     };

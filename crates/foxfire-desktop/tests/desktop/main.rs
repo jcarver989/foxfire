@@ -5,6 +5,7 @@ mod attention;
 mod cells;
 mod changes;
 mod chat;
+mod chat_room;
 mod cli;
 mod composer;
 mod connector;
