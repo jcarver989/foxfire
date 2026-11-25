@@ -38,6 +38,7 @@ impl SessionCore {
             return;
         }
         self.reset_conversation(session_id.clone());
+        self.leave_chat();
         self.set_config_options(Vec::new());
         self.foreground = ForegroundOperation::ResumingSession {
             session_id: session_id.clone(),
@@ -75,6 +76,7 @@ impl SessionCore {
         self.effects.push(Effect::SessionChanged);
         if session_id != *self.session_id() {
             self.conversation.reset(session_id);
+            self.join_chat();
         }
         self.set_config_options(config_options);
         self.restore_config_selections(&previous_selections);
@@ -109,6 +111,7 @@ impl SessionCore {
             self.notify(&format!("Moved to {}", self.session.working_dir().display()));
         }
         self.foreground = ForegroundOperation::Idle;
+        self.join_chat();
     }
 
     pub(super) fn on_workspace_moved(&mut self, new_cwd: PathBuf) {

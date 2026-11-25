@@ -10,6 +10,10 @@ use foxfire_acp::aether::{
     PromptSearchParams, PromptSearchResponse, SessionPreviewResponse, WorkspaceListResponse, WorkspaceMoveResponse,
     WorkspaceMoveTarget,
 };
+use foxfire_acp::chat::{
+    ChatChannelHistoryParams, ChatChannelJoinParams, ChatChannelJoinResponse, ChatChannelPage, ChatChannelPostParams,
+    ChatChannelPostResponse, ChatChannelReadParams,
+};
 use foxfire_acp::client::AcpClientError;
 use foxfire_acp::conversation::ConversationId;
 use std::path::PathBuf;
@@ -36,6 +40,7 @@ pub enum AgentCommand {
         request_id: RequestId,
         session_id: SessionId,
         content: Vec<ContentBlock>,
+        sources: Vec<i64>,
     },
     Cancel {
         session_id: SessionId,
@@ -77,6 +82,15 @@ pub enum AgentCommand {
         session_id: SessionId,
         cwd: PathBuf,
     },
+    Chat(ChatCommand),
+}
+
+#[derive(Debug, Clone)]
+pub enum ChatCommand {
+    Join(ChatChannelJoinParams),
+    Post(ChatChannelPostParams),
+    History(ChatChannelHistoryParams),
+    Read(ChatChannelReadParams),
 }
 
 #[derive(Debug, Clone)]
@@ -135,7 +149,18 @@ pub enum CommandResult {
     },
     BackgroundFailed(String),
     ElicitationWithdrawn(RawJsonRpcId),
+    Chat {
+        session_id: SessionId,
+        reply: ChatReply,
+    },
     Reply(Reply),
+}
+
+#[derive(Debug)]
+pub enum ChatReply {
+    Joined(Result<ChatChannelJoinResponse, AcpClientError>),
+    Posted { key: String, result: Result<ChatChannelPostResponse, AcpClientError> },
+    History(Result<ChatChannelPage, AcpClientError>),
 }
 
 #[derive(Debug)]

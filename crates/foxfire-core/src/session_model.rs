@@ -116,6 +116,7 @@ impl SessionModel {
             working_dir,
             workspace_status,
             workspace_access,
+            participant: _,
         } = config;
         Self {
             capabilities: AetherCapabilities::of(&initialize_response.capabilities),
