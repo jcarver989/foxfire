@@ -1,23 +1,13 @@
-use agent_client_protocol::v2::schema::{Implementation, SessionId};
+use agent_client_protocol::v2::schema::Implementation;
 use clankerdiff_client::ClientState;
 use clankerdiff_core::DiffDocument;
 use foxfire_acp::client::{AcpClientError, AcpEvent};
 use foxfire_acp::conversation::{ConversationContent, Notice, NoticeLevel};
-use foxfire_acp::testing::{Channel, FakeAgent};
 use foxfire_core::command::CommandResult;
-use foxfire_core::connection::{Connection, ConnectionError, Session};
+use foxfire_core::connection::ConnectionError;
 use foxfire_core::runtime::SessionRuntime;
-use foxfire_core::session_core::{Effect, Input, SessionCore};
-use foxfire_core::testing::{FakeGit, git_diff_agent};
-use std::path::PathBuf;
+use foxfire_core::session_core::{Input, SessionCore};
 use std::sync::Arc;
-
-/// A `SessionCore` driven by a real `SessionRuntime`, the way a frontend's
-/// event loop drives them.
-pub(crate) struct LiveSession {
-    pub(crate) core: SessionCore,
-    pub(crate) runtime: SessionRuntime,
-}
 
 #[derive(Debug, thiserror::Error)]
 pub(crate) enum TestError {
@@ -29,53 +19,12 @@ pub(crate) enum TestError {
     Connection(#[from] ConnectionError),
 }
 
-impl LiveSession {
-    pub(crate) async fn connect(
-        agent: FakeAgent,
-        working_dir: impl Into<PathBuf>,
-        session_id: Option<SessionId>,
-    ) -> Result<Self, ConnectionError> {
-        let connection = Connection::connect_to(client_info(), agent.serve()).await?;
-        Ok(Self::start(connection.open(session_id, working_dir.into()).await?))
-    }
-
-    pub(crate) async fn reviewing(git: FakeGit) -> Result<Self, ConnectionError> {
-        let (agent_end, client_end) = Channel::duplex();
-        tokio::task::spawn_local(git_diff_agent(FakeAgent::new("reviewing"), git).connect_to(agent_end));
-        let connection = Connection::connect_to(client_info(), client_end).await?;
-        Ok(Self::start(connection.open(None, "/repo".into()).await?))
-    }
-
-    pub(crate) fn start(session: Session) -> Self {
-        let (config, runtime) = session.into_core();
-        Self { core: SessionCore::new(config), runtime }
-    }
-
-    pub(crate) async fn run_until(&mut self, done: impl Fn(&SessionCore) -> bool) {
-        loop {
-            for effect in self.core.take_effects() {
-                if let Effect::Dispatch(command) = effect {
-                    self.runtime.dispatch(command);
-                }
-            }
-            if done(&self.core) {
-                return;
-            }
-            let input = self.runtime.next().await;
-            self.core.on_input(input);
-        }
-    }
-
-    pub(crate) async fn shutdown(mut self) {
-        self.runtime.shutdown().await;
-    }
-}
-
 pub(crate) fn client_info() -> Implementation {
     Implementation::new("client-core-test", "1")
 }
 
 pub(crate) use foxfire_acp::testing::run_local;
+pub(crate) use foxfire_core::testing::LiveSession;
 
 pub(crate) fn deliver(core: &mut SessionCore, result: CommandResult) {
     core.on_input(Input::Result(result));
