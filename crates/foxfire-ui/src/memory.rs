@@ -1,5 +1,6 @@
 use crate::backend::{
-    BackendError, BackendFuture, HostedBackend, HostedState, HostedThread, Project, SessionEvent, SessionLink, ThreadId,
+    BackendError, BackendFuture, ConnectFailure, HostedBackend, HostedState, HostedThread, Project, SessionEvent,
+    SessionLink, ThreadId,
 };
 use agent_client_protocol::schema::ProtocolVersion;
 use agent_client_protocol::v2::schema as acp;
@@ -158,11 +159,13 @@ impl HostedBackend for MemoryBackend {
         let (sender, events) = unbounded_channel();
         let link = SessionLink { commands, events };
         let Some(session) = self.state.borrow().threads.get(&target).cloned() else {
-            let _ = sender.send(SessionEvent::ConnectFailed(BackendError::UnknownThread(target).to_string()));
+            let _ = sender.send(SessionEvent::ConnectFailed(BackendError::UnknownThread(target).into()));
             return link;
         };
         if resume.is_some_and(|id| id != session.borrow().session_id()) {
-            let _ = sender.send(SessionEvent::ConnectFailed("This thread does not own that session".to_owned()));
+            let _ = sender.send(SessionEvent::ConnectFailed(ConnectFailure::Other(
+                "This thread does not own that session".to_owned(),
+            )));
             return link;
         }
         session.borrow_mut().attach(&sender);

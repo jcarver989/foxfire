@@ -1,4 +1,4 @@
-use crate::backend::{SessionEvent, SessionLink};
+use crate::backend::{ConnectFailure, SessionEvent, SessionLink};
 use agent_client_protocol::v2::schema::SessionId;
 use clankerdiff_client::{ClientError, ClientState, LookupReply};
 use foxfire_acp::content::{first_text, prompt_title};
@@ -72,7 +72,7 @@ struct ThreadState {
 enum Link {
     Connecting,
     Connected,
-    Failed(String),
+    Failed(ConnectFailure),
     Closed,
     Stopped,
 }
@@ -148,9 +148,9 @@ impl Thread {
         })
     }
 
-    pub fn error(&self) -> Option<String> {
+    pub fn error(&self) -> Option<ConnectFailure> {
         self.state.with(|state| match &state.link {
-            Link::Failed(error) => Some(error.clone()),
+            Link::Failed(failure) => Some(failure.clone()),
             _ => None,
         })
     }
@@ -285,7 +285,7 @@ impl Thread {
                     core.open_git_review();
                 }
             }
-            SessionEvent::ConnectFailed(error) => state.link = Link::Failed(error),
+            SessionEvent::ConnectFailed(failure) => state.link = Link::Failed(failure),
             SessionEvent::Input(input) => {
                 if let Some(core) = state.core.as_mut() {
                     core.on_input(input);

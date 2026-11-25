@@ -6,7 +6,9 @@ use foxfire_acp::content::first_text;
 use foxfire_core::command::{AgentCommand, Command, CommandResult, RequestId};
 use foxfire_core::elicitation::{ElicitationAnswer, PendingElicitation};
 use foxfire_core::session_core::Input;
-use foxfire_ui::backend::{BackendError, HostedBackend, HostedThread, Project, SessionEvent, SessionLink};
+use foxfire_ui::backend::{
+    BackendError, ConnectFailure, HostedBackend, HostedThread, Project, SessionEvent, SessionLink,
+};
 use foxfire_ui::memory::MemoryBackend;
 use rouge::reactive::{Runtime, poll_tasks};
 use std::time::Duration;
@@ -68,7 +70,7 @@ async fn a_new_attachment_replays_only_its_thread_history_once() -> Result<(), T
     assert_ne!(connected(&mut separate)?, id);
     assert!(pending(&mut separate).is_empty());
     let mut mismatched = backend.open(second.id, Some(id.clone()));
-    assert!(matches!(mismatched.events.try_recv()?, SessionEvent::ConnectFailed(_)));
+    assert!(matches!(mismatched.events.try_recv()?, SessionEvent::ConnectFailed(ConnectFailure::Other(_))));
     assert_eq!(mismatched.events.recv().await.map(|_| ()), None);
 
     let mut reopened = backend.open(first.id, Some(id.clone()));
@@ -95,7 +97,7 @@ async fn stop_removes_the_thread_and_closes_its_active_attachments() -> Result<(
         assert!(link.commands.is_closed());
     }
     let mut reopen = backend.open(thread.id, None);
-    assert!(matches!(reopen.events.try_recv()?, SessionEvent::ConnectFailed(_)));
+    assert!(matches!(reopen.events.try_recv()?, SessionEvent::ConnectFailed(ConnectFailure::Ended(_))));
     Ok(())
 }
 

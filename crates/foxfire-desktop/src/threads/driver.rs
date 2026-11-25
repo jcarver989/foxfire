@@ -47,14 +47,14 @@ async fn drive(
         }
         Ok(None) => {}
         Err(error) => {
-            let _ = messages.send(SessionEvent::ConnectFailed(error.to_string()));
+            let _ = messages.send(SessionEvent::ConnectFailed(error.into()));
             return;
         }
     }
     let session = match connector.connect(&target, session_id).await {
         Ok(session) => session,
         Err(error) => {
-            let _ = messages.send(SessionEvent::ConnectFailed(error.to_string()));
+            let _ = messages.send(SessionEvent::ConnectFailed(error.into()));
             return;
         }
     };

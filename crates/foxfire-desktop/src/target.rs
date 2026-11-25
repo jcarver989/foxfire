@@ -9,6 +9,7 @@ use foxfire_acp::websocket::{self, Endpoint};
 use foxfire_core::connection::{ClientInfo, Connection, ConnectionError, Session};
 use foxfire_core::native::runtime::ReviewOverride;
 use foxfire_core::session_model::WorkspaceAccess;
+use foxfire_ui::backend::ConnectFailure;
 use serde::de::DeserializeOwned;
 use std::env::var;
 use std::future::Future;
@@ -345,6 +346,17 @@ struct AgentProcess {
     child: Child,
     stdin: ChildStdin,
     stdout: ChildStdout,
+}
+
+impl From<ConnectError> for ConnectFailure {
+    fn from(error: ConnectError) -> Self {
+        match error {
+            ConnectError::WebSocket(error) => error.into(),
+            ConnectError::Client(error) => error.into(),
+            ConnectError::WebSocketHandshakeTimeout => Self::Retryable(error.to_string()),
+            error => Self::Other(error.to_string()),
+        }
+    }
 }
 
 impl ConnectTo<Client> for AgentProcess {

@@ -1,5 +1,11 @@
 use agent_client_protocol::v2::schema::SessionId;
+#[cfg(not(target_arch = "wasm32"))]
+use foxfire_acp::client::AcpClientError;
+#[cfg(not(target_arch = "wasm32"))]
+use foxfire_acp::websocket;
 use foxfire_core::command::Command;
+#[cfg(not(target_arch = "wasm32"))]
+use foxfire_core::connection::ConnectionError;
 use foxfire_core::session_core::Input;
 use foxfire_core::session_core::SessionCoreConfig;
 use std::future::Future;
@@ -18,8 +24,24 @@ pub enum SessionEvent {
     Launched(String),
     Connected(Box<SessionCoreConfig>),
     OpenReview,
-    ConnectFailed(String),
+    ConnectFailed(ConnectFailure),
     Input(Input),
+}
+
+/// Why a session could not be opened, and so what would help.
+#[derive(Clone, Debug, Eq, PartialEq, thiserror::Error)]
+pub enum ConnectFailure {
+    /// A later attempt may succeed.
+    #[error("{0}")]
+    Retryable(String),
+    /// The user has to sign in first.
+    #[error("{0}")]
+    Unauthenticated(String),
+    /// The session is over, and cannot be opened again.
+    #[error("{0}")]
+    Ended(String),
+    #[error("{0}")]
+    Other(String),
 }
 
 /// An opaque, stable ID assigned by a hosted backend.
@@ -68,4 +90,37 @@ pub trait HostedBackend: 'static {
     fn list_threads(&self) -> BackendFuture<'_, Vec<HostedThread>>;
     fn launch(&self, project: String) -> BackendFuture<'_, HostedThread>;
     fn stop(&self, id: ThreadId) -> BackendFuture<'_, ()>;
+}
+
+impl From<BackendError> for ConnectFailure {
+    fn from(error: BackendError) -> Self {
+        let reason = match &error {
+            BackendError::Unavailable(_) => Self::Retryable,
+            BackendError::UnknownThread(_) => Self::Ended,
+            BackendError::UnknownProject(_) => Self::Other,
+        };
+        reason(error.to_string())
+    }
+}
+
+/// A refused handshake says nothing about the user or the session, because a browser cannot see why it was refused.
+/// Whatever hands out endpoints answers that on the next attempt.
+#[cfg(not(target_arch = "wasm32"))]
+impl From<websocket::ConnectError> for ConnectFailure {
+    fn from(error: websocket::ConnectError) -> Self {
+        let reason = if error.is_retryable() { Self::Retryable } else { Self::Other };
+        reason(error.to_string())
+    }
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+impl From<ConnectionError> for ConnectFailure {
+    fn from(error: ConnectionError) -> Self {
+        let reason = match &error {
+            ConnectionError::Acp(AcpClientError::AgentCrashed(_)) => Self::Retryable,
+            ConnectionError::Acp(AcpClientError::InvalidAgentCommand(_) | AcpClientError::Protocol(_))
+            | ConnectionError::MissingRemoteContract => Self::Other,
+        };
+        reason(error.to_string())
+    }
 }

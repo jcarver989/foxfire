@@ -610,7 +610,8 @@ impl Transcript {
                 return div().into_any();
             }
             if let Some(problem) = status.problem() {
-                let detail = error.unwrap_or_else(|| "Reconnect to pick up where it left off".to_owned());
+                let detail = error
+                    .map_or_else(|| "Reconnect to pick up where it left off".to_owned(), |failure| failure.to_string());
                 let color = if status == ThreadStatus::Errored { Role::Destructive } else { Role::Warning };
                 return view! {
                     <div size_full p=Space::X6 flex col items_center justify_center gap=Space::X3>

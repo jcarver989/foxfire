@@ -3,6 +3,7 @@ use agent_client_protocol::v2::schema::SessionId;
 use foxfire_acp::testing::FakeAgent;
 use foxfire_desktop::testing::DesktopHarnessBuilder;
 use foxfire_desktop::threads::{Thread, ThreadStatus};
+use foxfire_ui::backend::ConnectFailure;
 use rouge::core::testing::TestResult;
 
 #[test]
@@ -94,7 +95,7 @@ fn a_thread_whose_agent_cannot_start_is_errored_and_gives_a_prompt_back() {
 
     let (status, error) = (thread.status(), thread.error());
     assert_eq!(status, ThreadStatus::Errored);
-    assert!(error.as_deref().is_some_and(|error| error.contains("no fake agent")), "{error:?}");
+    assert!(matches!(&error, Some(ConnectFailure::Other(error)) if error.contains("no fake agent")), "{error:?}");
     assert!(harness.bounds("thread-row-0-status-errored-warning-triangle").is_some());
     assert!(harness.bounds("thread-row-0-conversation-icon").is_none());
     harness.type_text("hello?");
