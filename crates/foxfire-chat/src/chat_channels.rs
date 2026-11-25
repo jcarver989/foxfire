@@ -16,7 +16,7 @@ pub const MAX_PAGE: u32 = 200;
 const PAGE: u32 = 100;
 
 pub struct ChatChannels<T> {
-    directory: PathBuf,
+    directory: Option<PathBuf>,
     open: HashMap<SessionId, ChatChannel<T>>,
 }
 
@@ -31,7 +31,12 @@ pub struct Ask {
 impl<T: Copy + Eq + Hash> ChatChannels<T> {
     pub fn open(directory: PathBuf) -> Result<Self, ChatError> {
         create_dir_all(&directory)?;
-        Ok(Self { directory, open: HashMap::new() })
+        Ok(Self { directory: Some(directory), open: HashMap::new() })
+    }
+
+    /// Keeps each channel only while someone is in it.
+    pub fn in_memory() -> Self {
+        Self { directory: None, open: HashMap::new() }
     }
 
     pub fn join(
@@ -110,8 +115,8 @@ impl<T: Copy + Eq + Hash> ChatChannels<T> {
         match self.open.entry(session.clone()) {
             Entry::Occupied(open) => Ok(open.into_mut()),
             Entry::Vacant(closed) => {
-                let path = self.directory.join(file_name(&session.to_string()));
-                Ok(closed.insert(ChatChannel::open(session.clone(), &path)?))
+                let path = self.directory.as_ref().map(|directory| directory.join(file_name(&session.to_string())));
+                Ok(closed.insert(ChatChannel::open(session.clone(), path.as_deref())?))
             }
         }
     }

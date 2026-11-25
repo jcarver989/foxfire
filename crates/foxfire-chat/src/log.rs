@@ -4,8 +4,9 @@ use std::fs::File;
 use std::io::{Read, Seek, SeekFrom, Write};
 use std::path::Path;
 
+#[derive(Default)]
 pub(crate) struct Log {
-    file: File,
+    file: Option<File>,
     length: u64,
 }
 
@@ -17,18 +18,21 @@ impl Log {
         file.read_to_end(&mut stored)?;
         let length = stored.iter().rposition(|byte| *byte == b'\n').map_or(0, |end| end + 1);
         let events = serde_json::Deserializer::from_slice(&stored[..length]).into_iter().collect::<Result<_, _>>()?;
-        Ok((Self { file, length: length as u64 }, events))
+        Ok((Self { file: Some(file), length: length as u64 }, events))
     }
 
     pub(crate) fn append(&mut self, events: &[ChatChannelEvent]) -> Result<(), ChatError> {
+        let Some(file) = &mut self.file else {
+            return Ok(());
+        };
         let mut lines = Vec::new();
         for event in events {
             serde_json::to_writer(&mut lines, event)?;
             lines.push(b'\n');
         }
-        self.file.set_len(self.length)?;
-        self.file.seek(SeekFrom::Start(self.length))?;
-        self.file.write_all(&lines)?;
+        file.set_len(self.length)?;
+        file.seek(SeekFrom::Start(self.length))?;
+        file.write_all(&lines)?;
         self.length += lines.len() as u64;
         Ok(())
     }
