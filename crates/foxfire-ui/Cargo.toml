@@ -37,6 +37,8 @@ web-time = "1"
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 foxfire-acp = { workspace = true, features = ["websocket"] }
+rouge = { workspace = true, features = ["tokio-rt"] }
 
 [dev-dependencies]
+foxfire-acp = { workspace = true, features = ["testing"] }
 tokio = { workspace = true, features = ["macros", "rt"] }
