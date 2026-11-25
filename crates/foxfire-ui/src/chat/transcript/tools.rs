@@ -1,9 +1,8 @@
 use super::code::highlights;
 use super::groups::{GroupKind, Work};
 use crate::ui::tokens::{HAIRLINE, ICON_SIZE_SMALL, ROW_HEIGHT, Space};
-use crate::ui::typography::BODY_STRONG;
 use crate::ui::{
-    ButtonVariant, CODE_FONT, ControlSize, FoxfireState, Hint, Icon, IconName, UiStyles, button, foxfire, indent,
+    ActivityState, ButtonVariant, ControlSize, FontRole, Hint, Icon, IconName, UiStyles, activity, button, indent,
     separator,
 };
 use agent_client_protocol::v2::schema as acp;
@@ -188,7 +187,7 @@ impl ToolCard<'_> {
                     (range.start < first.len()).then(|| (range.start + 2..range.end.min(first.len()) + 2, style))
                 })
                 .collect::<Vec<_>>();
-            return Some(rich_text(format!("$ {first}"), spans).font(CODE_FONT).no_wrap().into_any());
+            return Some(rich_text(format!("$ {first}"), spans).font(FontRole::Code).no_wrap().into_any());
         }
         if let Some(value) = tool.display_value().and_then(first_line) {
             return Some(view! { <text no_wrap>{value.to_owned()}</text> }.into_any());
@@ -222,7 +221,7 @@ impl ToolCard<'_> {
         let sections = detail_sections(tool, full).map(|(label, shown, hidden)| {
             let body = if label == "Command" {
                 let spans = self.command_highlights(&shown);
-                rich_text(shown, spans).font(CODE_FONT)
+                rich_text(shown, spans).font(FontRole::Code)
             } else {
                 text(shown).code()
             };
@@ -261,7 +260,7 @@ impl ToolCard<'_> {
             }
         });
         view! {
-            <div test_id={format!("tool-changes-{index}")} flex col gap=Space::X2 font=CODE_FONT small unselectable>
+            <div test_id={format!("tool-changes-{index}")} flex col gap=Space::X2 small font=FontRole::Code unselectable>
                 {..changes}
             </div>
         }
@@ -337,7 +336,7 @@ const SECTION_MAX_LINES: usize = 200;
 const SECTION_MAX_BYTES: usize = 16 * 1024;
 
 fn tool_line(icon: AnyView, title: Div, summary: Option<AnyView>, failed: bool) -> [AnyView; 3] {
-    let title = title.typography(BODY_STRONG).text_color(Role::TextSecondary);
+    let title = title.body_strong().text_color(Role::TextSecondary);
     let color = if failed { Role::Destructive } else { Role::TextMuted };
     let summary = view! { <div flex_1 min_w=0.0 overflow_hidden body text_color=color>{summary}</div> };
     [icon, title.into_any(), summary.into_any()]
@@ -403,7 +402,7 @@ fn section(label: &'static str, content: AnyView) -> Div {
     view! {
         <div flex col gap=Space::X1>
             <text label muted unselectable>{label}</text>
-            <div text_color=Role::TextSecondary font=CODE_FONT small>{content}</div>
+            <div text_color=Role::TextSecondary small font=FontRole::Code>{content}</div>
         </div>
     }
 }
@@ -431,7 +430,7 @@ fn status_icon(status: ToolStatus, id: &str) -> AnyView {
         ToolStatus::Running => {
             return view! {
                 <div test_id={format!("tool-status-{id}")} flex_none flex items_center gap=Space::X1>
-                    {foxfire(ICON_SIZE_SMALL, Role::Info, || FoxfireState::Working).test_id(format!("tool-foxfire-{id}"))}
+                    {activity(ICON_SIZE_SMALL, Role::Info, || ActivityState::Working).test_id(format!("tool-activity-{id}"))}
                     <text small muted>"Running"</text>
                 </div>
             }

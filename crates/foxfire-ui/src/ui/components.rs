@@ -2,7 +2,7 @@ use super::tokens::{
     BAR_HEIGHT, GRID_MARGIN, GROUP_HEIGHT, HEADER_HEIGHT, ICON_SIZE, ICON_SIZE_SMALL, MotionScale, PANEL_GUTTER,
     PANEL_INSET, POP_SCALE, Pace, Space,
 };
-use super::{FoxfireState, Hint, Material, MaterialExt, SearchPickerEvent, SelectionState, UiStyles, foxfire};
+use super::{ActivityState, Hint, Material, MaterialExt, SearchPickerEvent, SelectionState, UiStyles, activity};
 use rouge::core::Chord;
 use rouge::core::{
     AnyView, Div, Mask, MenuItem as WindowMenuItem, Point, Pose, Role, Styled, View, div, dynamic, px, show, text,
@@ -46,7 +46,7 @@ pub fn thread_header(
                     {leading}{path}
                     <dynamic>{let name = agent(); (!name.is_empty()).then(|| view! {
                         <div test_id="thread-agent" flex_none flex items_center gap=Space::X1>
-                            {foxfire(ICON_SIZE_SMALL, Role::Accent, || FoxfireState::Waiting)}
+                            {activity(ICON_SIZE_SMALL, Role::Accent, || ActivityState::Waiting)}
                             <text small muted no_wrap>{name}</text>
                         </div>
                     })}</dynamic>

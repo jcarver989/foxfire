@@ -1,4 +1,4 @@
-use foxfire_desktop::ui::{FoxfireMotion, cells};
+use foxfire_desktop::ui::{ActivityMotion, cells};
 use rouge::core::access::Role;
 use rouge::core::testing::{TestError, TestUi};
 use rouge::core::{Color, Styled, div, view};
@@ -90,7 +90,7 @@ struct SceneBuilder {
 struct Scene {
     share: Signal<f32>,
     live: Signal<bool>,
-    motion: FoxfireMotion,
+    motion: ActivityMotion,
     ui: TestUi,
     _runtime: Entered,
 }
@@ -111,7 +111,7 @@ impl SceneBuilder {
         let (share, live) = (signal(self.share), signal(self.live));
         let motion = signal(None);
         let ui = component_test().size(240.0, 40.0).build(move || {
-            motion.set(Some(FoxfireMotion::install(false)));
+            motion.set(Some(ActivityMotion::install(false)));
             view! {
                 <div size_full flex bg=Color::BLACK>
                     <cells share={move || share.get()} tint=Color::WHITE live={move || live.get()}

@@ -134,7 +134,7 @@ fn a_cloud_thread_reconnects_to_the_instance_it_launched() {
     let thread = harness.connected_thread();
 
     harness.connector().kill_agents("/patchwave");
-    harness.run_until(|_| thread.status().problem().is_some());
+    harness.run_until(|_| thread.status().has_problem());
     harness.click("thread-row-0-reconnect").unwrap();
     harness.run_until(|_| thread.status() == ThreadStatus::Idle);
 

@@ -11,17 +11,19 @@ use crate::settings::settings;
 use crate::sidebar::{Sidebar, SwitcherEntry};
 use crate::target::AgentConnector;
 use crate::tasks::spawn_in;
-use crate::thread_view::{ThreadTab, ThreadView};
+use crate::thread_view::ThreadView;
 use crate::threads::{Attention, Thread, ThreadEvent, ThreadManager};
 use crate::ui::DEFAULT_INTERFACE_SIZE;
 use crate::ui::tokens::{MODAL_WIDTH, MotionScale, PICKER_LIST_HEIGHT};
 use crate::ui::{
-    ActiveReviewTheme, FoxfireMotion, InterfaceSize, Material, PanelWidth, PickerItem, SearchPickerHandle, ThreadShell,
-    Toasts, appearance, backdrop, key_hints, picker_closed, search_picker,
+    ActiveReviewTheme, ActivityMotion, InterfaceSize, Material, PanelWidth, PickerItem, SearchPickerHandle, ThemeSet,
+    ThreadShell, Toasts, appearance, backdrop, key_hints, picker_closed, search_picker,
 };
 use clankerdiff_core::RepoPath;
 use clankerdiff_remote::Remotes;
 use clankerdiff_rouge::ReviewHandle;
+use foxfire_shell::install;
+use foxfire_shell::workspace::ThreadTab;
 use rouge::core::{
     AnyView, Div, Styled, View, WindowHandle, dynamic, px, view, window_focused, window_handle, window_size, zoom,
 };
@@ -110,12 +112,13 @@ impl DesktopApp {
     pub fn new(config: DesktopConfig) -> Self {
         let DesktopConfig { connector, clock, agents, remotes, remotes_file, sessions, platform, storage, saved } =
             config;
+        install();
         let toasts = Toasts::install();
         let registry = Registry::restore(saved, storage);
         let preference = memo(move || registry.with(|state| state.theme.clone()));
         let active = ActiveReviewTheme::install(preference.get_untracked().theme(appearance().get_untracked()));
-        effect(move || active.apply(&preference.get()));
-        let activity = FoxfireMotion::install(registry.with_untracked(|state| state.reduced_motion));
+        effect(move || ThemeSet::default().apply(&preference.get(), active));
+        let activity = ActivityMotion::install(registry.with_untracked(|state| state.reduced_motion));
         effect(move || activity.set_reduced(registry.with(|state| state.reduced_motion)));
         // The setting only ever takes motion away, so a window built without it stays still.
         let inherited = MotionScale::current();

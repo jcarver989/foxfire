@@ -7,8 +7,8 @@ use crate::platform::ChatPlatform;
 use crate::thread::Thread;
 use crate::ui::tokens::{GROUP_HEIGHT, HAIRLINE, HEADER_HEIGHT, ROW_HEIGHT, Radius, Space, UNREAD_DOT_SIZE};
 use crate::ui::{
-    ButtonVariant, ControlSize, Detent, IconName, Material, MaterialExt, UiStyles, button, icon_button, people_avatars,
-    sheet,
+    ButtonVariant, ControlSize, Detent, IconName, Material, MaterialExt, UiStyles, Wording, button, icon_button,
+    people_avatars, sheet,
 };
 use foxfire_acp::chat::{ChatChannelAnchor, ChatChannelPostParams};
 use foxfire_core::session_core::{ChatChannel, SessionCore};
@@ -151,7 +151,7 @@ impl ChatRoom {
         let unread = self.unread();
         view! {
             <div relative flex_none flex items_center>
-                <icon_button test_id="toggle-chat-room" icon label="People" selected={move || self.open.get()}
+                <icon_button test_id="toggle-chat-room" icon label={Wording::current().room} selected={move || self.open.get()}
                              on_click={move || self.toggle()}/>
                 <show when={move || !self.open.get() && unread.get() > 0}>
                     <div test_id="chat-room-unread" absolute top=Space::X1 right=Space::X1 size=UNREAD_DOT_SIZE
@@ -178,7 +178,7 @@ impl ChatRoom {
             <div test_id="chat-room-panel" size_full flex col bg=Role::Chrome>
                 <div flex_none h=HEADER_HEIGHT pl=Space::X4 pr=Space::X3 flex items_center gap=Space::X2
                      border_b=HAIRLINE border_color=Role::BorderSubtle>
-                    <text body_strong primary no_wrap>"People"</text>
+                    <text body_strong primary no_wrap>{Wording::current().room}</text>
                     <div flex_1/>
                     {self.present()}
                     <icon_button test_id="close-chat-room" icon=IconName::X label="Close panel"
@@ -193,6 +193,7 @@ impl ChatRoom {
 
     fn messages(self) -> impl View {
         let thread = self.thread;
+        let wording = Wording::current();
         let rows = memo(move || thread.with_core(rows).unwrap_or_default());
         let list = virtual_list(
             move || rows.with(Vec::len),
@@ -209,7 +210,7 @@ impl ChatRoom {
                 {list}
                 <show when={move || rows.with(Vec::is_empty)}>
                     <div absolute inset=0.0 py=Space::X6 px=Space::X4 flex justify_center pass_through>
-                        <text small muted>"Messages here only reach people in this thread."</text>
+                        <text small muted>{wording.room_detail}</text>
                     </div>
                 </show>
             </div>

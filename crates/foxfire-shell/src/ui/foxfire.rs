@@ -1,37 +1,19 @@
-use super::tokens::Pace;
-use rouge::core::{
-    Corners, Div, Fill, IntoProp, Keyframes, PaintRegion, Pose, Prop, Styled, View, div, each, switch, view,
-    window_focused,
-};
-use rouge::reactive::{Memo, Signal, expect_context, memo, provide_context, signal, stored, use_context};
+use foxfire_ui::ui::tokens::Pace;
+use foxfire_ui::ui::{Activity, ActivityState, may_animate};
+use rouge::core::{Corners, Div, Fill, Keyframes, PaintRegion, Pose, Styled, View, div, each, switch, view};
+use rouge::reactive::{memo, signal, stored};
 use std::f32::consts::TAU;
-
-/// Activity, not progress: each state has a distinct choreography and direction of motion.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub enum FoxfireState {
-    Connecting,
-    Thinking,
-    Compacting,
-    Working,
-    Writing,
-    Waiting,
-}
-
-/// A shared, reactive preference for activity indicators. Reduced motion removes their clocks.
-#[derive(Clone, Copy)]
-pub struct FoxfireMotion(Signal<bool>);
 
 /// A quiet activity mark: a 3×3 matrix of cells, lit in a different pattern for each state.
 /// Cells move on compositor keyframes, so a running mark never relays out or repaints; each new state fades in.
 /// Waiting is always still; reduced motion, loss of focus, and clipping also stop the clock.
-/// Pair this decoration with a visible activity label rather than relying on its color or motion.
-pub fn foxfire<T>(size: f32, tint: impl IntoProp<Fill, T>, state: impl Fn() -> FoxfireState + 'static) -> Div {
-    let tint = stored(tint.into_prop());
-    let fill = move || tint.with(Prop::get);
-    let state = memo(state);
+pub fn foxfire(activity: Activity) -> Div {
+    let Activity { size, tint, state } = activity;
+    let tint = stored(tint);
+    let fill = move || tint.with(|tint| tint());
     let region = signal(PaintRegion::default());
     let allowed = may_animate(region);
-    let animated = memo(move || state.get() != FoxfireState::Waiting && allowed.get());
+    let animated = memo(move || state.get() != ActivityState::Waiting && allowed.get());
     let mark = move |animated| {
         if animated {
             view! {
@@ -58,70 +40,26 @@ pub fn foxfire<T>(size: f32, tint: impl IntoProp<Fill, T>, state: impl Fn() -> F
     }
 }
 
-pub(super) fn may_animate(region: Signal<PaintRegion>) -> Memo<bool> {
-    let focused = window_focused();
-    let motion = use_context::<FoxfireMotion>();
-    memo(move || {
-        focused.get() && !motion.is_some_and(FoxfireMotion::reduced) && region.with(|region| !region.bounds.is_empty())
-    })
-}
-
-impl FoxfireState {
-    #[must_use]
-    pub const fn label(self) -> &'static str {
-        match self {
-            Self::Connecting => "Connecting",
-            Self::Thinking => "Thinking",
-            Self::Compacting => "Compacting the conversation",
-            Self::Working => "Working",
-            Self::Writing => "Writing",
-            Self::Waiting => "Waiting for you",
-        }
-    }
-
-    fn choreography(self) -> (f32, u8) {
-        match self {
-            Self::Connecting => (34.0 / 30.0, 34),
-            Self::Thinking => (2.0, 60),
-            Self::Working => (1.0, 30),
-            Self::Writing => (f32::from(WRITING_STEPS) / 9.0, WRITING_STEPS),
-            Self::Compacting => (1.5, 45),
-            Self::Waiting => (1.0, 1),
-        }
-    }
-
-    /// The moment of the choreography that best stands in for it when the clock is stopped.
-    fn still_phase(self) -> f32 {
-        match self {
-            Self::Connecting => 1.0 / 8.0,
-            Self::Thinking => 0.884,
-            Self::Working | Self::Waiting => 0.0,
-            Self::Writing => 5.5 / f32::from(WRITING_STEPS),
-            Self::Compacting => 0.4,
-        }
+/// Activity, not progress: each state has a distinct choreography and direction of motion.
+fn choreography(state: ActivityState) -> (f32, u8) {
+    match state {
+        ActivityState::Connecting => (34.0 / 30.0, 34),
+        ActivityState::Thinking => (2.0, 60),
+        ActivityState::Working => (1.0, 30),
+        ActivityState::Writing => (f32::from(WRITING_STEPS) / 9.0, WRITING_STEPS),
+        ActivityState::Compacting => (1.5, 45),
+        ActivityState::Waiting => (1.0, 1),
     }
 }
 
-impl FoxfireMotion {
-    #[must_use]
-    pub fn install(reduced: bool) -> Self {
-        let motion = Self(signal(reduced));
-        provide_context(motion);
-        motion
-    }
-
-    #[must_use]
-    pub fn current() -> Self {
-        expect_context()
-    }
-
-    pub fn set_reduced(self, reduced: bool) {
-        self.0.set_if_changed(reduced);
-    }
-
-    #[must_use]
-    pub fn reduced(self) -> bool {
-        self.0.get()
+/// The moment of the choreography that best stands in for it when the clock is stopped.
+fn still_phase(state: ActivityState) -> f32 {
+    match state {
+        ActivityState::Connecting => 1.0 / 8.0,
+        ActivityState::Thinking => 0.884,
+        ActivityState::Working | ActivityState::Waiting => 0.0,
+        ActivityState::Writing => 5.5 / f32::from(WRITING_STEPS),
+        ActivityState::Compacting => 0.4,
     }
 }
 
@@ -158,14 +96,14 @@ fn matrix(size: f32, fill: impl Fn() -> Fill + Copy + 'static, cell: impl Fn(Div
     }))
 }
 
-fn still(cell: Div, state: FoxfireState, size: f32, column: u8, row: u8) -> Div {
-    let frame = frame(state, column, row, state.still_phase());
+fn still(cell: Div, state: ActivityState, size: f32, column: u8, row: u8) -> Div {
+    let frame = frame(state, column, row, still_phase(state));
     let (x, y) = toward_center(size, column, row, frame.pull);
     cell.opacity(frame.opacity()).translate_x(x).translate_y(y)
 }
 
-fn moving(cell: Div, state: FoxfireState, size: f32, column: u8, row: u8) -> Div {
-    let (seconds, steps) = state.choreography();
+fn moving(cell: Div, state: ActivityState, size: f32, column: u8, row: u8) -> Div {
+    let (seconds, steps) = choreography(state);
     let pose = |phase| frame(state, column, row, phase).pose(size, column, row);
     let keyframes = (0..steps).fold(Keyframes::new(), |keyframes, step| {
         let (start, end) = (f32::from(step) / f32::from(steps), f32::from(step + 1) / f32::from(steps));
@@ -174,17 +112,17 @@ fn moving(cell: Div, state: FoxfireState, size: f32, column: u8, row: u8) -> Div
     cell.animate(keyframes.duration(seconds).repeat())
 }
 
-fn frame(state: FoxfireState, column: u8, row: u8, phase: f32) -> Frame {
+fn frame(state: ActivityState, column: u8, row: u8, phase: f32) -> Frame {
     let ring = (0..8u8).find(|&index| RING[usize::from(index)] == (column, row));
     let distance = (f32::from(column) - 1.0).hypot(f32::from(row) - 1.0);
     let lit = match state {
-        FoxfireState::Connecting => ring.map_or(0.0, |index| chase(phase * 8.0, index, 2.2)),
-        FoxfireState::Thinking => (0.5 + 0.5 * (TAU * phase + distance * 2.3).sin()).powi(2),
-        FoxfireState::Working => ring.map_or(0.45 + 0.4 * (TAU * phase).sin(), |index| chase(phase * 8.0, index, 4.0)),
-        FoxfireState::Writing => typed(step(phase), row * 3 + column),
-        FoxfireState::Compacting if ring.is_some() => 1.0 - smoothstep(0.1, 0.6, phase),
-        FoxfireState::Compacting => 0.5 + 0.5 * smoothstep(0.3, 0.7, phase),
-        FoxfireState::Waiting => {
+        ActivityState::Connecting => ring.map_or(0.0, |index| chase(phase * 8.0, index, 2.2)),
+        ActivityState::Thinking => (0.5 + 0.5 * (TAU * phase + distance * 2.3).sin()).powi(2),
+        ActivityState::Working => ring.map_or(0.45 + 0.4 * (TAU * phase).sin(), |index| chase(phase * 8.0, index, 4.0)),
+        ActivityState::Writing => typed(step(phase), row * 3 + column),
+        ActivityState::Compacting if ring.is_some() => 1.0 - smoothstep(0.1, 0.6, phase),
+        ActivityState::Compacting => 0.5 + 0.5 * smoothstep(0.3, 0.7, phase),
+        ActivityState::Waiting => {
             if ring.is_some() {
                 0.0
             } else {
@@ -193,7 +131,7 @@ fn frame(state: FoxfireState, column: u8, row: u8, phase: f32) -> Frame {
         }
     };
     let pull = match state {
-        FoxfireState::Compacting => 0.36 * smoothstep(0.1, 0.55, phase) * (1.0 - smoothstep(0.75, 1.0, phase)),
+        ActivityState::Compacting => 0.36 * smoothstep(0.1, 0.55, phase) * (1.0 - smoothstep(0.75, 1.0, phase)),
         _ => 0.0,
     };
     Frame { lit, pull }
@@ -234,7 +172,7 @@ fn smoothstep(from: f32, to: f32, x: f32) -> f32 {
 /// The outer cells, clockwise from the top left.
 const RING: [(u8, u8); 8] = [(0, 0), (1, 0), (2, 0), (2, 1), (2, 2), (1, 2), (0, 2), (0, 1)];
 const PITCH: f32 = 1.5;
-pub(super) const ROUNDNESS: f32 = 0.3;
+const ROUNDNESS: f32 = 0.3;
 /// Unlit cells stay faintly visible so the grid reads as one mark rather than scattered specks.
 const UNLIT: f32 = 0.1;
 const WRITING_STEPS: u8 = 14;

@@ -3,7 +3,7 @@ use super::row::quote;
 use crate::chat::composer::{Face, round_button};
 use crate::ui::tokens::{HAIRLINE, Radius, Space};
 use crate::ui::typography::BODY;
-use crate::ui::{IconName, Material, MaterialExt, UI_FONT, format_names, icon_button};
+use crate::ui::{FontRole, IconName, Material, MaterialExt, format_names, icon_button};
 use foxfire_core::session_core::ChatChannel;
 use rouge::core::{Apply, Cursor, Editable, Key, Role, Styled, View, div, dynamic, editable, presentation, view};
 use rouge::reactive::memo;
@@ -40,7 +40,7 @@ impl ChatRoom {
             .selection(self.selection)
             .track_focus(self.focus)
             .when(self.focus_on_mount.update(take) && !touch, Editable::autofocus)
-            .font(UI_FONT)
+            .font(FontRole::Ui)
             .text_size(BODY.size)
             .line_height(BODY.line_height)
             .color(Role::Text)

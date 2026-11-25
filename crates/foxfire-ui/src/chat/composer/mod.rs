@@ -5,10 +5,10 @@ use super::attachment::{chip, chip_icon, preview};
 use super::room::ChatRoom;
 use crate::platform::ChatPlatform;
 use crate::thread::{Thread, ThreadEvent, ThreadStatus};
-use crate::ui::tokens::{COMPOSER_POPUP_HEIGHT, CONTROL_HEIGHT_LARGE, HAIRLINE, ICON_SIZE, ROW_HEIGHT, Radius, Space};
+use crate::ui::tokens::{COMPOSER_POPUP_HEIGHT, CONTROL_HEIGHT_LARGE, ICON_SIZE, ROW_HEIGHT, Radius, Space};
 use crate::ui::typography::READING;
 use crate::ui::{
-    IconButton, IconName, Material, MaterialExt, PickerItem, SearchPickerEvent, SearchPickerHandle, UI_FONT,
+    FontRole, IconButton, IconName, Material, MaterialExt, PickerItem, SearchPickerEvent, SearchPickerHandle, Wording,
     format_names, icon_button, picker_closed, popping, presence, search_picker,
 };
 use crate::ui::{chord, spawn_in};
@@ -24,7 +24,7 @@ use foxfire_core::session_model::WorkspaceAccess;
 use queued::queued_prompts;
 use rouge::core::{
     AnyView, Apply, ClipboardMedia, Color, Cursor, Editable, Fill, FocusHandle, FocusPolicy, Key, KeyEvent, Modifiers,
-    Role, Styled, Theme, View, div, dynamic, editable, focus_handle, presentation, px, show, view,
+    Role, Styled, View, div, dynamic, editable, focus_handle, presentation, px, show, view,
 };
 use rouge::reactive::{Callback, Scope, Signal, Stored, batch, effect, memo, signal, stored, untrack};
 use std::ops::Range;
@@ -151,12 +151,9 @@ impl Composer {
             memo(move || thread.with_core(|core| core.queued_prompts().to_vec()).filter(|prompts| !prompts.is_empty()));
         let completion = memo(move || self.completion());
         let search = memo(move || self.popup.with(|popup| matches!(popup, Popup::Search(_))));
-        let theme = Theme::current();
         let editor = view! {
             <div w_full flex col gap=Space::X1
-                 focusable_glass={move || self.focus.is_focused() || self.room.is_shared()}
-                 border={move || if self.room.is_shared() { HAIRLINE } else { 0.0 }}
-                 border_color={move || theme.get().accent.with_alpha(SHARED_BORDER_ALPHA)}>
+                 test_id="composer-panel" floating_panel={move || self.focus.is_focused() || self.room.is_shared()}>
                 <dynamic>{self.sources()}</dynamic>
                 <dynamic>{self.attachments()}</dynamic>
                 {self.input()}
@@ -184,11 +181,11 @@ impl Composer {
             .selection(self.selection)
             .track_focus(self.focus)
             .when(!touch, Editable::autofocus)
-            .font(UI_FONT)
+            .font(FontRole::Ui)
             .text_size(READING.size)
             .line_height(READING.line_height)
             .color(Role::Text)
-            .placeholder(PLACEHOLDER, Role::TextMuted)
+            .placeholder(Wording::current().placeholder, Role::TextMuted)
             .w_full()
             .on_key_down(move |event| {
                 if self.intercept(event) {
@@ -667,8 +664,6 @@ fn floor_boundary(text: &str, index: usize) -> usize {
     text.floor_char_boundary(index.min(text.len()))
 }
 
-const SHARED_BORDER_ALPHA: f32 = 0.6;
 const MIN_ROWS: usize = 1;
 const MAX_ROWS: usize = 12;
 const SEARCH_PROMPTS_KEYS: &str = "secondary-r";
-const PLACEHOLDER: &str = "Message the agent…  / for commands, @ for files";

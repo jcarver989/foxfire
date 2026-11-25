@@ -1,4 +1,4 @@
-use super::foxfire::{ROUNDNESS, may_animate};
+use super::may_animate;
 use rouge::core::access::Role;
 use rouge::core::{
     Corners, Div, Ease, Fill, IntoProp, Keyframes, PaintRegion, Prop, Styled, component, div, switch, view,
@@ -55,6 +55,7 @@ fn breath() -> Keyframes {
         .repeat()
 }
 
+const ROUNDNESS: f32 = 0.3;
 const CELLS: u8 = 5;
 const CELL: f32 = 6.0;
 const GAP: f32 = 2.0;

@@ -1,12 +1,12 @@
-use super::tokens::{Space, UNIT};
-use super::{
+use clankerdiff_ui_core::{Appearance, AppearanceMode, ThemePreference};
+use foxfire_ui::ui::tokens::{Space, UNIT};
+use foxfire_ui::ui::{
     ActiveReviewTheme, ButtonVariant, IconButton, IconName, InterfaceSize, Material, ModalSize, ThemePickerEvent,
-    UiStyles, button, icon_button, key_hints, modal, number_field, search_picker, segment, segmented_control,
+    ThemeSet, UiStyles, button, icon_button, key_hints, modal, number_field, search_picker, segment, segmented_control,
     text_input, theme_picker, toggle,
 };
-use clankerdiff_ui_core::{Appearance, AppearanceMode, ReviewTheme, ThemeChoice, ThemePreference};
 use rouge::core::{AnyView, Div, Styled, View, div, dynamic, pct, presentation, scroll, text, view};
-use rouge::reactive::{Callback, Memo, Signal, effect, memo, signal, untrack};
+use rouge::reactive::{Callback, Memo, Signal, Stored, effect, memo, signal, stored, untrack};
 use rouge::widgets::{Placement, list_group, popover};
 
 /// A setting read from and committed to the host's state.
@@ -29,10 +29,37 @@ impl<T: 'static> SettingsField<T> {
     }
 }
 
+/// The user's choice among a host's themes.
+#[derive(Clone, Copy)]
+pub struct AppearanceField {
+    themes: Stored<ThemeSet>,
+    field: SettingsField<ThemePreference>,
+}
+
+impl AppearanceField {
+    pub fn new(themes: ThemeSet, field: SettingsField<ThemePreference>) -> Self {
+        Self { themes: stored(themes), field }
+    }
+
+    fn commit(self, active: ActiveReviewTheme, change: impl FnOnce(&mut ThemePreference)) {
+        let current = self.field.value.get_untracked();
+        let mut next = current.clone();
+        change(&mut next);
+        self.themes.with(|themes| themes.apply(&next, active));
+        if next != current {
+            self.field.set.call(next);
+        }
+    }
+
+    fn restore(self, active: ActiveReviewTheme) {
+        self.field.value.with_untracked(|value| self.themes.with(|themes| themes.apply(value, active)));
+    }
+}
+
 /// The host's settings bindings. Absent capabilities have no row in Settings.
 #[derive(Clone, Copy)]
 pub struct SettingsModel {
-    pub appearance: SettingsField<ThemePreference>,
+    pub appearance: AppearanceField,
     pub reduced_motion: Option<SettingsField<bool>>,
     pub interface_size: Option<InterfaceSize>,
     pub display_name: Option<SettingsField<String>>,
@@ -50,7 +77,7 @@ pub fn settings(model: SettingsModel, on_close: impl Fn() + 'static) -> impl Vie
     let touch = presentation().get_untracked().is_touch();
     let on_close = Callback::from(on_close);
     let close = move || {
-        restore_theme(appearance, active);
+        appearance.restore(active);
         on_close.call();
     };
     let body = if touch {
@@ -58,7 +85,7 @@ pub fn settings(model: SettingsModel, on_close: impl Fn() + 'static) -> impl Vie
         dynamic(move || {
             if let Some(slot) = selected.get() {
                 let back = move || {
-                    restore_theme(appearance, active);
+                    appearance.restore(active);
                     selected.set(None);
                 };
                 view! {
@@ -172,26 +199,27 @@ fn interface_size(size: InterfaceSize) -> AnyView {
     view! { <number_field test_id="interface-size" value=typed suffix="px" w=INTERFACE_SIZE_WIDTH/> }.into_any()
 }
 
-fn mode(field: SettingsField<ThemePreference>, active: ActiveReviewTheme) -> AnyView {
-    let current = memo(move || field.value.with(|value| value.mode));
+fn mode(field: AppearanceField, active: ActiveReviewTheme) -> AnyView {
+    let current = memo(move || field.field.value.with(|value| value.mode));
     let choices = [(AppearanceMode::System, "System"), (AppearanceMode::Light, "Light"), (AppearanceMode::Dark, "Dark")]
         .map(|(mode, label)| {
             view! {
                 <segment test_id={format!("appearance-{}", label.to_lowercase())} label selected={move || current.get() == mode}
-                         on_click={move || commit(field, active, |value| value.mode = mode)}/>
+                         on_click={move || field.commit(active, |value| value.mode = mode)}/>
             }
         });
     view! { <segmented_control flex_none>{..choices}</segmented_control> }.into_any()
 }
 
 fn theme_choice(
-    field: SettingsField<ThemePreference>,
+    field: AppearanceField,
     active: ActiveReviewTheme,
     slot: Appearance,
     touch_picker: Option<Signal<Option<Appearance>>>,
 ) -> AnyView {
     let open = signal(false);
-    let name = memo(move || field.value.with(|value| theme_name(value.pair.id(slot))));
+    let name =
+        memo(move || field.field.value.with(|value| field.themes.with(|themes| themes.name(value.pair.id(slot)))));
     let trigger = view! {
         <button test_id={format!("{}-theme", key(slot))} label={move || name.get()} variant=ButtonVariant::Secondary
                 on_click={move || if let Some(touch_picker) = touch_picker {
@@ -205,7 +233,7 @@ fn theme_choice(
     }
     effect(move || {
         if !open.get() {
-            untrack(|| restore_theme(field, active));
+            untrack(|| field.restore(active));
         }
     });
     popover(open, trigger, move || picker(field, active, slot, false, move || open.set(false)))
@@ -214,25 +242,28 @@ fn theme_choice(
 }
 
 fn picker(
-    field: SettingsField<ThemePreference>,
+    field: AppearanceField,
     active: ActiveReviewTheme,
     slot: Appearance,
     touch: bool,
     close: impl Fn() + 'static,
 ) -> impl View {
-    let current = field.value.with_untracked(|value| ReviewTheme::builtin(value.pair.id(slot)).unwrap_or_default());
-    let handle = theme_picker(&current, ThemeChoice::catalog_for(slot), move |event| match event {
+    let (current, choices) = field.themes.with(|themes| {
+        let current = field.field.value.with_untracked(|value| themes.theme(value, slot));
+        (current, themes.choices_for(slot))
+    });
+    let handle = theme_picker(&current, choices, move |event| match event {
         ThemePickerEvent::Preview(theme) => {
             if !touch {
                 active.set(theme);
             }
         }
         ThemePickerEvent::Commit(theme) => {
-            commit(field, active, |value| value.pair.set(slot, theme.id().to_string()));
+            field.commit(active, |value| value.pair.set(slot, theme.id().to_string()));
             close();
         }
         ThemePickerEvent::Cancel(_) => {
-            restore_theme(field, active);
+            field.restore(active);
             close();
         }
     });
@@ -247,29 +278,11 @@ fn picker(
     }
 }
 
-fn commit(field: SettingsField<ThemePreference>, active: ActiveReviewTheme, change: impl FnOnce(&mut ThemePreference)) {
-    let current = field.value.get_untracked();
-    let mut next = current.clone();
-    change(&mut next);
-    active.apply(&next);
-    if next != current {
-        field.set.call(next);
-    }
-}
-
-fn restore_theme(field: SettingsField<ThemePreference>, active: ActiveReviewTheme) {
-    field.value.with_untracked(|value| active.apply(value));
-}
-
 fn key(appearance: Appearance) -> &'static str {
     match appearance {
         Appearance::Light => "light",
         Appearance::Dark => "dark",
     }
-}
-
-fn theme_name(id: &str) -> String {
-    ReviewTheme::catalog().into_iter().find(|theme| theme.id == id).map_or_else(|| id.to_owned(), |theme| theme.name)
 }
 
 fn row(label: &'static str, detail: &'static str, control: AnyView, stacked: bool) -> Div {

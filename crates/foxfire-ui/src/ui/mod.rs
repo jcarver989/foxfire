@@ -1,32 +1,27 @@
+mod activity;
 mod cells;
 mod components;
-mod foxfire;
-mod kindling;
 mod person_avatar;
-mod settings;
-mod shell;
+mod side_panel;
+mod themes;
 pub mod tokens;
+mod wording;
 
+pub use activity::{Activity, ActivityMark, ActivityMotion, ActivityState, activity, may_animate};
 pub use cells::cells;
 pub use components::{
     StyledExt, chord, dispatch, hint, icon_slot, picker_closed, popping, presence, scroll_edge, selection,
     thread_header,
 };
-pub use foxfire::{FoxfireMotion, FoxfireState, foxfire};
-#[cfg(any(test, feature = "testing"))]
-pub use kindling::KINDLED_AFTER;
-pub use kindling::kindling;
 pub use person_avatar::{format_names, people_avatars, person_avatar, person_color};
-pub use settings::{SettingsField, SettingsModel, settings, settings_button};
-pub use shell::{
-    MIN_MAIN_WIDTH, PanelWidth, TOGGLE_SIDEBAR_KEYS, ThreadShell, ToggleSidebar, cloud_section, sidebar_group,
-    sidebar_thread_row, thread_status_icon,
-};
+pub use side_panel::{MIN_MAIN_WIDTH, PanelWidth, beside_room};
+pub use themes::ThemeSet;
+pub use wording::Wording;
 
 pub use clankerdiff_rouge::theme::{
     ActiveReviewTheme, ThemePickerEvent, theme_picker, theme_picker_overlay, theme_picker_view,
 };
-pub use clankerdiff_ui_core::ThemePreference;
+pub use clankerdiff_ui_core::{ThemeChoice, ThemePair, ThemePreference};
 pub use rouge::core::{Theme, appearance};
 pub use rouge_widgets::*;
 

@@ -1,4 +1,4 @@
-use foxfire_ui::hosted::demo_view;
+use foxfire_shell::hosted::demo_view;
 use rouge::persist::app_storage;
 use rouge::{App, WindowOptions};
 use rouge_widgets::bundled_fonts;

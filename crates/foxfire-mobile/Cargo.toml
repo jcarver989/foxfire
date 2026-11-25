@@ -18,6 +18,6 @@ crate-type = ["cdylib"]
 workspace = true
 
 [target.'cfg(any(target_os = "ios", target_os = "android"))'.dependencies]
-foxfire-ui = { workspace = true }
+foxfire-shell = { workspace = true }
 rouge = { workspace = true, features = ["persist"] }
 rouge-widgets = { workspace = true }

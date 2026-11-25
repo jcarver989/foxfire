@@ -2,8 +2,8 @@ use crate::chat::attachment::{Attachment, chip, chip_icon, thumbnail};
 use crate::thread::{Thread, ThreadStatus};
 use crate::ui::tokens::{HAIRLINE, Pace, Space};
 use crate::ui::{
-    ButtonVariant, IconName, Material, MaterialExt, NoticeTone, UiStyles, backdrop, button, disclosure, icon_button,
-    notification, person_avatar,
+    ButtonVariant, IconName, Material, MaterialExt, NoticeTone, UiStyles, Wording, backdrop, button, disclosure,
+    icon_button, notification, person_avatar,
 };
 use clankerdiff_rouge::{ReviewHandle, diff_view};
 use foxfire_acp::chat::Participant;
@@ -129,7 +129,7 @@ pub(crate) fn error(index: usize, text: &str) -> AnyView {
 }
 
 pub fn reconnect_banner(thread: Thread, status: ThreadStatus) -> Option<Div> {
-    let problem = status.problem()?;
+    let problem = Wording::current().problem(status)?;
     let banner = notification(problem.to_owned(), NoticeTone::Warning, None)
         .material(Material::Surface)
         .p(Space::X2.px() - HAIRLINE)
@@ -139,7 +139,7 @@ pub fn reconnect_banner(thread: Thread, status: ThreadStatus) -> Option<Div> {
 
 pub(crate) fn reconnect_button(thread: Thread) -> AnyView {
     view! {
-        <button test_id="transcript-reconnect" label="Reconnect" icon=IconName::RotateCw variant=ButtonVariant::Primary
+        <button test_id="transcript-reconnect" label={Wording::current().reconnect} icon=IconName::RotateCw variant=ButtonVariant::Primary
                 on_click={move || thread.reconnect()}/>
     }
     .into_any()

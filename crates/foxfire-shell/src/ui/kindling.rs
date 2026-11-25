@@ -1,4 +1,5 @@
-use super::{FoxfireMotion, Theme};
+use foxfire_ui::ui::tokens::Radius;
+use foxfire_ui::ui::{ActivityMotion, Theme};
 use rouge::core::{
     Div, Ease, Inputs, Motion, PaintRegion, Rect, Role, ShaderEffect, Styled, Tween, div, switch, window_focused,
 };
@@ -16,8 +17,8 @@ pub fn kindling(composer: impl Fn() -> Rect + 'static, reveal: Motion) -> Div {
     let theme = Theme::current();
     let region = signal(PaintRegion::default());
     let focused = window_focused();
-    let motion = use_context::<FoxfireMotion>();
-    let reduced = move || motion.is_some_and(FoxfireMotion::reduced);
+    let motion = use_context::<ActivityMotion>();
+    let reduced = move || motion.is_some_and(ActivityMotion::reduced);
     let animated = memo(move || focused.get() && !reduced() && region.with(|region| !region.bounds.is_empty()));
     let veiled = focused.get_untracked() && !untrack(reduced);
     reveal.set(if veiled { HIDDEN } else { 1.0 });
@@ -109,7 +110,7 @@ impl Fire {
 }
 
 /// Matches the composer's rounded glass, so the snowflake and fire follow its outline.
-const CORNER_RADIUS: f32 = super::tokens::Radius::Floating.px();
+const CORNER_RADIUS: f32 = Radius::Floating.px();
 /// The composer fades in over `REVEAL_FOR` from the moment its outline catches, `CATCH_AT` in `kindling.wgsl`.
 const REVEAL_AT: f32 = 0.7;
 const REVEAL_FOR: f32 = 0.3;

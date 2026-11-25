@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
-src=(crates/foxfire-desktop/src crates/foxfire-ui/src crates/foxfire-web/src)
+src=(crates/foxfire-desktop/src crates/foxfire-shell/src crates/foxfire-ui/src crates/foxfire-web/src)
 sized='(p|px|py|pt|pb|pl|pr|m|mx|my|mt|mb|ml|mr|gap|gap_x|gap_y|w|h|size|min_w|min_h|max_w|max_h|top|left|right|bottom)'
 spaced='(p|px|py|pt|pb|pl|pr|m|mx|my|mt|mb|ml|mr|gap|gap_x|gap_y)'
 status=0

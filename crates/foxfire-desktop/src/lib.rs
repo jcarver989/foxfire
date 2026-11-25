@@ -1,12 +1,10 @@
 pub mod agents;
 mod app;
-mod artifact_review;
 pub mod branding;
 mod chat;
 pub mod cli;
 pub mod clock;
 mod file_picker;
-mod files;
 pub mod history;
 mod menus;
 pub mod platform;

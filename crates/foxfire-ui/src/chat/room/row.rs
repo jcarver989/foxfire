@@ -2,7 +2,7 @@ use super::ChatRoom;
 use crate::chat::transcript::hash;
 use crate::ui::tokens::{AVATAR_SIZE_SMALL, ICON_SIZE_SMALL, Pace, Radius, Space, TINT_ALPHA};
 use crate::ui::{
-    ButtonVariant, ControlSize, FoxfireState, IconName, UiStyles, button, foxfire, markdown, person_avatar,
+    ActivityState, ButtonVariant, ControlSize, IconName, UiStyles, activity, button, markdown, person_avatar,
     person_color,
 };
 use chrono::{DateTime, Local};
@@ -206,7 +206,7 @@ impl Row {
 pub(super) fn quote(excerpt: &str) -> Div {
     view! {
         <div px=Space::X2 py=Space::X1 flex items_center gap=Space::X1 min_w=0.0>
-            {foxfire(ICON_SIZE_SMALL, Role::Accent, || FoxfireState::Waiting)}
+            {activity(ICON_SIZE_SMALL, Role::Accent, || ActivityState::Waiting)}
             <div flex_1 min_w=0.0 overflow_hidden><text small secondary no_wrap>{prompt_title(Some(excerpt))}</text></div>
         </div>
     }

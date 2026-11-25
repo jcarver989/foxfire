@@ -4,7 +4,7 @@ use crate::remotes::{InstanceState, Lifecycle};
 use crate::threads::ThreadStatus;
 use crate::ui::tokens::{ICON_SIZE, Radius, UNREAD_DOT_SIZE};
 use crate::ui::{
-    FoxfireState, Icon, IconName, UiStyles, foxfire, hint, icon_button, inline_edit, people_avatars, row_action,
+    ActivityState, Icon, IconName, UiStyles, activity, hint, icon_button, inline_edit, people_avatars, row_action,
     sidebar_thread_row, thread_status_icon,
 };
 use rouge::core::{AnyView, MenuItem as WindowMenuItem, Role, Styled, View, div, text, view};
@@ -30,10 +30,8 @@ pub(super) fn row(sidebar: &Sidebar, row: &Row) -> AnyView {
     let sidebar = *sidebar;
     let selector = row.key.selector();
     let editing = matches!(row.kind, RowKind::Local { editing: true, .. });
-    let reconnect = row
-        .thread
-        .filter(|_| matches!(row.icon, RowIcon::Status(status) if status.problem().is_some()))
-        .map(|thread| {
+    let reconnect =
+        row.thread.filter(|_| matches!(row.icon, RowIcon::Status(status) if status.has_problem())).map(|thread| {
             view! {
                 <icon_button test_id={format!("{selector}-reconnect")} icon=IconName::RotateCw label="Reconnect"
                              on_click={move || thread.reconnect()}/>
@@ -188,7 +186,7 @@ fn instance_icon(row: &str, state: Option<InstanceState>) -> AnyView {
     let id = format!("{row}-instance-{name}");
     let mark = match icon {
         Some(icon) => Icon::new(icon, muted).into_any(),
-        None => foxfire(ICON_SIZE, muted, || FoxfireState::Connecting).into_any(),
+        None => activity(ICON_SIZE, muted, || ActivityState::Connecting).into_any(),
     };
     hint(id.clone(), label, tagged(format!("{id}-icon"), mark))
 }

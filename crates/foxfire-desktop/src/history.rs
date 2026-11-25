@@ -9,7 +9,7 @@ use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-pub use foxfire_ui::thread::UNTITLED;
+pub use foxfire_shell::UNTITLED;
 
 /// The sessions agents have saved, listed only when something asks for an agent's sessions.
 #[derive(Clone, Copy)]
