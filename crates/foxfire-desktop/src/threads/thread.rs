@@ -5,6 +5,7 @@ use agent_client_protocol::v2::schema::SessionId;
 use chrono::{DateTime, Utc};
 use foxfire_ui::thread::Thread as ChatThread;
 pub use foxfire_ui::thread::{ThreadEvent, ThreadStatus};
+use rouge::core::window_focused;
 use rouge::reactive::{Signal, Stored, signal, stored};
 use std::hash::{Hash, Hasher};
 use std::ops::Deref;
@@ -29,10 +30,15 @@ impl Thread {
     ) -> Self {
         let cwd = target.cwd().map(ToOwned::to_owned);
         let project = cwd.as_deref().map(git_root);
+        let outlives_connections = target.outlives_connections();
         let target = signal(target);
         let chat = ChatThread::connect(number, cwd, session_id, move |resume| {
             super::driver::open(number, connector.clone(), target.get_untracked(), resume)
         });
+        if outlives_connections {
+            let focused = window_focused();
+            chat.keep_connected(move || focused.get());
+        }
         chat.on_event(move |event| {
             if let ThreadEvent::Launched(id) = event {
                 target.update(|target| target.set_instance(id));

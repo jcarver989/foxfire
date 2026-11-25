@@ -1,11 +1,16 @@
 use crate::backend::{ConnectFailure, SessionEvent, SessionLink};
+use clankerdiff_client::MaybeSend;
 use foxfire_acp::client::AcpEvent;
 use foxfire_core::command::Command;
 use foxfire_core::connection::Session;
 use foxfire_core::runtime::{ReviewOverride, SessionRuntime};
 use foxfire_core::session_core::Input;
+#[cfg(target_arch = "wasm32")]
+use rouge::reactive::spawn;
+#[cfg(not(target_arch = "wasm32"))]
 use rouge::reactive::spawn_tokio;
 use std::future::{Future, ready};
+use std::iter::from_fn;
 use std::pin::Pin;
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel};
 use tracing::Instrument;
@@ -20,24 +25,27 @@ pub struct OpenedSession {
 /// Tells a thread which instance was launched for it, even if its session then fails to open.
 pub struct Launches(UnboundedSender<SessionEvent>);
 
+#[cfg(not(target_arch = "wasm32"))]
 type Review = Pin<Box<dyn Future<Output = Option<ReviewOverride>> + Send>>;
+#[cfg(target_arch = "wasm32")]
+type Review = Pin<Box<dyn Future<Output = Option<ReviewOverride>>>>;
 
 /// Opens a session and runs it until its agent disconnects or the link is dropped.
 pub fn drive<T>(open: impl FnOnce(Launches) -> T) -> SessionLink
 where
-    T: Future<Output = Result<OpenedSession, ConnectFailure>> + Send + 'static,
+    T: Future<Output = Result<OpenedSession, ConnectFailure>> + MaybeSend + 'static,
 {
     let (commands, commands_rx) = unbounded_channel();
     let (messages, events) = unbounded_channel();
     let opening = open(Launches(messages.clone()));
-    spawn_tokio(run(opening, commands_rx, messages).in_current_span());
+    start(run(opening, commands_rx, messages).in_current_span());
     SessionLink { commands, events }
 }
 
 impl OpenedSession {
     /// Reviews the session's changes where `review` says, instead of through its agent.
     #[must_use]
-    pub fn reviewed_at(mut self, review: impl Future<Output = Option<ReviewOverride>> + Send + 'static) -> Self {
+    pub fn reviewed_at(mut self, review: impl Future<Output = Option<ReviewOverride>> + MaybeSend + 'static) -> Self {
         self.review = Box::pin(review);
         self
     }
@@ -53,6 +61,16 @@ impl Launches {
     pub fn launched(&self, instance: String) {
         let _ = self.0.send(SessionEvent::Launched(instance));
     }
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn start(session: impl Future<Output = ()> + Send + 'static) {
+    spawn_tokio(session);
+}
+
+#[cfg(target_arch = "wasm32")]
+fn start(session: impl Future<Output = ()> + 'static) {
+    spawn(session);
 }
 
 async fn run(
@@ -73,7 +91,8 @@ async fn run(
         }
     };
     let (config, mut runtime) = session.into_core();
-    if messages.send(SessionEvent::Connected(Box::new(config))).is_ok() {
+    let replay = from_fn(|| runtime.try_next_event()).map(Input::Event).collect();
+    if messages.send(SessionEvent::Connected(Box::new(config), replay)).is_ok() {
         tracing::debug!(target: "foxfire_startup", elapsed_ms = started.elapsed().as_millis(), "Session handed to the UI");
         forward(&mut runtime, review, commands, &messages).await;
     }

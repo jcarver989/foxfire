@@ -273,6 +273,7 @@ pub fn sidebar_thread_row(
 pub fn thread_status_icon(row: &str, status: ThreadStatus) -> AnyView {
     let (name, label, shape, icon, color) = match status {
         ThreadStatus::Connecting => ("connecting", "Starting agent", "foxfire", None, Role::TextMuted),
+        ThreadStatus::Reconnecting => ("reconnecting", "Reconnecting", "foxfire", None, Role::TextMuted),
         ThreadStatus::Running => ("running", "Agent working", "foxfire", None, Role::Info),
         ThreadStatus::Background => {
             ("background", "Background task still running", "dot", Some(IconName::CircleDot), Role::TextMuted)

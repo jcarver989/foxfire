@@ -188,10 +188,8 @@ impl Session {
             workspace_access: WorkspaceAccess::Remote,
             participant: Some(person(YOU)),
         };
-        let _ = sender.send(SessionEvent::Connected(Box::new(config)));
-        for update in &self.history {
-            let _ = sender.send(SessionEvent::Input(Input::Event(update.clone().into())));
-        }
+        let replay = self.history.iter().map(|update| Input::Event(update.clone().into())).collect();
+        let _ = sender.send(SessionEvent::Connected(Box::new(config), replay));
         self.clients.retain(|client| !client.is_closed());
         self.clients.push(sender.clone());
     }

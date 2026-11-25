@@ -1,10 +1,7 @@
 use agent_client_protocol::v2::schema::SessionId;
-#[cfg(not(target_arch = "wasm32"))]
 use foxfire_acp::client::AcpClientError;
-#[cfg(not(target_arch = "wasm32"))]
 use foxfire_acp::websocket;
 use foxfire_core::command::Command;
-#[cfg(not(target_arch = "wasm32"))]
 use foxfire_core::connection::ConnectionError;
 use foxfire_core::session_core::Input;
 use foxfire_core::session_core::SessionCoreConfig;
@@ -22,7 +19,8 @@ pub struct SessionLink {
 #[allow(clippy::large_enum_variant, reason = "streamed inputs are the common case; keep them inline in the channel")]
 pub enum SessionEvent {
     Launched(String),
-    Connected(Box<SessionCoreConfig>),
+    /// A session is open, with whatever its agent replayed while it opened.
+    Connected(Box<SessionCoreConfig>, Vec<Input>),
     OpenReview,
     ConnectFailed(ConnectFailure),
     Input(Input),
@@ -105,7 +103,6 @@ impl From<BackendError> for ConnectFailure {
 
 /// A refused handshake says nothing about the user or the session, because a browser cannot see why it was refused.
 /// Whatever hands out endpoints answers that on the next attempt.
-#[cfg(not(target_arch = "wasm32"))]
 impl From<websocket::ConnectError> for ConnectFailure {
     fn from(error: websocket::ConnectError) -> Self {
         let reason = if error.is_retryable() { Self::Retryable } else { Self::Other };
@@ -113,7 +110,6 @@ impl From<websocket::ConnectError> for ConnectFailure {
     }
 }
 
-#[cfg(not(target_arch = "wasm32"))]
 impl From<ConnectionError> for ConnectFailure {
     fn from(error: ConnectionError) -> Self {
         let reason = match &error {

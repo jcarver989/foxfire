@@ -127,6 +127,14 @@ impl SessionTarget {
         }
     }
 
+    /// Whether the agent runs elsewhere, and so can outlive a connection to it.
+    pub fn outlives_connections(&self) -> bool {
+        match self {
+            Self::Agent { agent, .. } => matches!(agent.config.transport, AgentTransport::WebSocket(_)),
+            Self::Remote { .. } => true,
+        }
+    }
+
     pub fn instance(&self) -> Option<&str> {
         match self {
             Self::Agent { .. } => None,
