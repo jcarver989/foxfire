@@ -8,11 +8,12 @@ use foxfire_core::composer::file_listing::{FileListing, RepoFiles};
 use foxfire_core::composer::submission::Submission;
 use foxfire_core::elicitation::{ArtifactReviewElicitationMeta, Elicitation, ElicitationId};
 use foxfire_core::session_core::{ChatChannel, Effect, SessionCore};
-use rouge::reactive::{Callback, Scope, Signal, Stored, Task, batch, signal, spawn, stored};
+use rouge::reactive::{Callback, Scope, Signal, Stored, Task, batch, effect, memo, signal, sleep, spawn, stored};
 use std::fmt::{Debug, Formatter, Result as FmtResult};
 use std::hash::{Hash, Hasher};
 use std::path::PathBuf;
 use std::sync::Arc;
+use std::time::Duration;
 use tokio::sync::mpsc::UnboundedSender;
 use web_time::Instant;
 
@@ -33,6 +34,8 @@ pub enum ThreadEvent {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ThreadStatus {
     Connecting,
+    /// Lost its agent, and is getting it back by itself.
+    Reconnecting,
     Idle,
     Running,
     Background,
@@ -66,6 +69,9 @@ struct ThreadState {
     session_id: Option<SessionId>,
     core: Option<SessionCore>,
     link: Link,
+    keeps_connected: bool,
+    /// How often it has tried to reconnect by itself since it was last connected.
+    attempts: u32,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -87,7 +93,13 @@ impl Thread {
     ) -> Self {
         let thread = Self {
             number,
-            state: signal(ThreadState { session_id: session_id.clone(), core: None, link: Link::Connecting }),
+            state: signal(ThreadState {
+                session_id: session_id.clone(),
+                core: None,
+                link: Link::Connecting,
+                keeps_connected: false,
+                attempts: 0,
+            }),
             driver: stored(None),
             connect: stored(Box::new(open) as Connect),
             cwd: stored(cwd),
@@ -227,9 +239,39 @@ impl Thread {
         });
     }
 
+    /// Gets a dropped agent back by itself, waiting longer after each attempt that fails, or without waiting when the
+    /// window is `focused` again. Gives up on an agent that the user has to sign in for, or that has ended.
+    pub fn keep_connected(&self, focused: impl Fn() -> bool + 'static) {
+        let thread = *self;
+        self.state.update(|state| state.keeps_connected = true);
+        self.scope.run(|| {
+            let due = memo(move || thread.state.with(ThreadState::next_attempt));
+            effect(move || {
+                if let Some(attempt) = due.get() {
+                    spawn(async move {
+                        sleep(backoff(attempt)).await;
+                        thread.state.update(|state| state.attempts += 1);
+                        thread.reconnect();
+                    });
+                }
+            });
+            let focused = memo(focused);
+            effect(move || {
+                if focused.get() && thread.is_dropped() {
+                    thread.reconnect();
+                }
+            });
+        });
+    }
+
+    /// Whether the agent was lost in a way that reconnecting may fix.
+    pub(crate) fn is_dropped(&self) -> bool {
+        self.state.with_untracked(ThreadState::is_dropped)
+    }
+
     pub fn reconnect(&self) {
         let session_id = self.state.with_untracked(|state| {
-            matches!(state.link, Link::Failed(_) | Link::Closed).then(|| state.session_id.clone())
+            matches!(state.link, Link::Failed(_) | Link::Closed | Link::Stopped).then(|| state.session_id.clone())
         });
         if let Some(session_id) = session_id {
             self.open_session(session_id);
@@ -258,7 +300,7 @@ impl Thread {
         let mut connected = false;
         batch(|| {
             for message in messages {
-                connected |= matches!(&message, SessionEvent::Connected(_));
+                connected |= matches!(&message, SessionEvent::Connected(..));
                 self.on_driver_message(message);
             }
         });
@@ -275,10 +317,14 @@ impl Thread {
         }
         self.mutate(|state| match message {
             SessionEvent::Launched(_) => unreachable!(),
-            SessionEvent::Connected(config) => {
+            SessionEvent::Connected(config, replay) => {
                 state.session_id = Some(config.session_response.session_id.clone());
-                state.core = Some(SessionCore::new(*config));
+                let core = state.core.insert(SessionCore::new(*config));
+                for input in replay {
+                    core.on_input(input);
+                }
                 state.link = Link::Connected;
+                state.attempts = 0;
             }
             SessionEvent::OpenReview => {
                 if let Some(core) = state.core.as_mut() {
@@ -376,9 +422,20 @@ impl ThreadState {
         self.core.as_ref().filter(|_| self.link == Link::Connected)
     }
 
+    fn is_dropped(&self) -> bool {
+        self.core.is_some() && matches!(self.link, Link::Closed | Link::Failed(ConnectFailure::Retryable(_)))
+    }
+
+    /// The attempt to reconnect that is due, unless it has made too many.
+    fn next_attempt(&self) -> Option<u32> {
+        (self.keeps_connected && self.is_dropped() && self.attempts < MAX_ATTEMPTS).then_some(self.attempts)
+    }
+
     fn status(&self) -> ThreadStatus {
         match &self.link {
+            Link::Connecting if self.keeps_connected && self.core.is_some() => ThreadStatus::Reconnecting,
             Link::Connecting => ThreadStatus::Connecting,
+            Link::Closed | Link::Failed(_) if self.next_attempt().is_some() => ThreadStatus::Reconnecting,
             Link::Failed(_) => ThreadStatus::Errored,
             Link::Closed => ThreadStatus::Disconnected,
             Link::Stopped => ThreadStatus::Dormant,
@@ -420,8 +477,18 @@ impl ThreadStatus {
     pub fn problem(self) -> Option<&'static str> {
         match self {
             Self::Errored => Some("The agent could not start"),
+            Self::Reconnecting => Some("Reconnecting to the agent…"),
             Self::Disconnected => Some("The agent connection closed"),
             _ => None,
         }
     }
 }
+
+fn backoff(attempt: u32) -> Duration {
+    FIRST_RETRY_DELAY.saturating_mul(2_u32.saturating_pow(attempt)).min(MAX_RETRY_DELAY)
+}
+
+const FIRST_RETRY_DELAY: Duration = Duration::from_millis(250);
+const MAX_RETRY_DELAY: Duration = Duration::from_secs(30);
+/// About two minutes of trying, after which the user can still reconnect, or return to the window.
+const MAX_ATTEMPTS: u32 = 10;

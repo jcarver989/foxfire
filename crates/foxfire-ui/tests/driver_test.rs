@@ -1,7 +1,6 @@
-use agent_client_protocol::v2::schema::{Implementation, SessionId};
+use agent_client_protocol::v2::schema::SessionId;
 use foxfire_acp::client::AcpEvent;
-use foxfire_acp::testing::{Channel, FakeAgent, run_local};
-use foxfire_core::connection::{Connection, ConnectionError, Session};
+use foxfire_acp::testing::{FakeAgent, run_local};
 use foxfire_core::session_core::Input;
 use foxfire_ui::backend::{ConnectFailure, SessionEvent, SessionLink};
 use foxfire_ui::driver::{OpenedSession, drive};
@@ -9,7 +8,10 @@ use rouge::reactive::{Runtime, set_tokio};
 use std::future::pending;
 use tokio::runtime::Handle;
 use tokio::sync::oneshot::{self, error::RecvError};
-use tokio::task::{JoinError, JoinHandle, spawn_local};
+use tokio::task::{JoinError, JoinHandle};
+
+mod support;
+use support::{fake_agent, open};
 
 #[test]
 fn a_session_is_handed_over_before_its_review_is_found() -> Result<(), TestError> {
@@ -121,10 +123,7 @@ impl LinkBuilder {
     /// A link to a fake agent, and the task the agent runs in.
     fn open(self) -> (SessionLink, JoinHandle<()>) {
         let Self { instance, failure, review } = self;
-        let (agent_end, client_end) = Channel::duplex();
-        let agent = spawn_local(async move {
-            let _ = FakeAgent::new(SESSION).agent().connect_to(agent_end).await;
-        });
+        let (client_end, agent) = fake_agent(FakeAgent::new(SESSION));
         let link = drive(|launches| async move {
             if let Some(instance) = instance {
                 launches.launched(instance);
@@ -132,7 +131,7 @@ impl LinkBuilder {
             if let Some(failure) = failure {
                 return Err(failure);
             }
-            let opened = OpenedSession::from(open(client_end).await?);
+            let opened = OpenedSession::from(open(client_end, None).await?);
             Ok(match review {
                 Some(found) => opened.reviewed_at(async move {
                     let _: Result<(), RecvError> = found.await;
@@ -143,10 +142,6 @@ impl LinkBuilder {
         });
         (link, agent)
     }
-}
-
-async fn open(agent: Channel) -> Result<Session, ConnectionError> {
-    Connection::connect_to(Implementation::new("foxfire-test", "1"), agent).await?.open(None, "/work".into()).await
 }
 
 fn driven<T>(test: impl Future<Output = T>) -> T {
@@ -163,7 +158,7 @@ async fn next(link: &mut SessionLink) -> Result<SessionEvent, TestError> {
 
 async fn connected(link: &mut SessionLink) -> Result<SessionId, TestError> {
     match next(link).await? {
-        SessionEvent::Connected(config) => Ok(config.session_response.session_id),
+        SessionEvent::Connected(config, _) => Ok(config.session_response.session_id),
         _ => Err(TestError::NotConnected),
     }
 }

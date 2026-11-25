@@ -74,8 +74,8 @@ async fn a_new_attachment_replays_only_its_thread_history_once() -> Result<(), T
     assert_eq!(mismatched.events.recv().await.map(|_| ()), None);
 
     let mut reopened = backend.open(first.id, Some(id.clone()));
-    assert_eq!(connected(&mut reopened)?, id);
-    assert_eq!(messages(pending(&mut reopened)), live);
+    let (reopened_id, replay) = attached(&mut reopened)?;
+    assert_eq!((reopened_id, messages(replay)), (id, live));
     assert!(pending(&mut reopened).is_empty());
     Ok(())
 }
@@ -139,8 +139,15 @@ fn backend() -> MemoryBackend {
 }
 
 fn connected(link: &mut SessionLink) -> Result<acp::SessionId, TestError> {
+    attached(link).map(|(id, _)| id)
+}
+
+/// The session a link attached to, and what was replayed from it.
+fn attached(link: &mut SessionLink) -> Result<(acp::SessionId, Vec<SessionEvent>), TestError> {
     match link.events.try_recv()? {
-        SessionEvent::Connected(config) => Ok(config.session_response.session_id),
+        SessionEvent::Connected(config, replay) => {
+            Ok((config.session_response.session_id, replay.into_iter().map(SessionEvent::Input).collect()))
+        }
         _ => Err(TestError::NotConnected),
     }
 }

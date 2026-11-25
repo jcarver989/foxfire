@@ -23,7 +23,7 @@ clankerdiff-core = { workspace = true }
 clankerdiff-markdown = { workspace = true }
 clankerdiff-rouge = { workspace = true }
 clankerdiff-ui-core = { workspace = true }
-foxfire-acp = { workspace = true }
+foxfire-acp = { workspace = true, features = ["websocket"] }
 foxfire-chat = { workspace = true }
 foxfire-core = { workspace = true }
 indexmap = { workspace = true }
@@ -36,7 +36,6 @@ tracing = { workspace = true }
 web-time = "1"
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-foxfire-acp = { workspace = true, features = ["websocket"] }
 rouge = { workspace = true, features = ["tokio-rt"] }
 
 [dev-dependencies]
