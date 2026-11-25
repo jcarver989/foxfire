@@ -1,8 +1,8 @@
 use crate::support::{replying, write_agents_file};
+use foxfire_acp::websocket::Endpoint;
 use foxfire_core::fs::JsonFileError;
 use foxfire_desktop::agents::{
-    AgentCatalog, AgentTransport, Agents, CommandLine, Endpoint, EndpointSource, KNOWN_AGENTS, KnownAgent,
-    project_agents_file,
+    AgentCatalog, AgentTransport, Agents, CommandLine, EndpointSource, KNOWN_AGENTS, KnownAgent, project_agents_file,
 };
 use foxfire_desktop::testing::{DesktopHarness, DesktopHarnessBuilder};
 use foxfire_desktop::threads::Thread;
@@ -165,8 +165,8 @@ fn an_agent_of_either_type_may_say_where_its_working_tree_is_diffed() {
     assert_eq!(
         catalog.get("claude (ssh)").unwrap().config.diff,
         Some(EndpointSource::Fixed(Endpoint {
-            url: "ws://localhost:7331/ws".to_owned(),
-            headers: [("Authorization".to_owned(), "Bearer ${TOKEN}".to_owned())].into(),
+            headers: vec![("Authorization".to_owned(), "Bearer ${TOKEN}".to_owned())],
+            ..Endpoint::new("ws://localhost:7331/ws")
         }))
     );
     assert_eq!(

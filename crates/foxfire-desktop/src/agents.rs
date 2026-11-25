@@ -2,6 +2,7 @@ pub use agent_client_protocol::AcpAgentConfig as CommandLine;
 
 use crate::variables::{VarError, Vars};
 use agent_client_protocol::AcpAgent;
+use foxfire_acp::websocket::Endpoint;
 use foxfire_core::fs::{JsonFileError, read_json, write_json_atomic};
 use rouge::reactive::{Signal, Stored, signal, stored};
 use serde::{Deserialize, Serialize};
@@ -72,13 +73,6 @@ pub enum AgentTransport {
 pub enum EndpointSource {
     Fixed(Endpoint),
     Command(CommandLine),
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
-pub struct Endpoint {
-    pub url: String,
-    #[serde(default)]
-    pub headers: BTreeMap<String, String>,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -211,13 +205,12 @@ pub fn parse_command_line(command_line: &str) -> Result<CommandLine, agent_clien
 pub(crate) fn expand_command_line(line: &CommandLine, vars: &Vars) -> Result<CommandLine, VarError> {
     let command = vars.expand(&line.command().to_string_lossy())?;
     let args = line.arguments().iter().map(|arg| vars.expand(arg)).collect::<Result<Vec<_>, _>>()?;
-    Ok(CommandLine::new(command).args(args).envs(expand_values(line.environment(), vars)?))
+    Ok(CommandLine::new(command).args(args).envs(expand_values::<Vec<_>>(line.environment(), vars)?))
 }
 
-impl Endpoint {
-    pub(crate) fn expand(&self, vars: &Vars) -> Result<Self, VarError> {
-        Ok(Self { url: vars.expand(&self.url)?, headers: expand_values(&self.headers, vars)? })
-    }
+pub(crate) fn expand_endpoint(endpoint: &Endpoint, vars: &Vars) -> Result<Endpoint, VarError> {
+    let headers = expand_values(endpoint.headers.iter().map(|(name, value)| (name, value)), vars)?;
+    Ok(Endpoint { url: vars.expand(&endpoint.url)?, headers, ..endpoint.clone() })
 }
 
 impl TryFrom<EndpointFields> for EndpointSource {
@@ -225,7 +218,10 @@ impl TryFrom<EndpointFields> for EndpointSource {
 
     fn try_from(fields: EndpointFields) -> Result<Self, Self::Error> {
         match (fields.url, fields.endpoint, fields.headers) {
-            (Some(url), None, headers) => Ok(Self::Fixed(Endpoint { url, headers: headers.unwrap_or_default() })),
+            (Some(url), None, headers) => {
+                let headers = headers.unwrap_or_default().into_iter().collect();
+                Ok(Self::Fixed(Endpoint { headers, ..Endpoint::new(url) }))
+            }
             (None, Some(command), None) => Ok(Self::Command(command)),
             (None, Some(_), Some(_)) => Err(AgentConfigError::HeadersWithoutUrl),
             (Some(_), Some(_), _) => Err(AgentConfigError::ConflictingEndpoints),
@@ -283,6 +279,9 @@ fn read_catalog(extra: Option<&CommandLine>, user_file: Option<&Path>, project: 
     AgentCatalog { agents, problems }
 }
 
-fn expand_values(values: &BTreeMap<String, String>, vars: &Vars) -> Result<BTreeMap<String, String>, VarError> {
-    values.iter().map(|(name, value)| Ok((name.clone(), vars.expand(value)?))).collect()
+fn expand_values<'a, T: FromIterator<(String, String)>>(
+    values: impl IntoIterator<Item = (&'a String, &'a String)>,
+    vars: &Vars,
+) -> Result<T, VarError> {
+    values.into_iter().map(|(name, value)| Ok((name.clone(), vars.expand(value)?))).collect()
 }
