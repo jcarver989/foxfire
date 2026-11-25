@@ -1,4 +1,4 @@
-use crate::agents::{AgentProfile, Agents, CommandLine, Endpoint};
+use crate::agents::{AgentProfile, Agents, CommandLine};
 use crate::clock::Clock;
 use crate::history::History;
 use crate::platform::{Notification, PathPrompt, Platform, PlatformFuture};
@@ -17,6 +17,7 @@ use clankerdiff_remote::RemotesFile;
 use clankerdiff_remote::testing::FakeRemotes;
 use clankerdiff_ui_core::ReviewTheme;
 use foxfire_acp::testing::{Channel, FakeAgent, FakeAgentRequests, QueuedTurns};
+use foxfire_acp::websocket::Endpoint;
 use foxfire_core::testing::{FakeGit, git_diff_agent};
 use rouge::core::testing::{TestError, TestUi};
 use rouge::core::{Clipboard, ClipboardMedia, PasteRequest, Point, Rect, Size, window_focused, zoom};

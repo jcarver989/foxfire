@@ -1,11 +1,11 @@
-use crate::agents::{AgentProfile, AgentTransport, CommandLine, Endpoint, EndpointSource, expand_command_line};
+use crate::agents::{AgentProfile, AgentTransport, CommandLine, EndpointSource, expand_command_line, expand_endpoint};
 use crate::variables::VarError;
 use agent_client_protocol::v2::schema::{Implementation, SessionId};
 use agent_client_protocol::{self as acp, Agent, ByteStreams, Client, ConnectTo, DynConnectTo};
 use clankerdiff_client::ConnectionHeader;
 use clankerdiff_remote::{AcpTarget, Channel, Invocation, RemoteError, RemoteSpec, Remotes};
 use foxfire_acp::chat::Participant;
-use foxfire_acp::websocket;
+use foxfire_acp::websocket::{self, Endpoint};
 use foxfire_core::connection::{ClientInfo, Connection, ConnectionError, Session};
 use foxfire_core::native::runtime::ReviewOverride;
 use foxfire_core::session_model::WorkspaceAccess;
@@ -23,8 +23,6 @@ use tokio::sync::watch;
 use tokio::task::{JoinError, spawn_blocking};
 use tokio::time::{Instant, sleep_until, timeout_at};
 use tokio_tungstenite::tungstenite;
-use tokio_tungstenite::tungstenite::client::IntoClientRequest;
-use tokio_tungstenite::tungstenite::http::Request;
 use tokio_util::compat::{TokioAsyncReadCompatExt, TokioAsyncWriteCompatExt};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -71,10 +69,8 @@ pub enum ConnectError {
         #[source]
         source: serde_json::Error,
     },
-    #[error("invalid WebSocket URL `{url}`")]
-    InvalidUrl { url: String },
-    #[error("invalid WebSocket header `{name}`")]
-    InvalidHeader { name: String },
+    #[error("invalid header `{name}` for a review endpoint")]
+    InvalidReviewHeader { name: String },
     #[error(transparent)]
     WebSocket(#[from] websocket::ConnectError),
     #[error("the agent did not complete the WebSocket handshake in time")]
@@ -228,12 +224,12 @@ impl AgentConnector {
     pub async fn review_override(&self, target: &SessionTarget) -> Result<Option<ReviewOverride>, ConnectError> {
         match target {
             SessionTarget::Agent { agent, .. } => match &agent.config.diff {
-                Some(source) => Ok(Some(self.resolve(source, agent).await?.review_override()?)),
+                Some(source) => Ok(Some(review_at(self.resolve(source, agent).await?)?)),
                 None => Ok(None),
             },
             SessionTarget::Remote { remote, instance } => match remote.diff(instance.as_deref())? {
                 Some(Channel::Stdio(invocation)) => Ok(Some(ReviewOverride::Stdio(invocation))),
-                Some(Channel::Websocket(invocation)) => Ok(Some(self.endpoint(&invocation).await?.review_override()?)),
+                Some(Channel::Websocket(invocation)) => Ok(Some(review_at(self.endpoint(&invocation).await?)?)),
                 None => Ok(None),
             },
         }
@@ -241,7 +237,7 @@ impl AgentConnector {
 
     async fn resolve(&self, source: &EndpointSource, agent: &AgentProfile) -> Result<Endpoint, ConnectError> {
         match source {
-            EndpointSource::Fixed(endpoint) => Ok(endpoint.expand(&agent.vars())?),
+            EndpointSource::Fixed(endpoint) => Ok(expand_endpoint(endpoint, &agent.vars())?),
             EndpointSource::Command(line) => {
                 self.run_for_json(&expand_command_line(line, &agent.vars())?, &agent.workspace).await
             }
@@ -282,7 +278,7 @@ impl Transport for ProcessTransport {
             let mut delay = FIRST_RETRY_DELAY;
             let mut attempts = 0;
             let transport = loop {
-                let attempt = websocket::connect(handshake_request(endpoint)?);
+                let attempt = websocket::connect(endpoint);
                 attempts += 1;
                 let result = match deadline {
                     Some(deadline) => timeout_at(deadline.min(Instant::now() + HANDSHAKE_TIMEOUT), attempt)
@@ -351,22 +347,6 @@ struct AgentProcess {
     stdout: ChildStdout,
 }
 
-impl Endpoint {
-    fn review_override(self) -> Result<ReviewOverride, ConnectError> {
-        let headers = self.connection_headers()?;
-        Ok(ReviewOverride::WebSocket { url: self.url, headers })
-    }
-
-    fn connection_headers(&self) -> Result<Vec<ConnectionHeader>, ConnectError> {
-        self.headers
-            .iter()
-            .map(|(name, value)| {
-                format!("{name}: {value}").parse().map_err(|_| ConnectError::InvalidHeader { name: name.clone() })
-            })
-            .collect()
-    }
-}
-
 impl ConnectTo<Client> for AgentProcess {
     async fn connect_to(self, client: impl ConnectTo<Agent>) -> Result<(), acp::Error> {
         let Self { child: _child, stdin, stdout } = self;
@@ -384,16 +364,12 @@ fn command(line: &CommandLine, dir: &Path) -> Command {
     command
 }
 
-fn handshake_request(endpoint: &Endpoint) -> Result<Request<()>, ConnectError> {
-    let mut request = endpoint
-        .url
-        .as_str()
-        .into_client_request()
-        .map_err(|_| ConnectError::InvalidUrl { url: endpoint.url.clone() })?;
-    for header in endpoint.connection_headers()? {
-        request.headers_mut().append(header.name().clone(), header.value().clone());
-    }
-    Ok(request)
+fn review_at(endpoint: Endpoint) -> Result<ReviewOverride, ConnectError> {
+    let header = |(name, value): (String, String)| {
+        format!("{name}: {value}").parse().map_err(|_| ConnectError::InvalidReviewHeader { name })
+    };
+    let headers = endpoint.headers.into_iter().map(header).collect::<Result<Vec<ConnectionHeader>, _>>()?;
+    Ok(ReviewOverride::WebSocket { url: endpoint.url, headers })
 }
 
 fn is_starting(error: &ConnectError) -> bool {

@@ -4,17 +4,16 @@ use clankerdiff_remote::Invocation;
 use clankerdiff_remote::testing::FakeRemotes;
 use foxfire_acp::aether::RemoteServerInfo;
 use foxfire_acp::testing::FakeAgent;
-use foxfire_acp::websocket;
+use foxfire_acp::websocket::{self, Endpoint};
 use foxfire_core::connection::Connection;
 use foxfire_core::native::runtime::ReviewOverride;
 use foxfire_core::session_model::WorkspaceAccess;
-use foxfire_desktop::agents::{AgentProfile, Endpoint};
+use foxfire_desktop::agents::AgentProfile;
 use foxfire_desktop::remotes::{Acp, Channel, InstanceState, RemoteSpec};
 use foxfire_desktop::target::{AgentConnector, ConnectError, ProcessTransport, SessionTarget, Transport};
 use foxfire_desktop::testing::{FAKE_AGENT_LOCK_FILE, launching_remote};
 use futures::FutureExt;
 use serde_json::json;
-use std::collections::BTreeMap;
 use std::fs::{File, TryLockError};
 use std::io;
 use std::path::{Path, PathBuf};
@@ -60,7 +59,7 @@ async fn a_websocket_agent_is_reached_at_its_url_with_its_headers_expanded() {
 #[tokio::test(start_paused = true)]
 async fn a_stalled_websocket_cannot_outlast_the_remote_startup_window() -> Result<(), TestError> {
     let listener = TcpListener::bind("127.0.0.1:0").await?;
-    let endpoint = Endpoint { url: format!("ws://{}", listener.local_addr()?), headers: BTreeMap::new() };
+    let endpoint = Endpoint::new(format!("ws://{}", listener.local_addr()?));
     let startup = Duration::from_secs(1);
     let mut connect = ProcessTransport.websocket(&endpoint, startup);
     let (_stalled, _) = tokio::select! {
@@ -77,7 +76,7 @@ async fn a_stalled_websocket_cannot_outlast_the_remote_startup_window() -> Resul
 #[tokio::test]
 async fn a_stalled_websocket_is_retried_on_a_fresh_connection() -> Result<(), TestError> {
     let server = serve_websocket_stalling(FakeAgent::new("vm-session")).await;
-    let endpoint = Endpoint { url: server.url, headers: BTreeMap::new() };
+    let endpoint = Endpoint::new(server.url);
 
     let transport = ProcessTransport.websocket(&endpoint, Duration::from_secs(30)).await?;
     let connection = Connection::connect_to(Implementation::new("foxfire-test", "1"), transport)

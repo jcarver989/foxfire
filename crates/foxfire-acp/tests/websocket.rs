@@ -10,8 +10,9 @@ use agent_client_protocol::v2::schema::{
 use agent_client_protocol::{self as acp, Agent, Client, HandleDispatchFrom, NullRun, v2};
 use foxfire_acp::client::{AcpEvent, connect_acp_client};
 use foxfire_acp::testing::{idle_notification, initialize_request, initialize_response, running_notification};
-use foxfire_acp::websocket::WebSocketTransport;
+use foxfire_acp::websocket::{ConnectError, Endpoint, WebSocketTransport, connect};
 use futures::{FutureExt, SinkExt, StreamExt};
+use serde_json::json;
 use std::time::Duration;
 use tokio::io::{DuplexStream, duplex};
 use tokio::net::TcpListener;
@@ -19,7 +20,7 @@ use tokio::task::{LocalSet, spawn_local};
 use tokio_tungstenite::tungstenite::Message;
 use tokio_tungstenite::tungstenite::client::IntoClientRequest;
 use tokio_tungstenite::tungstenite::handshake::server::Request;
-use tokio_tungstenite::tungstenite::http::header::InvalidHeaderValue;
+use tokio_tungstenite::tungstenite::http::header::{InvalidHeaderValue, SEC_WEBSOCKET_PROTOCOL};
 use tokio_tungstenite::tungstenite::protocol::{
     Role, WebSocketConfig,
     frame::{
@@ -127,6 +128,49 @@ async fn caller_established_socket_supports_acp_initialization() -> Result<(), T
             Ok(())
         }))
         .await
+}
+
+#[tokio::test]
+#[allow(clippy::result_large_err)]
+async fn an_endpoint_is_reached_with_its_headers_and_without_its_subprotocols() -> Result<(), TestError> {
+    let listener = TcpListener::bind("127.0.0.1:0").await?;
+    let endpoint: Endpoint = serde_json::from_value(json!({
+        "url": format!("ws://{}", listener.local_addr()?),
+        "headers": { "X-aws-proxy-auth": "secret" },
+        "subprotocols": ["lambda-microvms"],
+    }))?;
+    let accept = async {
+        let (stream, _) = listener.accept().await?;
+        let check = |request: &Request, response| {
+            assert_eq!(request.headers()["x-aws-proxy-auth"], "secret");
+            assert!(!request.headers().contains_key(SEC_WEBSOCKET_PROTOCOL));
+            Ok(response)
+        };
+        Ok::<_, TestError>(accept_hdr_async_with_config(stream, check, None).await?)
+    };
+    let (accepted, connected) = tokio::join!(accept, connect(&endpoint));
+    accepted?;
+    connected?;
+    Ok(())
+}
+
+#[tokio::test]
+async fn only_an_attempt_that_could_succeed_later_is_retryable() -> Result<(), TestError> {
+    let listener = TcpListener::bind("127.0.0.1:0").await?;
+    let url = format!("ws://{}", listener.local_addr()?);
+    drop(listener);
+    let headers = vec![("not a header".to_owned(), String::new())];
+    let cases = [
+        (Endpoint::new(&url), true),
+        (Endpoint { headers, ..Endpoint::new(&url) }, false),
+        (Endpoint::new("not a url"), false),
+        (Endpoint::new("https://example.com"), false),
+    ];
+    for (endpoint, expected) in cases {
+        let retryable = connect(&endpoint).await.err().map(|error| error.is_retryable());
+        assert_eq!(retryable, Some(expected), "{endpoint:?}");
+    }
+    Ok(())
 }
 
 #[tokio::test]
@@ -384,6 +428,8 @@ enum TestError {
     Json(#[from] serde_json::Error),
     #[error(transparent)]
     Header(#[from] InvalidHeaderValue),
+    #[error(transparent)]
+    Connect(#[from] ConnectError),
     #[error("{0}")]
     Unexpected(&'static str),
 }
