@@ -5,6 +5,7 @@ use crate::aether::{
     WorkspaceStatusPayload, WorkspaceStatusResponse,
 };
 use crate::artifact_review::{ArtifactReviewDecision, ArtifactReviewElicitationMeta};
+use crate::chat::{ChatChannelJoinParams, ChatChannelJoinResponse, FoxfireCapabilities, FoxfireMeta};
 use agent_client_protocol::util::MatchDispatchFrom;
 use agent_client_protocol::v2::schema::{
     AgentAuthCapabilities, AgentCapabilities, AuthStatusCapabilities, AuthStatusRequest, AuthStatusResponse,
@@ -35,6 +36,7 @@ pub struct FakeAgent {
     prompt_history: Vec<String>,
     login_method: Option<String>,
     auth_status: Option<AuthStatusResponse>,
+    chat: Option<ChatChannelJoinResponse>,
     config_options: Vec<SessionConfigOption>,
     workspace_statuses: HashMap<String, WorkspaceStatusResponse>,
     session_cwds: HashMap<String, std::path::PathBuf>,
@@ -88,6 +90,7 @@ impl Default for FakeAgent {
             prompt_history: Vec::new(),
             login_method: None,
             auth_status: None,
+            chat: None,
             config_options: Vec::new(),
             workspace_statuses: HashMap::new(),
             session_cwds: HashMap::new(),
@@ -150,6 +153,14 @@ impl FakeAgent {
         self.initialize.capabilities = capabilities;
         self
     }
+    /// Serves every client `channel`, as a relay does.
+    pub fn chat(mut self, channel: ChatChannelJoinResponse) -> Self {
+        let session = self.initialize.capabilities.session.take().unwrap_or_default();
+        self.initialize.capabilities.session = Some(session.meta(Some(FoxfireCapabilities { chat: true }.to_meta())));
+        self.chat = Some(channel);
+        self
+    }
+
     pub fn login_method(mut self, method: &str) -> Self {
         self.login_method = Some(method.into());
         self
@@ -457,6 +468,10 @@ impl HandleDispatchFrom<Client> for FakeAgent {
                 self.answer_extension(advertised, request, responder, |request| {
                     self.workspace_status_of(&request.session_id)
                 })
+            })
+            .await
+            .if_request(async |request: ChatChannelJoinParams, responder| {
+                self.answer_scripted(request, responder, |_| self.chat.clone())
             })
             .await
             .if_request(async |request: AuthStatusRequest, responder| {
