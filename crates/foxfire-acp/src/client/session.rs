@@ -1,5 +1,6 @@
 use super::error::AcpClientError;
 use super::event::AcpEvent;
+use super::platform::spawn;
 use crate::aether::{ContextClearedParams, GitDiffEventPayload, McpNotification};
 use crate::chat::ChatChannelEventPayload;
 use agent_client_protocol::schema::ProtocolVersion;
@@ -41,7 +42,7 @@ pub async fn connect_acp_client(
     let closed = CancellationToken::new();
     let stop = CancellationToken::new();
     let events = ConnectionEvents { event_tx, closed: closed.clone() };
-    tokio::spawn(run_client_connection(agent, init_request, init_tx, events, stop.clone()));
+    spawn(run_client_connection(agent, init_request, init_tx, events, stop.clone()));
     let connection = Arc::new(ClientConnection { stop, closed });
     let (initialize_response, cx) = await_response(init_rx).await?;
     Ok(AcpClient { initialize_response, event_rx, handle: AcpClientHandle { cx, connection } })
