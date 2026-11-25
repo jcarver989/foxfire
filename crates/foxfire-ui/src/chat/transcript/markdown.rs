@@ -1,12 +1,11 @@
 use crate::platform::ChatPlatform;
 use crate::ui::ActiveReviewTheme;
-use rouge::core::View;
 use rouge::markdown::MarkdownStream;
 use rouge::reactive::{Memo, Stored, effect, signal, stored};
-use rouge::widgets::markdown;
+use rouge::widgets::{Markdown, markdown};
 use std::rc::Rc;
 
-pub(crate) fn reply(text: Memo<String>, platform: Stored<Rc<dyn ChatPlatform>>) -> impl View {
+pub(crate) fn reply(text: Memo<String>, platform: Stored<Rc<dyn ChatPlatform>>) -> Markdown {
     let seen = stored(String::new());
     let stream = signal(MarkdownStream::new());
     effect(move || {

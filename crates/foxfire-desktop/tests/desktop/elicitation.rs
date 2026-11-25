@@ -1,7 +1,6 @@
-use crate::support::{asked, asking_name, name_form, texts};
+use crate::support::{asked, asking_name, name_question, texts};
 use agent_client_protocol::v2::schema::{
-    BooleanPropertySchema, CreateElicitationRequest, ElicitationFormMode, ElicitationSchema, ElicitationSessionScope,
-    EnumOption, PermissionOption, PermissionOptionKind, StringPropertySchema,
+    BooleanPropertySchema, ElicitationSchema, EnumOption, PermissionOption, PermissionOptionKind, StringPropertySchema,
 };
 use foxfire_acp::artifact_review::ArtifactReviewElicitationMeta;
 use foxfire_acp::testing::{FakeAgent, Question};
@@ -157,11 +156,6 @@ fn asking_permission() -> FakeAgent {
         PermissionOption::new("reject", "Reject", PermissionOptionKind::RejectOnce),
     ];
     FakeAgent::new("alpha-session").prompt_asks("Run rm -rf build?", Question::Permission(options))
-}
-
-fn name_question() -> CreateElicitationRequest {
-    let form = ElicitationFormMode::new(ElicitationSessionScope::new("alpha-session"), name_form());
-    CreateElicitationRequest::new(form, "Who are you?")
 }
 
 fn reviewing_plan() -> FakeAgent {

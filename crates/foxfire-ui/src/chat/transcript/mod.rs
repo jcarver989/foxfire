@@ -8,6 +8,7 @@ pub use message::reconnect_banner;
 
 use super::attachment::Attachment;
 use super::room::{ChatRoom, ask_summary};
+use super::status::Doing;
 use crate::platform::ChatPlatform;
 use crate::thread::{Thread, ThreadStatus};
 use crate::ui::tokens::{
@@ -26,13 +27,14 @@ use foxfire_acp::conversation::{
     ConversationContent, ConversationId, ConversationItem, ConversationItemId, Notice, NoticeLevel,
 };
 use foxfire_core::session_core::SessionCore;
-use groups::{Group, GroupKind, groups};
+use groups::{Group, groups};
 use message::{
     error, full_diff, image_preview, message_actions, notice, prompt, prompt_author, reconnect_button, thinking_block,
 };
 use rouge::core::{
-    Align, AnyView, FocusHandle, KeyEvent, Rect, Role, RowKey, Styled, TextAlign, View, VirtualListHandle,
-    WindowHandle, div, dynamic, focus_handle, px, show, text, view, virtual_list, virtual_list_handle, window_handle,
+    Align, AnyView, Div, FocusHandle, KeyEvent, Mask, Point, Rect, Role, RowKey, Styled, TextAlign, View,
+    VirtualListHandle, WindowHandle, div, dynamic, each, focus_handle, px, show, text, view, virtual_list,
+    virtual_list_handle, window_handle,
 };
 use rouge::markdown::MarkdownDocument;
 use rouge::reactive::{Callback, Memo, Scope, Signal, Stored, effect, memo, signal, stored, untrack};
@@ -43,7 +45,7 @@ use std::collections::{HashMap, HashSet};
 use std::hash::{DefaultHasher, Hash, Hasher};
 use std::rc::Rc;
 use std::sync::Arc;
-use tools::{ToolActions, ToolCard, ToolFold, ToolPreviews, fold_header};
+use tools::{ToolActions, ToolCard, ToolFold, ToolPreviews, turn_line};
 
 #[derive(Clone, Copy)]
 pub struct Transcript {
@@ -56,6 +58,8 @@ pub struct Transcript {
     gutter: Memo<f32>,
     reading: Memo<u16>,
     unfolded: Signal<HashSet<Fold>>,
+    /// An item to bring into view once its row is laid out.
+    sought: Signal<Option<usize>>,
     preview: Signal<Option<Arc<[u8]>>>,
     full_diff: Signal<Option<ReviewHandle>>,
     attachments: Stored<HashMap<ConversationItemId, Rc<ItemAttachments>>>,
@@ -83,32 +87,73 @@ struct Summary {
 enum Fold {
     Item(ConversationItemId),
     Full(ConversationItemId),
-    Rows(GroupKind, ConversationItemId),
+    /// The work of the turn that starts with an item.
+    Turn(ConversationItemId),
+    /// The earlier steps of the turn that starts with an item.
+    Earlier(ConversationItemId),
 }
 
-#[derive(Clone, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 struct ProjectedRow {
     index: usize,
     id: ConversationItemId,
-    group: Option<Group>,
-    collapsed: bool,
+    part: Part,
+    first: bool,
+}
+
+/// What a row shows of its item, or of the turn that starts with it.
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+enum Part {
+    Item,
+    /// An item of an unfolded turn's work.
+    Work,
+    /// The line the turn folds into.
+    Line,
+    /// What shows the turn's earlier steps.
+    Earlier,
+}
+
+impl ProjectedRow {
+    fn is_item(self) -> bool {
+        matches!(self.part, Part::Item | Part::Work)
+    }
 }
 
 impl Summary {
     fn visible(&self, unfolded: &HashSet<Fold>) -> Vec<ProjectedRow> {
-        let mut groups = self.groups.iter().peekable();
-        let mut rows = Vec::new();
-        let mut index = 0;
-        while let Some(&id) = self.items.get(index) {
-            let group = groups.peek().copied().filter(|g| g.rows.contains(&index));
-            let collapsed = group.is_some_and(|g| !unfolded.contains(&Fold::Rows(g.kind, self.items[g.rows.start])));
-            rows.push(ProjectedRow { index, id, group: group.cloned(), collapsed });
-            index = group.filter(|_| collapsed).map_or(index + 1, |g| g.rows.end);
-            if group.is_some_and(|g| index == g.rows.end) {
-                groups.next();
+        let mut rows: Vec<ProjectedRow> = Vec::new();
+        let mut push = |index: usize, part: Part| {
+            rows.push(ProjectedRow { index, id: self.items[index], part, first: rows.is_empty() });
+        };
+        let mut next = 0;
+        for group in &self.groups {
+            let start = group.span.start;
+            (next..start).for_each(|index| push(index, Part::Item));
+            push(start, Part::Line);
+            if unfolded.contains(&Fold::Turn(self.items[start])) {
+                let earlier = self.earlier(group, unfolded);
+                if earlier > 0 {
+                    push(start, Part::Earlier);
+                }
+                group.work_after(earlier).iter().for_each(|&index| push(index, Part::Work));
             }
+            group.shown.iter().for_each(|&index| push(index, Part::Item));
+            next = group.span.end;
         }
+        (next..self.items.len()).for_each(|index| push(index, Part::Item));
         rows
+    }
+
+    /// How many of a turn's oldest steps unfolding it leaves out.
+    fn earlier(&self, group: &Group, unfolded: &HashSet<Fold>) -> usize {
+        if unfolded.contains(&Fold::Earlier(self.items[group.span.start])) {
+            return 0;
+        }
+        group.earlier(|index| unfolded.contains(&Fold::Item(self.items[index])))
+    }
+
+    fn group(&self, start: usize) -> Option<&Group> {
+        self.groups.iter().find(|group| group.span.start == start)
     }
 }
 
@@ -154,6 +199,7 @@ impl Transcript {
             gutter,
             reading,
             unfolded,
+            sought: signal(None),
             preview: signal(None),
             full_diff: signal(None),
             attachments: stored(HashMap::new()),
@@ -179,6 +225,19 @@ impl Transcript {
                 untrack(|| self.reveal(&item));
             }
         });
+        let list = self.list;
+        effect(move || {
+            let sought = self.sought.get();
+            let row = sought.and_then(|index| {
+                self.projection.with(|rows| rows.iter().position(|row| row.is_item() && row.index == index))
+            });
+            let laid_out = list.scroll_state().with(|scroll| scroll.content.height);
+            // Scrolling past what is laid out would pass for reaching the end, and follow it.
+            if let Some(row) = row.filter(|&row| list.row_top(row) < laid_out) {
+                self.sought.set(None);
+                list.scroll_to_row(row, Align::Center);
+            }
+        });
         let previous: Cell<(Option<ConversationId>, usize)> = Cell::new((None, 0));
         effect(move || {
             let current = summary.with(|summary| (summary.conversation, summary.items.len()));
@@ -189,6 +248,7 @@ impl Transcript {
                     self.tools.update(ToolPreviews::clear);
                     self.focus.update(HashMap::clear);
                     self.unfolded.update(HashSet::clear);
+                    self.sought.set(None);
                     self.full_diff.set(None);
                 });
             }
@@ -203,16 +263,12 @@ impl Transcript {
         let Some(index) = found.flatten() else {
             return;
         };
-        self.following.set(false);
-        let folds: Vec<Fold> = self.summary.with_untracked(|summary| {
-            let groups = summary.groups.iter().filter(|group| group.rows.contains(&index));
-            groups.map(|group| Fold::Rows(group.kind, summary.items[group.rows.start])).collect()
+        let turn = self.summary.with_untracked(|summary| {
+            let group = summary.groups.iter().find(|group| group.work.contains(&index))?;
+            Some(summary.items[group.span.start])
         });
-        self.unfolded.update(|unfolded| unfolded.extend(folds));
-        let row = self.projection.with_untracked(|rows| rows.iter().position(|row| row.index == index));
-        if let Some(row) = row {
-            self.list.scroll_to_row(row, Align::Center);
-        }
+        self.unfold(turn.into_iter().flat_map(|id| [Fold::Turn(id), Fold::Earlier(id)]));
+        self.sought.set(Some(index));
     }
 
     /// The columns the reading column spans, for whatever shares the transcript's grid.
@@ -247,7 +303,7 @@ impl Transcript {
 
     fn list(self) -> impl View {
         let (projection, list, dock) = (self.projection, self.list, self.dock);
-        let at = move |index: usize| projection.with(|rows| rows.get(index).cloned());
+        let at = move |index: usize| projection.with(|rows| rows.get(index).copied());
         let rows = virtual_list(
             move || projection.with(|rows| rows.len() + 1),
             ROW_ESTIMATE,
@@ -255,12 +311,16 @@ impl Transcript {
         )
         .row_identity(move |index| {
             let row = at(index);
-            let folds = row.as_ref().map(|r| (self.expanded(Fold::Item(r.id)), self.expanded(Fold::Full(r.id))));
+            let item = row.filter(|row| row.is_item());
+            let folds = item.map(|row| (self.expanded(Fold::Item(row.id)), self.expanded(Fold::Full(row.id))));
             let revision = hash(&(self.summary.with(|s| s.conversation), &row, folds));
-            RowKey::new(row.map(|r| r.id), revision)
+            RowKey::new(row.map(|r| (r.id, r.part)), revision)
         })
         .measure_rows(|| 0)
-        .row_text(move |index| at(index).filter(|r| !r.collapsed).map_or_else(String::new, |r| self.row_text(r.index)))
+        .row_text(move |index| {
+            let item = at(index).filter(|row| row.is_item());
+            item.map_or_else(String::new, |row| self.row_text(row.index))
+        })
         .handle(list)
         .follow_end(self.following)
         .size_full();
@@ -352,55 +412,47 @@ impl Transcript {
     }
 
     fn row(self, projected: Option<ProjectedRow>) -> AnyView {
-        let Some(ProjectedRow { index, id, group, collapsed: folded }) = projected else {
+        let Some(ProjectedRow { index, id, part, first }) = projected else {
             let dock = self.dock;
             return view! { <div pt=FADE_HEIGHT><div h={move || px(dock.get().size.height)}/></div> }.into_any();
         };
-        let Some((kind, header)) = self
-            .thread
-            .with_core(|core| {
-                let items = core.conversation().items();
-                let kind = kind_of(items.get(index)?);
-                let header = group.as_ref().filter(|g| g.rows.start == index).and_then(|g| {
-                    let fold = Fold::Rows(g.kind, id);
-                    Some(fold_header(
-                        g.kind,
-                        index,
-                        items.get(g.rows.clone())?,
-                        !folded,
-                        Callback::from(move || self.toggle(fold)),
-                    ))
-                });
-                Some((kind, header))
-            })
-            .flatten()
-        else {
+        let top = if first { HEADER_HEIGHT } else { 0.0 };
+        let of_turn = match part {
+            Part::Line => Some(self.line(index, id)),
+            Part::Earlier => Some(self.earlier(index, id)),
+            Part::Item | Part::Work => None,
+        };
+        if let Some(content) = of_turn {
+            return view! {
+                <div w_full pt=top>
+                    <column_grid><reading_cell span={self.reading}>{content}</reading_cell></column_grid>
+                </div>
+            }
+            .into_any();
+        }
+        let Some(kind) = self.kind(index) else {
             return ().into_any();
         };
         let hovered = signal(false);
-        let content = (!folded).then(|| {
-            let indented = group.as_ref().is_some_and(|group| group.kind == GroupKind::Run);
-            let item = self.item(index, kind, hovered);
-            let row = if indented { div().pl(Space::X4).child(item) } else { div().child(item) };
-            row.relative().child(self.discuss(index, kind, hovered))
-        });
-        let turn_header = header.is_some() && group.as_ref().is_some_and(|group| group.kind == GroupKind::Turn);
-        let top = if index == 0 { HEADER_HEIGHT } else { 0.0 };
+        let work = part == Part::Work;
+        let item = self.item(index, kind, work, hovered);
+        let inset = if work { Space::X2.px() } else { 0.0 };
+        let content = view! { <div relative pl=inset>{item}{self.discuss(index, kind, hovered)}</div> };
         let padding = match kind {
             Kind::User => (Space::X6.px(), Space::X2.px()),
-            Kind::Tool if !turn_header => (0.0, 0.0),
-            _ if group.is_some() && !turn_header => (0.0, 0.0),
+            Kind::Tool => (0.0, 0.0),
+            _ if work => (0.0, 0.0),
             _ => (Space::X2.px(), Space::X2.px()),
         };
         let reading = self.reading;
         let cell = if kind == Kind::User {
             view! {
                 <grid_cell span={move || reading.get() - 1} start={move || (GRID_COLUMNS - reading.get()) / 2 + 2}>
-                    {header}{content}
+                    {content}
                 </grid_cell>
             }
         } else {
-            view! { <reading_cell span=reading>{header}{content}</reading_cell> }
+            view! { <reading_cell span=reading>{content}</reading_cell> }
         };
         view! {
             <div test_id={format!("transcript-row-{index}")} w_full pt={padding.0 + top} pb=padding.1
@@ -411,6 +463,80 @@ impl Transcript {
             </div>
         }
         .into_any()
+    }
+
+    fn line(self, start: usize, id: ConversationItemId) -> Div {
+        let thread = self.thread;
+        let work = memo(move || {
+            let doing = Doing::now(thread);
+            let work = self.summary.with(|summary| {
+                let group = summary.group(start)?;
+                thread.with_core(|core| {
+                    self.tools.update(|previews| group.sum_up(core.conversation().items(), doing, previews))
+                })
+            });
+            work.unwrap_or_default()
+        });
+        let expanded = memo(move || self.expanded(Fold::Turn(id)));
+        let review = ActiveReviewTheme::current().review_signal();
+        let trails = memo(move || !expanded.get() && work.with(|work| work.doing.is_some()));
+        let toggle = Callback::from(move || {
+            self.toggle(Fold::Turn(id));
+            self.unfolded.update(|unfolded| {
+                unfolded.remove(&Fold::Earlier(id));
+            });
+        });
+        view! {
+            <div flex col min_w=0.0>
+                {turn_line(start, work, expanded, review, toggle)}
+                <show when={move || trails.get()}>{self.tail(start, id)}</show>
+            </div>
+        }
+    }
+
+    /// The newest steps of a turn that is still going, which fade upward into those before them.
+    fn tail(self, start: usize, id: ConversationItemId) -> impl View {
+        let steps = memo(move || self.summary.with(|summary| summary.group(start).map(|group| group.steps.clone())));
+        let count = move || steps.with(|steps| steps.as_ref().map_or(0, Vec::len));
+        let newest = memo(move || {
+            let before = count().saturating_sub(TAIL_STEPS);
+            steps.with(|steps| steps.iter().flatten().skip(before).copied().collect::<Vec<_>>())
+        });
+        let fade = move || {
+            let (opaque_until, clear_from) = if count() > TAIL_STEPS { TAIL_FADE } else { (1.0, 2.0) };
+            Mask::linear_gradient(Point::new(0.0, 1.0), Point::new(0.0, 0.0)).stops(opaque_until, clear_from)
+        };
+        let rows = each(
+            newest,
+            |&step| step,
+            move |step| {
+                view! {
+                    <div h=ROW_HEIGHT min_w=0.0 overflow_hidden layout_transition=Pace::Layout>
+                        {self.settled(step.get_untracked(), Some(id))}
+                    </div>
+                }
+            },
+        );
+        view! { <div test_id={format!("turn-tail-{start}")} flex col min_w=0.0 pl=Space::X2 mask=fade unselectable>{rows}</div> }
+    }
+
+    fn earlier(self, start: usize, id: ConversationItemId) -> Div {
+        let label = move || {
+            let count = self.summary.with(|summary| {
+                self.unfolded.with(|folds| summary.group(start).map_or(0, |group| summary.earlier(group, folds)))
+            });
+            format!("Show {count} earlier")
+        };
+        view! {
+            <div test_id={format!("turn-earlier-{start}")} h=ROW_HEIGHT pl=Space::X2 flex items_center body secondary unselectable
+                 on_activate={move || self.unfold([Fold::Earlier(id)])}>
+                <text no_wrap>{label}</text>
+            </div>
+        }
+    }
+
+    fn kind(self, index: usize) -> Option<Kind> {
+        self.thread.with_core(|core| core.conversation().items().get(index).map(kind_of)).flatten()
     }
 
     /// Quotes an item in the side room, which needs an id everyone there knows the item by.
@@ -437,7 +563,7 @@ impl Transcript {
         })
     }
 
-    fn item(self, index: usize, kind: Kind, hovered: Signal<bool>) -> AnyView {
+    fn item(self, index: usize, kind: Kind, compact: bool, hovered: Signal<bool>) -> AnyView {
         let thread = self.thread;
         match kind {
             Kind::User => self.user(index, hovered),
@@ -456,6 +582,10 @@ impl Transcript {
                         .unwrap_or(false)
                 });
                 let (window, platform) = (self.window, self.platform);
+                if compact {
+                    let said = markdown::reply(text, platform).compact();
+                    return view! { <div test_id={format!("reply-{index}")}>{said}</div> }.into_any();
+                }
                 view! {
                     <div reading>
                         <div test_id={format!("reply-{index}")}>{markdown::reply(text, platform)}</div>
@@ -464,19 +594,21 @@ impl Transcript {
                 }
                 .into_any()
             }
-            Kind::Thought | Kind::Tool | Kind::Notice => {
-                let revision = memo(move || {
-                    thread
-                        .with_core(|core| core.conversation().items().get(index).map(ConversationItem::revision))
-                        .flatten()
-                });
-                dynamic(move || {
-                    revision.get();
-                    untrack(|| self.settled_item(index))
-                })
-                .into_any()
-            }
+            Kind::Thought | Kind::Tool | Kind::Notice => self.settled(index, None),
         }
+    }
+
+    /// An item that is rebuilt whenever it changes. In the tail of a turn it is one row, which unfolds the turn at it.
+    fn settled(self, index: usize, tail_of: Option<ConversationItemId>) -> AnyView {
+        let thread = self.thread;
+        let revision = memo(move || {
+            thread.with_core(|core| core.conversation().items().get(index).map(ConversationItem::revision)).flatten()
+        });
+        dynamic(move || {
+            revision.get();
+            untrack(|| self.settled_item(index, tail_of))
+        })
+        .into_any()
     }
 
     fn user(self, index: usize, hovered: Signal<bool>) -> AnyView {
@@ -536,7 +668,7 @@ impl Transcript {
         .into_any()
     }
 
-    fn settled_item(self, index: usize) -> AnyView {
+    fn settled_item(self, index: usize, tail_of: Option<ConversationItemId>) -> AnyView {
         let theme = ActiveReviewTheme::current();
         let review = theme.review();
         let actions = ToolActions {
@@ -547,8 +679,11 @@ impl Transcript {
             .with_core(|core| {
                 let item = core.conversation().items().get(index)?;
                 let id = item.id();
-                let expanded = self.expanded(Fold::Item(id));
-                let toggle = Callback::from(move || self.toggle(Fold::Item(id)));
+                let expanded = tail_of.is_none() && self.expanded(Fold::Item(id));
+                let toggle = Callback::from(move || match tail_of {
+                    Some(turn) => self.unfold([Fold::Turn(turn), Fold::Item(id)]),
+                    None => self.toggle(Fold::Item(id)),
+                });
                 Some(match item.content() {
                     ConversationContent::Thought(_) => {
                         let text = item.text().unwrap_or_default().into_owned();
@@ -557,6 +692,7 @@ impl Transcript {
                     ConversationContent::Tool(tool) => {
                         let full = Fold::Full(id);
                         let fold = match (expanded, self.expanded(full)) {
+                            (false, _) if tail_of.is_some() => ToolFold::Row,
                             (false, _) => ToolFold::Folded,
                             (true, false) => ToolFold::Expanded,
                             (true, true) => ToolFold::Full,
@@ -586,6 +722,11 @@ impl Transcript {
                 unfolded.insert(fold);
             }
         });
+    }
+
+    fn unfold(self, folds: impl IntoIterator<Item = Fold>) {
+        self.following.set(false);
+        self.unfolded.update(|unfolded| unfolded.extend(folds));
     }
 
     fn open_full_diff(self, document: Arc<DiffDocument>) {
@@ -686,3 +827,6 @@ pub(crate) fn hash(value: &impl Hash) -> u64 {
 
 const FADE_HEIGHT: f32 = Space::X6.px();
 const ROW_ESTIMATE: f32 = Space::X12.px();
+const TAIL_STEPS: usize = 3;
+/// How far up the tail it starts to fade, and where it is gone.
+const TAIL_FADE: (f32, f32) = (0.3, 1.0);

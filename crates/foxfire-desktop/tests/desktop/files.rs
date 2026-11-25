@@ -99,6 +99,7 @@ fn clicking_where_a_tool_worked_opens_that_line_without_unfolding_the_tool() {
     let (mut harness, thread) = start_with(agent, FakeGit::new("/alpha").with_committed("src/util.rs", UTIL));
     harness.send(thread, "go");
 
+    harness.click("turn-summary-1").unwrap();
     harness.click("tool-location-1").unwrap();
 
     wait_for_line(&mut harness, thread, "src/util.rs", 2);
@@ -116,6 +117,7 @@ fn clicking_where_a_tool_edited_opens_the_diff_at_that_line() {
     assert_eq!(files_mode(&harness, thread), Some(FilesMode::Browse));
     harness.click("tab-chat").unwrap();
 
+    harness.click("turn-summary-1").unwrap();
     harness.click("tool-location-1").unwrap();
 
     wait_for_line(&mut harness, thread, "src/util.rs", 2);
@@ -129,6 +131,7 @@ fn a_tool_location_outside_the_repository_says_why_it_cannot_be_opened() {
     let (mut harness, thread) = start_with(agent, FakeGit::new("/alpha").with_committed("src/util.rs", UTIL));
     harness.send(thread, "go");
 
+    harness.click("turn-summary-1").unwrap();
     harness.click("tool-location-1").unwrap();
 
     let error = "Can't open /elsewhere/notes.md: it isn't in this thread's repository";
