@@ -1,15 +1,17 @@
 use crate::support::{RelayBuilder, SESSION, TestError, participant, prompt, resume, until};
 use agent_client_protocol::v2::schema::{
-    CloseSessionRequest, NewSessionRequest, PromptRequest, PromptResponse, ResumeSessionRequest,
+    CloseSessionRequest, ContentBlock, EmbeddedResource, EmbeddedResourceResource, NewSessionRequest, PromptRequest,
+    PromptResponse, ResumeSessionRequest,
 };
 use agent_client_protocol::{Error, ErrorCode, JsonRpcNotification, JsonRpcRequest, JsonRpcResponse};
 use foxfire_acp::chat::{
-    ChatChannelEvent, ChatChannelHistoryFrom, ChatChannelHistoryParams, ChatChannelJoinParams, ChatChannelJoinResponse,
-    ChatChannelPage, ChatChannelPostParams, ChatChannelReadParams, ChatMessage, ChatMessageKind, FoxfireCapabilities,
-    FoxfireMeta, Participant, PromptMeta,
+    CHAT_MESSAGES_URI, ChatChannelEvent, ChatChannelHistoryFrom, ChatChannelHistoryParams, ChatChannelJoinParams,
+    ChatChannelJoinResponse, ChatChannelPage, ChatChannelPostParams, ChatChannelReadParams, ChatMessage,
+    ChatMessageKind, FoxfireCapabilities, FoxfireMeta, Participant, PromptMeta,
 };
 use foxfire_acp::client::{AcpClient, AcpClientError, AcpEvent};
 use foxfire_acp::testing::{FakeAgent, run_local};
+use foxfire_core::composer::submission::Submission;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use std::fs;
@@ -259,6 +261,52 @@ fn unknown_foxfire_methods_never_reach_the_agent() -> Result<(), TestError> {
         assert!(maya.handle.request(UnknownRequest {}).await.is_err());
         maya.handle.request(resume(&relay.cwd(), false)).await?;
         assert!(relay.agent.extensions.try_recv().is_err());
+        Ok(())
+    })
+}
+
+#[test]
+fn people_share_posts_reads_and_the_messages_a_prompt_is_sent_with() -> Result<(), TestError> {
+    run_local(async {
+        let mut relay = RelayBuilder::new(FakeAgent::new(SESSION).prompt_reply("done")).chat().build().await?;
+        let mut maya = relay.session_as("maya").await?;
+        let mut theo = relay.session_as("theo").await?;
+        tokio::join!(
+            maya.run_until(|core| core.chat().is_some_and(|chat| chat.others() == [participant("theo")])),
+            theo.run_until(|core| core.chat().is_some_and(|chat| chat.others() == [participant("maya")])),
+        );
+
+        maya.core.post_chat(ChatChannelPostParams {
+            session_id: SESSION.into(),
+            key: "1".to_owned(),
+            body: "cap it at 30s".to_owned(),
+            anchor: None,
+            after_item: None,
+        });
+        maya.run_until(|core| core.chat().is_some_and(|chat| chat.messages.len() == 1 && chat.pending.is_empty()))
+            .await;
+        theo.run_until(|core| core.chat().is_some_and(|chat| chat.unread() == 1)).await;
+        theo.core.mark_chat_read();
+
+        theo.core.submit(Submission { sources: vec![1], ..Submission::default() });
+        theo.run_until(|core| core.chat().is_some_and(|chat| chat.unread() == 0 && chat.messages.len() == 2)).await;
+        maya.run_until(|core| core.chat().is_some_and(|chat| chat.messages.len() == 2)).await;
+        let received = relay.agent.prompt.recv().await.ok_or(TestError::Closed)?;
+        assert_eq!(received.meta, None);
+        let quoted = "[Channel messages referenced by the user]\nMAYA: cap it at 30s";
+        assert!(matches!(
+            received.prompt.as_slice(),
+            [ContentBlock::Resource(EmbeddedResource {
+                resource: EmbeddedResourceResource::TextResourceContents(resource), ..
+            })] if resource.uri == CHAT_MESSAGES_URI && resource.text == quoted
+        ));
+        let asked = maya.core.chat().and_then(|chat| chat.messages.get(&2));
+        assert!(
+            asked.is_some_and(|ask| ask.author == "theo"
+                && matches!(&ask.kind, ChatMessageKind::Ask { sources, .. } if sources == &[1]))
+        );
+        maya.shutdown().await;
+        theo.shutdown().await;
         Ok(())
     })
 }

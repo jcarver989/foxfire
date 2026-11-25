@@ -1,6 +1,6 @@
 use agent_client_protocol::ByteStreams;
 use agent_client_protocol::v2::schema::{
-    ContentBlock, InitializeRequest, NewSessionRequest, PromptRequest, ReplayFrom, ReplayFromStart,
+    ContentBlock, Implementation, InitializeRequest, NewSessionRequest, PromptRequest, ReplayFrom, ReplayFromStart,
     ResumeSessionRequest, SessionId, SessionInfo, SessionUpdate, StateUpdate,
 };
 use clankerdiff_git::testing::RepoFixtureBuilder;
@@ -9,6 +9,8 @@ use foxfire_acp::chat::{ChatChannelJoinParams, ClientMeta, FoxfireMeta, Particip
 use foxfire_acp::client::{AcpClient, AcpClientError, AcpEvent, connect_acp_client};
 use foxfire_acp::testing::{FakeAgent, FakeAgentRequests, initialize_request};
 use foxfire_acp::websocket::WebSocketTransport;
+use foxfire_core::connection::{ClientInfo, Connection, ConnectionError};
+use foxfire_core::testing::LiveSession;
 use foxfire_relay::{Relay, RelayError};
 use std::any::Any;
 use std::io;
@@ -31,6 +33,8 @@ pub(crate) enum TestError {
     Protocol(#[from] agent_client_protocol::Error),
     #[error(transparent)]
     WebSocket(#[from] tokio_tungstenite::tungstenite::Error),
+    #[error(transparent)]
+    Connection(#[from] ConnectionError),
     #[error("the fake agent's recorder closed")]
     Closed,
 }
@@ -135,6 +139,15 @@ impl TestRelay {
         let client = self.client_as(participant).await?;
         client.handle.request(ChatChannelJoinParams { session_id: SESSION.into(), after: None }).await?;
         Ok(client)
+    }
+
+    /// A frontend's own session core, connected to the relay's live session.
+    pub(crate) async fn session_as(&self, participant: &str) -> Result<LiveSession, TestError> {
+        let (socket, _) = connect_async(self.url.as_str()).await?;
+        let program = Implementation::new("foxfire-test", "1");
+        let client = ClientInfo { program, participant: Some(self::participant(participant)) };
+        let connection = Connection::connect_to(client, WebSocketTransport::new(socket)).await?;
+        Ok(LiveSession::start(connection.open_remote(None).await?))
     }
 
     pub(crate) async fn creator(&self) -> Result<AcpClient, TestError> {
