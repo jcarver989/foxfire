@@ -2716,6 +2716,7 @@ dependencies = [
  "clap",
  "foxfire-acp",
  "foxfire-core",
+ "foxfire-shell",
  "foxfire-ui",
  "futures",
  "log",
@@ -2755,7 +2756,7 @@ dependencies = [
 name = "foxfire-mobile"
 version = "0.1.0"
 dependencies = [
- "foxfire-ui",
+ "foxfire-shell",
  "rouge",
  "rouge-widgets",
 ]
@@ -2785,6 +2786,20 @@ dependencies = [
  "tokio-util",
  "tracing",
  "tracing-subscriber",
+]
+
+[[package]]
+name = "foxfire-shell"
+version = "0.1.0"
+dependencies = [
+ "agent-client-protocol",
+ "base64 0.23.1",
+ "clankerdiff-core",
+ "clankerdiff-ui-core",
+ "foxfire-core",
+ "foxfire-ui",
+ "rouge",
+ "rouge-widgets",
 ]
 
 [[package]]
@@ -2846,6 +2861,7 @@ name = "foxfire-web"
 version = "0.1.0"
 dependencies = [
  "foxfire-chat",
+ "foxfire-shell",
  "foxfire-ui",
  "rouge",
  "rouge-widgets",

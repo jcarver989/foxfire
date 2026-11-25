@@ -247,7 +247,7 @@ fn inactive_windows_keep_activity_labels_without_running_animation_clocks() {
 
     assert!(!harness.ui().is_animating(), "unfocused indicators must not request continuous frames");
     assert!(harness.shows("status-label", "Working"));
-    assert!(harness.bounds("tool-foxfire-call-1").is_some());
+    assert!(harness.bounds("tool-activity-call-1").is_some());
 
     harness.activate();
     assert!(harness.ui().is_animating(), "working indicators resume on focus");

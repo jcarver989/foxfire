@@ -1,7 +1,7 @@
 //! Android entry point for the Foxfire demo. The iOS app is this package's binary.
 #![cfg(target_os = "android")]
 
-use foxfire_ui::hosted::demo_view;
+use foxfire_shell::hosted::demo_view;
 use rouge::persist::app_storage;
 use rouge::platform::AndroidApp;
 use rouge::{App, WindowOptions};

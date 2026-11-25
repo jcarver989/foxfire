@@ -17,8 +17,6 @@ use std::time::Duration;
 use tokio::sync::mpsc::UnboundedSender;
 use web_time::Instant;
 
-pub const UNTITLED: &str = "New thread";
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ThreadEvent {
     Launched(String),
@@ -196,12 +194,7 @@ impl Thread {
     }
 
     pub fn listed_files(&self) -> Result<RepoFiles, String> {
-        self.state.with(|state| match state.core.as_ref().map_or(FileListing::Pending, SessionCore::files) {
-            FileListing::Pending if state.status().is_stopped() => {
-                Err("Start the thread again to browse its files".to_owned())
-            }
-            listing => listing.into_result(),
-        })
+        self.state.with(|state| state.core.as_ref().map_or(FileListing::Pending, SessionCore::files).into_result())
     }
 
     pub fn send(&self, submission: Submission) {
@@ -475,13 +468,8 @@ impl ThreadStatus {
         matches!(self, Self::Errored | Self::Disconnected | Self::Dormant)
     }
 
-    pub fn problem(self) -> Option<&'static str> {
-        match self {
-            Self::Errored => Some("The agent could not start"),
-            Self::Reconnecting => Some("Reconnecting to the agent…"),
-            Self::Disconnected => Some("The agent connection closed"),
-            _ => None,
-        }
+    pub fn has_problem(self) -> bool {
+        matches!(self, Self::Errored | Self::Disconnected | Self::Reconnecting)
     }
 }
 

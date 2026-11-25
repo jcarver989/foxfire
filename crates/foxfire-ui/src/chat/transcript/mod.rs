@@ -14,8 +14,8 @@ use crate::ui::tokens::{
     CONTENT_MAX_WIDTH, GRID_COLUMNS, HEADER_HEIGHT, Pace, ROW_HEIGHT, Radius, SCROLLBAR_WIDTH, Space,
 };
 use crate::ui::{
-    ActiveReviewTheme, IconName, Material, MaterialExt, UiStyles, column_grid, empty_state, grid_cell, icon_button,
-    reading_cell, reading_span, vertical_scrollbar,
+    ActiveReviewTheme, IconName, Material, MaterialExt, UiStyles, Wording, column_grid, empty_state, grid_cell,
+    icon_button, reading_cell, reading_span, vertical_scrollbar,
 };
 use agent_client_protocol::v2::schema as acp;
 use clankerdiff_core::DiffDocument;
@@ -603,15 +603,16 @@ impl Transcript {
 
     fn empty_state(self) -> impl View {
         let thread = self.thread;
+        let wording = Wording::current();
         let state = memo(move || (thread.status(), thread.error(), thread.is_fresh()));
         dynamic(move || {
             let (status, error, fresh) = state.get();
             if fresh {
                 return div().into_any();
             }
-            if let Some(problem) = status.problem() {
-                let detail = error
-                    .map_or_else(|| "Reconnect to pick up where it left off".to_owned(), |failure| failure.to_string());
+            if let Some(problem) = wording.problem(status) {
+                let detail =
+                    error.map_or_else(|| wording.disconnected_detail.to_owned(), |failure| failure.to_string());
                 let color = if status == ThreadStatus::Errored { Role::Destructive } else { Role::Warning };
                 return view! {
                     <div size_full p=Space::X6 flex col items_center justify_center gap=Space::X3>
@@ -624,9 +625,9 @@ impl Transcript {
             }
             let (title, detail) = match status {
                 ThreadStatus::Idle => return div().into_any(),
-                ThreadStatus::Connecting => ("Connecting…", "Starting the agent for this thread"),
-                ThreadStatus::Dormant => ("Stopped", "This thread's agent is not running"),
-                _ => ("New thread", "Send a prompt to start"),
+                ThreadStatus::Connecting => (wording.connecting, wording.connecting_detail),
+                ThreadStatus::Dormant => (wording.stopped, wording.stopped_detail),
+                _ => (wording.untitled, wording.unprompted),
             };
             view! {
                 <div size_full flex items_center justify_center>

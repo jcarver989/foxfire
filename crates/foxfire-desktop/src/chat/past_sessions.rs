@@ -6,8 +6,8 @@ use crate::target::SessionTarget;
 use crate::threads::{Thread, ThreadManager};
 use crate::ui::tokens::{COMPOSER_POPUP_HEIGHT, ICON_SIZE_SMALL, Pace, ROW_HEIGHT, Space};
 use crate::ui::{
-    FoxfireState, Hint, Icon, IconName, Material, MaterialExt, NoticeTone, PickerItem, SearchPickerEvent,
-    SearchPickerHandle, UiStyles, badge, foxfire, list_row, search_picker, segment, segmented_control, selection,
+    ActivityState, Hint, Icon, IconName, Material, MaterialExt, NoticeTone, PickerItem, SearchPickerEvent,
+    SearchPickerHandle, UiStyles, activity, badge, list_row, search_picker, segment, segmented_control, selection,
     skeleton,
 };
 use chrono::{DateTime, Utc};
@@ -228,7 +228,7 @@ fn status(agent: &str, listing: Option<Listing>) -> Option<AnyView> {
         Listing::Listing => Some(
             view! {
                 <div test_id="past-sessions-status" flex_none flex items_center gap=Space::X2>
-                    {foxfire(ICON_SIZE_SMALL, Role::TextMuted, || FoxfireState::Connecting)}
+                    {activity(ICON_SIZE_SMALL, Role::TextMuted, || ActivityState::Connecting)}
                     <div test_id="past-sessions-status-label"><text small muted no_wrap>{format!("Asking {agent}…")}</text></div>
                 </div>
             }

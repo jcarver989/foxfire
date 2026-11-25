@@ -1,13 +1,14 @@
-use crate::threads::{Thread, ThreadEvent};
-use crate::ui::{ActiveReviewTheme, IconName, NoticeTone, Toasts, empty_state, toast};
+use crate::thread::{Thread, ThreadEvent};
+use crate::ui::{ActiveReviewTheme, IconName, Wording, empty_state};
 use clankerdiff_core::{DiffReviewCommand, DiffReviewEvent, DiffSide, FilesMode, RepoPath, SourcePath, TargetLocation};
 use clankerdiff_rouge::{DiffClientView, DiffViewerOptions, ReviewHandle, ReviewOutput};
 use rouge::core::{Styled, View, WindowHandle, div, dynamic, view, window_handle};
 use rouge::reactive::{Callback, Memo, Scope, Signal, effect, memo, signal, untrack};
 use std::sync::Arc;
 
+/// A thread's changed files and the rest of its repository, with review comments on them.
 #[derive(Clone, Copy)]
-pub(crate) struct Files {
+pub struct Files {
     thread: Thread,
     client: Signal<Option<DiffClientView>>,
     comments: Memo<usize>,
@@ -18,7 +19,8 @@ pub(crate) struct Files {
 }
 
 impl Files {
-    pub(crate) fn new(thread: Thread, on_dismissed: impl Fn() + 'static) -> Self {
+    /// Calls `on_dismissed` when the user leaves the files, and `on_copied` when their review is on the clipboard.
+    pub fn new(thread: Thread, on_dismissed: impl Fn() + 'static, on_copied: impl Fn() + 'static) -> Self {
         let client: Signal<Option<DiffClientView>> = signal(None);
         let comments = memo(move || {
             client.get().map_or(0, |client| {
@@ -26,14 +28,13 @@ impl Files {
                 client.review().with(|review| review.session().review().len())
             })
         });
-        let toasts = Toasts::current();
         let files = Self {
             thread,
             client,
             comments,
             on_dismissed: Callback::from(on_dismissed),
             window: window_handle(),
-            on_copied: Callback::from(move || toasts.show(toast("Review copied").tone(NoticeTone::Positive))),
+            on_copied: Callback::from(on_copied),
             scope: Scope::new(),
         };
         let review = memo(move || thread.review().map(|state| Arc::as_ptr(&state) as usize));
@@ -53,35 +54,36 @@ impl Files {
         files
     }
 
-    pub(crate) fn review(self) -> Option<ReviewHandle> {
+    pub fn review(self) -> Option<ReviewHandle> {
         self.client.get_untracked().map(|client| *client.review())
     }
 
-    pub(crate) fn comments(self) -> usize {
+    pub fn comments(self) -> usize {
         self.comments.get()
     }
 
-    pub(crate) fn submit(self) {
+    pub fn submit(self) {
         self.run(DiffReviewCommand::SubmitReview);
     }
 
-    pub(crate) fn copy(self) {
+    pub fn copy(self) {
         self.run(DiffReviewCommand::CopyReview);
     }
 
-    pub(crate) fn open(self, path: RepoPath, line: Option<u32>) {
+    pub fn open(self, path: RepoPath, line: Option<u32>) {
         self.run(DiffReviewCommand::SetFilesMode(FilesMode::Diff));
         let line_number = line.map_or(1, |line| line.max(1) as usize);
         let target = TargetLocation { path: SourcePath::Repo(path), side: DiffSide::New, line_number };
         self.run(DiffReviewCommand::JumpTo(target));
     }
 
-    pub(crate) fn view(self) -> impl View {
-        let thread = self.thread;
+    pub fn view(self) -> impl View {
+        let (thread, wording) = (self.thread, Wording::current());
         let waiting = memo(move || {
-            let status = thread.status();
-            let title = if status.is_stopped() { "Agent not running" } else { "Waiting for the agent" };
-            (title, thread.listed_files().err().unwrap_or_default())
+            if thread.status().is_stopped() {
+                return (wording.files_stopped, wording.files_stopped_detail.to_owned());
+            }
+            (wording.files_waiting, thread.listed_files().err().unwrap_or_default())
         });
         let client = self.client;
         let shown = memo(move || client.with(Option::is_some));

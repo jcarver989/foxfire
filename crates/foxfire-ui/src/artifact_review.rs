@@ -1,5 +1,5 @@
-use crate::platform::Platform;
-use crate::threads::Thread;
+use crate::platform::ChatPlatform;
+use crate::thread::Thread;
 use crate::ui::ActiveReviewTheme;
 use clankerdiff_core::ReviewCapabilities;
 use clankerdiff_markdown::{MarkdownDocument, MarkdownReviewDecision, MarkdownReviewEvent, MarkdownReviewSubmission};
@@ -12,12 +12,13 @@ use rouge::reactive::{Callback, Scope, Signal, Stored, effect, memo, signal, spa
 use std::rc::Rc;
 use std::sync::Arc;
 
+/// Reviews the document a thread's agent asks for feedback on.
 #[derive(Clone, Copy)]
-pub(crate) struct ArtifactReview {
+pub struct ArtifactReview {
     thread: Thread,
     reviewer: Signal<Option<Reviewer>>,
     on_dismissed: Callback,
-    platform: Stored<Rc<dyn Platform>>,
+    platform: Stored<Rc<dyn ChatPlatform>>,
     window: WindowHandle,
     scope: Scope,
 }
@@ -30,7 +31,8 @@ struct Reviewer {
 }
 
 impl ArtifactReview {
-    pub(crate) fn new(thread: Thread, platform: Rc<dyn Platform>, on_dismissed: impl Fn() + 'static) -> Self {
+    /// Calls `on_dismissed` once there is nothing to review.
+    pub fn new(thread: Thread, platform: Rc<dyn ChatPlatform>, on_dismissed: impl Fn() + 'static) -> Self {
         let review = Self {
             thread,
             reviewer: signal(None),
@@ -55,7 +57,7 @@ impl ArtifactReview {
         review
     }
 
-    pub(crate) fn view(self) -> impl View {
+    pub fn view(self) -> impl View {
         let shown = memo(move || self.reviewer.get().map(|reviewer| reviewer.id));
         view! {
             <div test_id="artifact-review" size_full>

@@ -1,17 +1,70 @@
 use foxfire_chat::ChatError;
-use foxfire_ui::backend::{HostedBackend, Project, ThreadId};
+use foxfire_ui::ChatPane;
+use foxfire_ui::backend::{BackendError, HostedBackend, Project, ThreadId};
 use foxfire_ui::memory::MemoryBackend;
 use foxfire_ui::platform::ChatPlatform;
+use foxfire_ui::thread::Thread;
 use foxfire_web::web_view;
 use rouge::core::{
-    InputKind, Point, Size,
-    testing::{TestError, TestUi},
+    Color, InputKind, Point, Size, Styled, Theme, div,
+    testing::{TestError, TestUi, assert_near},
 };
 use rouge::persist::MemoryStorage;
 use rouge::reactive::Runtime;
 use rouge_widgets::testing::component_test;
+use rouge_widgets::{CODE_FONT, Fonts, Materials, Radii, UiStyle};
 use std::rc::Rc;
 use std::time::Duration;
+
+#[tokio::test]
+async fn the_same_composer_uses_host_type_shape_and_live_emphasis() -> Result<(), Box<dyn std::error::Error>> {
+    let _entered = Runtime::new().enter();
+    let mut widths = Vec::new();
+    for solid in [false, true] {
+        let backend = MemoryBackend::new(vec![Project { id: "demo".into(), name: "Project".into() }]);
+        let id = backend.launch("demo".into()).await?.id;
+        let (mut ui, theme) = component_test().size(390.0, 780.0).input(InputKind::Touch).build_with(move || {
+            if solid {
+                UiStyle {
+                    fonts: Fonts { ui: CODE_FONT.into(), ..Fonts::default() },
+                    radii: Radii::SHARP,
+                    materials: Materials::Solid,
+                }
+                .provide();
+            }
+            let thread = Thread::connect(0, None, None, move |resume| backend.open(id.clone(), resume));
+            let pane = ChatPane::new(thread, Rc::new(NoPlatform), |_| {}, || {});
+            let root = div().size_full().bg(Color::RED).p(20.0).child(pane.composer().view());
+            (root, Theme::current())
+        });
+        ui.advance(0.0);
+        let panel = ui.rect_of("composer-panel")?;
+        #[expect(
+            clippy::cast_possible_truncation,
+            clippy::cast_sign_loss,
+            reason = "Sample pixels inside the test window."
+        )]
+        let (x, y, middle) = (panel.origin.x.ceil() as u32, panel.origin.y.ceil() as u32, panel.center().x as u32);
+        let palette = theme.get_untracked();
+        if solid {
+            assert_near(ui.pixel(x + 2, y + 2)?, palette.elevated.to_rgba8(), "opaque square corner");
+            assert_near(ui.pixel(middle, y)?, palette.border.to_rgba8(), "resting edge");
+        } else {
+            assert_ne!(ui.pixel(x + 2, y + 2)?, palette.elevated.to_rgba8());
+        }
+        ui.tap_on("composer-text")?;
+        ui.advance(0.0);
+        if solid {
+            assert_near(ui.pixel(middle, y)?, palette.accent.to_rgba8(), "focused edge");
+        }
+        let start = ui.text_cursor_area().ok_or("unfocused editor")?.origin.x;
+        ui.type_text("iiiiiiiiiiii");
+        ui.advance(0.0);
+        widths.push(ui.text_cursor_area().ok_or("missing caret")?.origin.x - start);
+    }
+    assert!(widths[1] > widths[0] * 1.5, "host monospace and default UI font: {widths:?}");
+    Ok(())
+}
 
 #[tokio::test]
 async fn the_browser_shell_launches_chats_switches_and_stops() -> Result<(), TestError> {
@@ -483,12 +536,126 @@ async fn the_phone_shell_opens_the_side_room_as_a_sheet() -> Result<(), TestErro
     Ok(())
 }
 
+#[tokio::test]
+async fn changed_files_and_artifacts_are_reviewed_beside_the_conversation() -> Result<(), TestError> {
+    let _entered = Runtime::new().enter();
+    let backend = changed_backend();
+    let mut ui = demo(&backend, &MemoryStorage::default(), InputKind::Pointer, (1360.0, 840.0));
+    ui.hover_on("project-demo")?;
+    ui.run(0.25);
+    ui.click_on("launch-demo")?;
+    ui.run(1.0);
+    assert!(ui.bounds_of("changes-unseen").is_some(), "changes nobody has looked at are marked");
+    ui.click_on("tab-files")?;
+    ui.run(0.5);
+    assert!(ui.bounds_of("changes-viewer").is_some());
+    assert!(ui.bounds_of("changes-unseen").is_none());
+    assert!(ui.bounds_of("composer").is_none());
+    assert!(ui.bounds_of("tab-review").is_none(), "there is nothing to review yet");
+
+    ui.click_on("tab-chat")?;
+    ui.run(0.5);
+    ui.click_on("composer-text")?;
+    ui.type_text("/review");
+    ui.click_on("send")?;
+    ui.run(0.5);
+    ui.click_on("elicitation-open-review")?;
+    ui.run(0.5);
+    assert!(ui.bounds_of("artifact-review").is_some());
+    ui.click_on("tab-chat")?;
+    ui.run(0.5);
+    assert!(ui.bounds_of("artifact-review").is_none());
+    assert!(ui.bounds_of("tab-review").is_some());
+    Ok(())
+}
+
+#[tokio::test]
+async fn the_phone_shell_has_the_same_tabs() -> Result<(), TestError> {
+    let _entered = Runtime::new().enter();
+    let mut ui = demo(&changed_backend(), &MemoryStorage::default(), InputKind::Touch, (390.0, 844.0));
+    ui.tap_on("launch-demo")?;
+    ui.run(1.0);
+    ui.tap_on("tab-files")?;
+    ui.run(0.5);
+    let (viewer, nav) = (ui.rect_of("changes-viewer")?, ui.rect_of("conversation-nav")?);
+    assert!(viewer.origin.y >= nav.max().y, "{viewer:?} is under {nav:?}");
+    ui.tap_on("tab-chat")?;
+    ui.run(0.5);
+    assert!(ui.bounds_of("composer").is_some(), "the chat tab returns to the phone conversation");
+    Ok(())
+}
+
+#[tokio::test]
+async fn a_suspended_thread_says_so_and_resumes() -> Result<(), BackendTestError> {
+    let _entered = Runtime::new().enter();
+    let backend = changed_backend();
+    let mut ui = demo(&backend, &MemoryStorage::default(), InputKind::Pointer, (1120.0, 840.0));
+    let id = backend.launch("demo".to_owned()).await?.id;
+    ui.click_on("refresh-threads")?;
+    ui.click_on("thread-demo-1")?;
+    ui.run(0.5);
+    backend.suspend(id.clone()).await?;
+    ui.run(0.5);
+    assert!(ui.text_bounds("Thread suspended").is_some());
+    ui.click_on("resume-thread")?;
+    ui.run(1.0);
+    assert!(ui.bounds_of("composer").is_some());
+
+    backend.stop(id).await?;
+    ui.click_on("refresh-threads")?;
+    ui.run(0.5);
+    assert!(ui.text_bounds("No thread selected").is_some());
+    Ok(())
+}
+
+#[tokio::test]
+async fn a_dropped_connection_comes_back_with_the_transcript_and_draft_in_place() -> Result<(), BackendTestError> {
+    let _entered = Runtime::new().enter();
+    let backend = changed_backend();
+    let mut ui = demo(&backend, &MemoryStorage::default(), InputKind::Pointer, (1120.0, 840.0));
+    let id = backend.launch("demo".to_owned()).await?.id;
+    ui.click_on("refresh-threads")?;
+    ui.click_on("thread-demo-1")?;
+    ui.run(1.0);
+    ui.click_on("composer-text")?;
+    ui.type_text("first prompt");
+    assert!(ui.press("enter"));
+    ui.run(0.2);
+    ui.type_text("unsent draft");
+
+    ui.set_focused(false);
+    backend.drop_connections(&id)?;
+    ui.run(0.0);
+    assert!(ui.text_bounds("Done.").is_some(), "the transcript stays on screen");
+    assert!(ui.bounds_of("new-thread-heading").is_none());
+    ui.set_focused(true);
+    ui.run(0.5);
+    assert!(ui.bounds_of("transcript-reconnect").is_none());
+    assert!(ui.text_bounds("Done.").is_some() && ui.text_bounds("unsent draft").is_some());
+    assert!(ui.bounds_of("new-thread-heading").is_none());
+    Ok(())
+}
+
+#[derive(Debug, thiserror::Error)]
+enum BackendTestError {
+    #[error(transparent)]
+    Ui(#[from] TestError),
+    #[error(transparent)]
+    Backend(#[from] BackendError),
+}
+
 #[derive(Debug, thiserror::Error)]
 enum ChatTestError {
     #[error(transparent)]
     Ui(#[from] TestError),
     #[error(transparent)]
     Chat(#[from] ChatError),
+}
+
+fn changed_backend() -> MemoryBackend {
+    MemoryBackend::new(vec![Project { id: "demo".to_owned(), name: "Demo project".to_owned() }])
+        .with_reply(vec!["Done.".to_owned()], Duration::ZERO)
+        .with_changes(&[("src/lib.rs", "old\n", "new\n")])
 }
 
 fn shared_backend() -> MemoryBackend {

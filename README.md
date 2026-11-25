@@ -77,7 +77,8 @@ This is also an internal preview. On a real device, verify keyboard composition,
 - `foxfire`: the terminal client binary (`cargo install foxfire`).
 - `foxfire-tui`: embeddable terminal UI.
 - `foxfire-desktop`: native desktop client.
-- `foxfire-ui`: shared Rouge shell, conversation views, and session backend contract.
+- `foxfire-ui`: brand-neutral Rouge views and headless controllers for a host to build an agent app from, and the session backend contract.
+- `foxfire-shell`: Foxfire's own shell, mark, words, and in-memory demo, shared by its apps.
 - `foxfire-web`: browser host for the in-memory demo.
 - `foxfire-mobile`: iOS and Android hosts for the in-memory demo.
 - `foxfire-chat`: keeps the chat channels people share around an agent's sessions.

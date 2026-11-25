@@ -2,9 +2,10 @@ use clankerdiff_ui_core::ReviewTheme;
 use clap::Parser;
 use foxfire_desktop::branding::APP_NAME;
 use foxfire_desktop::ui::{
-    ActiveReviewTheme, ButtonVariant, ControlSize, FoxfireMotion, FoxfireState, Icon, IconName, UI_FONT, UiStyles,
-    button, foxfire, tokens::Space,
+    ActiveReviewTheme, ActivityMotion, ActivityState, ButtonVariant, ControlSize, Icon, IconName, UI_FONT, UiStyles,
+    activity, button, tokens::Space,
 };
+use foxfire_shell::install;
 use rouge::core::{Color, Styled, View, div, scroll, text, view};
 use rouge::reactive::{Runtime, signal, sleep, spawn};
 use rouge::{App, WindowOptions};
@@ -81,8 +82,9 @@ fn main() {
 
 fn preview(reduced: bool) -> impl View {
     let _ = ActiveReviewTheme::install(ReviewTheme::default());
-    let motion = FoxfireMotion::install(reduced);
-    let selected = signal(FoxfireState::Thinking);
+    install();
+    let motion = ActivityMotion::install(reduced);
+    let selected = signal(ActivityState::Thinking);
     let cycling = signal(false);
     let choices = STATES.map(|state| {
         view! {
@@ -100,7 +102,7 @@ fn preview(reduced: bool) -> impl View {
                         if cycling.get_untracked() { return; }
                         cycling.set(true);
                         spawn(async move {
-                            for state in [FoxfireState::Working, FoxfireState::Writing, FoxfireState::Thinking, FoxfireState::Working, FoxfireState::Writing] {
+                            for state in [ActivityState::Working, ActivityState::Writing, ActivityState::Thinking, ActivityState::Working, ActivityState::Writing] {
                                 selected.set(state);
                                 sleep(Duration::from_millis(100)).await;
                             }
@@ -113,8 +115,8 @@ fn preview(reduced: bool) -> impl View {
         <div flex col gap=Space::X3>
             <text heading>"State transitions"</text>
             <div flex items_center gap=Space::X6 h=64.0>
-                {foxfire(12.0, Color::rgb(0x0038_7ccf), move || selected.get())}
-                {foxfire(48.0, Color::rgb(0x0038_7ccf), move || selected.get())}
+                {activity(12.0, Color::rgb(0x0038_7ccf), move || selected.get())}
+                {activity(48.0, Color::rgb(0x0038_7ccf), move || selected.get())}
                 <text>{move || selected.get().label()}</text>
             </div>
             <div flex flex_wrap gap=Space::X2>{..choices}</div>
@@ -153,13 +155,13 @@ fn palette(dark: bool) -> impl View {
         (0x00ff_ffff, 0x001f_2328, 0x0028_64b4, 0x0094_6200)
     };
     let rows = STATES.map(|state| {
-        let tint = Color::rgb(if state == FoxfireState::Waiting { warning } else { tint });
+        let tint = Color::rgb(if state == ActivityState::Waiting { warning } else { tint });
         view! {
             <div flex items_center gap=Space::X6 h=48.0>
                 <div w=144.0><text>{state.label()}</text></div>
-                {foxfire(12.0, tint, move || state)}
-                {foxfire(16.0, tint, move || state)}
-                {foxfire(48.0, tint, move || state)}
+                {activity(12.0, tint, move || state)}
+                {activity(16.0, tint, move || state)}
+                {activity(48.0, tint, move || state)}
             </div>
         }
     });
@@ -178,17 +180,17 @@ fn outcome(icon: IconName, label: &'static str, color: u32) -> impl View {
 fn stress_row(row: usize) -> impl View {
     view! {
         <div flex items_center gap=Space::X6 h=20.0>
-            {..(0..4).map(move |index| foxfire(12.0, Color::rgb(0x0038_7ccf), move || STATES[(row + index) % 5]))}
+            {..(0..4).map(move |index| activity(12.0, Color::rgb(0x0038_7ccf), move || STATES[(row + index) % 5]))}
             <text>{format!("Tool group {}", row + 1)}</text>
         </div>
     }
 }
 
-const STATES: [FoxfireState; 6] = [
-    FoxfireState::Connecting,
-    FoxfireState::Thinking,
-    FoxfireState::Compacting,
-    FoxfireState::Working,
-    FoxfireState::Writing,
-    FoxfireState::Waiting,
+const STATES: [ActivityState; 6] = [
+    ActivityState::Connecting,
+    ActivityState::Thinking,
+    ActivityState::Compacting,
+    ActivityState::Working,
+    ActivityState::Writing,
+    ActivityState::Waiting,
 ];

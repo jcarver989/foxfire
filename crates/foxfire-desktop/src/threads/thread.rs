@@ -3,7 +3,7 @@ use crate::sessions::SessionKey;
 use crate::target::{AgentConnector, SessionTarget};
 use agent_client_protocol::v2::schema::SessionId;
 use chrono::{DateTime, Utc};
-use foxfire_ui::thread::UNTITLED;
+use foxfire_shell::UNTITLED;
 use foxfire_ui::thread::Thread as ChatThread;
 pub use foxfire_ui::thread::{ThreadEvent, ThreadStatus};
 use rouge::core::window_focused;

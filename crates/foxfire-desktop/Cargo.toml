@@ -27,6 +27,7 @@ required-features = ["testing"]
 testing = [
     "foxfire-acp/testing",
     "foxfire-core/testing",
+    "foxfire-shell/testing",
     "foxfire-ui/testing",
     "tokio/io-std",
     "clankerdiff-remote/test-support",
@@ -55,6 +56,7 @@ foxfire-acp = { workspace = true, features = ["client", "websocket"] }
 agent-client-protocol = { workspace = true, features = ["process"] }
 chrono = { workspace = true }
 foxfire-core = { workspace = true }
+foxfire-shell = { workspace = true }
 foxfire-ui = { workspace = true }
 clankerdiff-client = { workspace = true }
 clankerdiff-core = { workspace = true }

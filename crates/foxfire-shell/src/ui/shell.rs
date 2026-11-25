@@ -1,31 +1,24 @@
-use super::tokens::{HEADER_HEIGHT, ICON_SIZE, PANEL_GUTTER, Pace, ROW_HEIGHT, Space, TWO_LINE_ROW_HEIGHT, UNIT};
-use super::{
-    FoxfireState, Icon, IconName, ListRow, ResizablePanel, Side, StyledExt, UI_FONT, UiStyles, chord, empty_state,
-    foxfire, hint, icon_button, icon_slot, list_row, resizable_panel, section_header, selection, tree_row,
+use foxfire_ui::ChatRoom;
+use foxfire_ui::thread::ThreadStatus;
+use foxfire_ui::ui::tokens::{
+    HEADER_HEIGHT, ICON_SIZE, PANEL_GUTTER, Pace, ROW_HEIGHT, Space, TWO_LINE_ROW_HEIGHT, UNIT,
 };
-use crate::ChatRoom;
-use crate::thread::ThreadStatus;
+use foxfire_ui::ui::{
+    ActivityState, FontRole, Icon, IconName, ListRow, PanelWidth, Side, StyledExt, UiStyles, activity, beside_room,
+    chord, empty_state, hint, icon_button, icon_slot, list_row, section_header, selection, tree_row,
+};
 use rouge::core::{
-    AnyView, Div, Motion, Role, Styled, View, div, dynamic, motion, presentation, scroll, show, text, view, window_size,
+    AnyView, Div, Motion, Role, Styled, View, div, dynamic, motion, presentation, scroll, show, text, view,
 };
-use rouge::reactive::{Callback, Memo, effect, signal, untrack};
+use rouge::reactive::{Callback, Memo, signal, untrack};
 
-pub const MIN_MAIN_WIDTH: f32 = 80.0 * UNIT;
 pub const TOGGLE_SIDEBAR_KEYS: &str = "secondary-b";
-/// The narrowest, usual and widest each panel can be.
+/// The narrowest, usual and widest the sidebar can be.
 const SIDEBAR_WIDTHS: [f32; 3] = [50.0 * UNIT, 68.0 * UNIT, 120.0 * UNIT];
-const ROOM_WIDTHS: [f32; 3] = [64.0 * UNIT, 84.0 * UNIT, 120.0 * UNIT];
 const SIDEBAR_ENTRY_SLIDE: f32 = Space::X6.px();
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ToggleSidebar;
-
-/// How wide a host remembers the user leaving a panel.
-#[derive(Clone, Copy)]
-pub struct PanelWidth {
-    saved: Memo<Option<f32>>,
-    set: Callback<(Option<f32>,)>,
-}
 
 /// Shared window layout. Hosts own the sidebar preferences and supply content and actions.
 #[derive(Clone, Copy)]
@@ -64,7 +57,7 @@ impl ThreadShell {
         overlays: impl View,
     ) -> Div {
         view! {
-            <div test_id=id relative size_full flex bg=Role::Canvas text_color=Role::Text font=UI_FONT body>
+            <div test_id=id relative size_full flex bg=Role::Canvas text_color=Role::Text font=FontRole::Ui body>
                 <dynamic>{(!self.collapsed.get()).then(|| untrack(|| self.sidebar(controls(), sections())))}</dynamic>
                 <div test_id="main" relative flex_1 min_w=0.0 h_full>{main}</div>
                 {overlays}
@@ -76,16 +69,7 @@ impl ThreadShell {
 
     /// A conversation with its side room beside it.
     pub fn with_room(self, room: ChatRoom, conversation: impl View) -> Div {
-        let side = dynamic(move || {
-            let panel = || self.room_width.panel(Side::Right, ROOM_WIDTHS, room.panel()).test_id("chat-room-resizable");
-            room.is_open().then(|| untrack(panel))
-        });
-        view! {
-            <div size_full flex>
-                <div relative flex_1 min_w=0.0 h_full>{conversation}</div>
-                {side}
-            </div>
-        }
+        beside_room(room, self.room_width, conversation)
     }
 
     /// A leading control for the thread header, shown only when the sidebar is closed.
@@ -154,39 +138,6 @@ impl ThreadShell {
             self.fade.animate_to(1.0, Pace::Enter);
         }
         self.set_collapsed.call(!opening);
-    }
-}
-
-impl PanelWidth {
-    pub fn new(saved: Memo<Option<f32>>, set: impl Fn(Option<f32>) + 'static) -> Self {
-        Self { saved, set: Callback::from(set) }
-    }
-
-    /// A panel at the remembered width, or the closest that leaves room for the rest of the window.
-    fn panel(self, edge: Side, [min, default, max]: [f32; 3], content: impl View) -> ResizablePanel {
-        let window = window_size();
-        let fit = move |width: f32, available: f32| {
-            let max = (available - MIN_MAIN_WIDTH).clamp(min, max);
-            (width.clamp(min, max) / UNIT).floor() * UNIT
-        };
-        let width = signal(fit(self.saved.get_untracked().unwrap_or(default), window.get_untracked().width));
-        effect(move || {
-            width.set_if_changed(fit(self.saved.get().unwrap_or(default), window.get().width));
-        });
-        let on_resize = move |requested| {
-            let chosen = fit(requested, window.get_untracked().width);
-            if self.saved.get_untracked() != Some(chosen) {
-                self.set.call(Some(chosen));
-            }
-            width.set_if_changed(chosen);
-        };
-        let on_reset = move || self.set.call(None);
-        view! {
-            <resizable_panel edge size=width min_size=min max_size=max reset_size=default on_resize=on_resize
-                             on_reset=on_reset h_full flex col bg=Role::Chrome>
-                {content}
-            </resizable_panel>
-        }
     }
 }
 
@@ -294,8 +245,8 @@ pub fn thread_status_icon(row: &str, status: ThreadStatus) -> AnyView {
     let id = format!("{row}-status-{name}");
     let mark = match icon {
         Some(icon) => Icon::new(icon, color).into_any(),
-        None if status == ThreadStatus::Running => foxfire(ICON_SIZE, color, || FoxfireState::Working).into_any(),
-        None => foxfire(ICON_SIZE, color, || FoxfireState::Connecting).into_any(),
+        None if status == ThreadStatus::Running => activity(ICON_SIZE, color, || ActivityState::Working).into_any(),
+        None => activity(ICON_SIZE, color, || ActivityState::Connecting).into_any(),
     };
     hint(id.clone(), label, tagged(format!("{id}-{shape}"), mark))
 }

@@ -1,5 +1,5 @@
 #[cfg(target_os = "ios")]
-use foxfire_ui::hosted::demo_view;
+use foxfire_shell::hosted::demo_view;
 #[cfg(target_os = "ios")]
 use rouge::persist::app_storage;
 #[cfg(target_os = "ios")]

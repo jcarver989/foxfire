@@ -2,7 +2,7 @@ use super::usage::usage_meter;
 use crate::thread::{Thread, ThreadStatus};
 use crate::ui::spawn_in;
 use crate::ui::tokens::{HAIRLINE, ICON_SIZE_SMALL, Pace, ROW_HEIGHT, Radius, Space, UNIT};
-use crate::ui::{FoxfireMotion, FoxfireState, Hint, Icon, IconName, Theme, UiStyles, foxfire};
+use crate::ui::{ActivityMotion, ActivityState, Hint, Icon, IconName, Theme, UiStyles, activity};
 use agent_client_protocol::v2::schema as acp;
 use foxfire_acp::conversation::{Activity, Conversation, ConversationContent, ToolStatus, is_plan_entry_finished};
 use rouge::core::{
@@ -109,7 +109,7 @@ impl StatusLine {
 
     fn activity(self, doing: Memo<Option<Doing>>, plan: Memo<Option<Vec<acp::PlanEntry>>>) -> impl View {
         let theme = Theme::current();
-        let motion = FoxfireMotion::current();
+        let motion = ActivityMotion::current();
         let details = signal(false);
         let restoring_focus = stored(false);
         let open_details = move || {
@@ -235,20 +235,20 @@ impl Doing {
         }
     }
 
-    fn foxfire(self) -> FoxfireState {
+    fn state(self) -> ActivityState {
         match self {
-            Self::Waiting => FoxfireState::Waiting,
-            Self::Thinking => FoxfireState::Thinking,
-            Self::Compacting => FoxfireState::Compacting,
-            Self::Working => FoxfireState::Working,
-            Self::Writing => FoxfireState::Writing,
+            Self::Waiting => ActivityState::Waiting,
+            Self::Thinking => ActivityState::Thinking,
+            Self::Compacting => ActivityState::Compacting,
+            Self::Working => ActivityState::Working,
+            Self::Writing => ActivityState::Writing,
         }
     }
 }
 
 fn indicator(doing: Memo<Option<Doing>>, plan: Memo<Option<Vec<acp::PlanEntry>>>) -> impl View {
     let theme = Theme::current();
-    let motion = FoxfireMotion::current();
+    let motion = ActivityMotion::current();
     let focused = window_focused();
     let region = signal(PaintRegion::default());
     let previous = stored(None::<Vec<acp::PlanEntry>>);
@@ -315,7 +315,7 @@ fn indicator(doing: Memo<Option<Doing>>, plan: Memo<Option<Vec<acp::PlanEntry>>>
     let tint = move || if doing.get() == Some(Doing::Waiting) { theme.get().warning } else { theme.get().info };
     view! {
         <div test_id="activity" flex_none relative size=ICON_SIZE_SMALL flex items_center justify_center track_paint_region=region>
-            {foxfire(ICON_SIZE_SMALL, tint, move || doing.get().unwrap_or(Doing::Waiting).foxfire())}
+            {activity(ICON_SIZE_SMALL, tint, move || doing.get().unwrap_or(Doing::Waiting).state())}
             {cue}
             <dynamic>{doing.get().map(|doing| view! {
                 <div test_id={doing.describe().1} absolute top=0.0 left=0.0 size_full pass_through/>
