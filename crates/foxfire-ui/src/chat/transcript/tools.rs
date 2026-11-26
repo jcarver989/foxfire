@@ -1,9 +1,10 @@
 use super::code::highlights;
-use super::groups::{GroupKind, Work};
+use super::groups::Work;
+use crate::chat::status::Doing;
 use crate::ui::tokens::{HAIRLINE, ICON_SIZE_SMALL, ROW_HEIGHT, Space};
 use crate::ui::{
-    ActivityState, ButtonVariant, ControlSize, FontRole, Hint, Icon, IconName, UiStyles, activity, button, indent,
-    separator,
+    ActivityState, ButtonVariant, ControlSize, FontRole, Hint, Icon, IconName, Theme, UiStyles, activity, button,
+    indent,
 };
 use agent_client_protocol::v2::schema as acp;
 use clankerdiff_core::{DiffDocument, LineStat};
@@ -15,9 +16,10 @@ use foxfire_acp::conversation::{
     ConversationItem, ConversationItemId, Revision, SubAgent, ToolCall, ToolStatus, diff_change_label,
 };
 use rouge::core::{
-    AnyView, Cursor, Div, FocusHandle, Role, SpanStyle, Styled, TextBreak, View, div, rich_text, text, view,
+    AnyView, Cursor, Div, FocusHandle, Role, SpanStyle, Styled, TextBreak, View, div, dynamic, rich_text, switch, text,
+    view,
 };
-use rouge::reactive::{Callback, ReadSignal};
+use rouge::reactive::{Callback, Memo, ReadSignal, memo};
 use rouge::syntax::{SourceSyntax, analyze};
 use std::cell::OnceCell;
 use std::collections::HashMap;
@@ -42,6 +44,8 @@ pub(crate) struct ToolPreview {
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(crate) enum ToolFold {
+    /// Only its row, without what its sub-agents do.
+    Row,
     Folded,
     Expanded,
     Full,
@@ -75,53 +79,84 @@ impl ToolPreview {
         Self { revision, command: OnceCell::new(), patches }
     }
 
+    pub(super) fn changed_lines(&self) -> (usize, usize) {
+        self.patches
+            .iter()
+            .flatten()
+            .filter_map(PatchPreview::stats)
+            .fold((0, 0), |(added, removed), (more, fewer)| (added + more, removed + fewer))
+    }
+
     fn patch(&self, position: usize) -> Option<&PatchPreview> {
         self.patches.get(position)?.as_ref()
     }
 }
 
-pub(crate) fn fold_header(
-    kind: GroupKind,
+/// The line a turn's work folds into. Its chevron hangs beside the column, so its text lines up with the replies.
+pub(crate) fn turn_line(
     row: usize,
-    items: &[ConversationItem],
-    expanded: bool,
+    work: Memo<Work>,
+    expanded: Memo<bool>,
+    review: ReadSignal<ReviewTheme>,
     on_toggle: Callback,
-) -> AnyView {
-    let work = Work::of(items);
-    let failed = work.failed > 0;
-    if kind == GroupKind::Run {
-        let status = if failed { ToolStatus::Failed } else { ToolStatus::Success };
-        let summary = work.details().collect::<Vec<_>>().join(" · ");
-        let [icon, title, summary] = tool_line(
-            status_icon(status, &format!("group-{row}")),
-            view! { <div flex_none><text>{format!("Ran {} tools", work.tools)}</text></div> },
-            Some(view! { <text no_wrap>{summary}</text> }.into_any()),
-            failed,
-        );
-        let content = view! { <div flex items_center gap=Space::X2 min_w=0.0>{icon}{title}{summary}</div> };
-        return disclosure_row(format!("tool-group-{row}"), expanded, on_toggle, content).into_any();
-    }
-    let done = match work.tools {
-        0 => "Thought".to_owned(),
-        1 => "Ran 1 tool".to_owned(),
-        tools => format!("Ran {tools} tools"),
+) -> Div {
+    let theme = Theme::current();
+    let doing = memo(move || work.with(|work| work.doing));
+    let live = memo(move || doing.get().is_some());
+    let chevron = move || {
+        dynamic(move || {
+            let icon = if expanded.get() { IconName::ChevronDown } else { IconName::ChevronRight };
+            Icon::new(icon, Role::TextMuted).size(ICON_SIZE_SMALL)
+        })
     };
-    let label = std::iter::once(done).chain(work.details()).collect::<Vec<_>>().join(" · ");
-    let chevron = if expanded { IconName::ChevronDown } else { IconName::ChevronRight };
-    let hairline = || separator().flex_1().border_color(Role::BorderSubtle);
-    let color = if failed { Role::Destructive } else { Role::TextMuted };
+    let tint = move || match doing.get() {
+        Some(Doing::Waiting) => theme.get().warning,
+        _ => theme.get().info,
+    };
+    let hanging = switch(
+        move || live.get(),
+        move |live| {
+            if !live {
+                return chevron().into_any();
+            }
+            activity(ICON_SIZE_SMALL, tint, move || doing.get().unwrap_or(Doing::Working).state())
+                .test_id(format!("turn-activity-{row}"))
+                .into_any()
+        },
+    );
+    let content = dynamic(move || work.with(|work| line_content(row, work, review)));
+    let trailing = switch(move || live.get(), move |live| live.then(chevron));
     view! {
-        <div test_id={format!("turn-summary-{row}")} h=ROW_HEIGHT flex items_center gap=Space::X3 body text_color=color
-             on_activate={move || on_toggle.call()}>
-            {hairline()}
-            <div flex_none flex items_center gap=Space::X1>
-                <text>{label}</text>
-                {Icon::new(chevron, Role::TextMuted).size(ICON_SIZE_SMALL)}
-            </div>
-            {hairline()}
+        <div test_id={format!("turn-summary-{row}")} h=ROW_HEIGHT ml={-ICON_SIZE_SMALL} min_w=0.0 overflow_hidden
+             flex items_center gap=Space::X2 body secondary on_activate={move || on_toggle.call()}>
+            <div flex_none size=ICON_SIZE_SMALL>{hanging}</div>
+            {content}
+            {trailing}
         </div>
     }
-    .into_any()
+}
+
+fn line_content(row: usize, work: &Work, review: ReadSignal<ReviewTheme>) -> Div {
+    if let Some(doing) = work.doing {
+        let doing = if doing == Doing::Waiting { doing } else { Doing::Working };
+        let says = doing.describe().0;
+        return view! { <div test_id={format!("turn-doing-{row}")} flex_none><text primary no_wrap>{says}</text></div> };
+    }
+    let outcome = view! {
+        <div test_id={format!("turn-outcome-{row}")} min_w=0.0 overflow_hidden><text truncate>{work.outcome()}</text></div>
+    };
+    let changes = (work.added + work.removed > 0).then(|| {
+        let stat = LineStat { added: work.added, deleted: work.removed, files: work.changed.len() };
+        view! { <div test_id={format!("turn-changes-{row}")} flex_none caption>{stat_badges(stat, review)}</div> }
+    });
+    let failed = (work.failed > 0).then(|| {
+        view! {
+            <div test_id={format!("turn-failed-{row}")} flex_none>
+                <text no_wrap color=Role::Destructive>{format!("{} failed", work.failed)}</text>
+            </div>
+        }
+    });
+    view! { <div min_w=0.0 flex items_center gap=Space::X2>{outcome}{changes}{failed}</div> }
 }
 
 pub(crate) struct ToolCard<'a> {
@@ -141,24 +176,24 @@ impl ToolCard<'_> {
         on_toggle: Callback,
         on_show_all: Callback,
     ) -> AnyView {
-        let expanded = fold != ToolFold::Folded;
+        let expanded = matches!(fold, ToolFold::Expanded | ToolFold::Full);
+        let sub_agents = fold != ToolFold::Row && !tool.sub_agents.is_empty();
         let diffs: Vec<&acp::Diff> = tool.diffs().collect();
-        let title = view! {
+        let name = view! {
             <div test_id={format!("tool-title-{index}")} min_w=0.0 overflow_hidden><text no_wrap>{title(tool)}</text></div>
         };
         let summary = self.summary(tool).map(|summary| match tool.locations().first() {
             Some(location) => self.location_link(location.clone(), index, summary),
             None => summary,
         });
-        let [icon, title, summary] =
-            tool_line(status_icon(tool.status, tool.id()), title, summary, tool.status == ToolStatus::Failed);
+        let line = tool_line(tool, tool.id(), name, summary);
         let changes = (!diffs.is_empty()).then(|| self.change_summary(tool, index));
-        let content = view! { <div flex items_center gap=Space::X2 min_w=0.0>{icon}{title}{summary}{changes}</div> };
+        let content = view! { <div flex items_center gap=Space::X2 min_w=0.0>{..line}{changes}</div> };
         let header = disclosure_row(format!("tool-card-{index}"), expanded, on_toggle, content).track_focus(focus);
-        let body = (expanded || !tool.sub_agents.is_empty()).then(|| {
+        let body = (expanded || sub_agents).then(|| {
             let details = expanded.then(|| self.details(tool, index, fold == ToolFold::Full, on_show_all));
             let changes = (expanded && !diffs.is_empty()).then(|| self.changes(&diffs, index));
-            let agents = (!tool.sub_agents.is_empty()).then(|| self.sub_agent_tree(&tool.sub_agents));
+            let agents = sub_agents.then(|| self.sub_agent_tree(&tool.sub_agents));
             view! {
                 <div flex col gap=Space::X3 ml=Space::X2 mt=Space::X1 mb=Space::X2 pl=Space::X4 pr=Space::X2 py=Space::X1 border_l=HAIRLINE
                      border_color=Role::BorderSubtle>
@@ -172,23 +207,36 @@ impl ToolCard<'_> {
     }
 
     fn summary(&self, tool: &ToolCall) -> Option<AnyView> {
-        if tool.status == ToolStatus::Failed
-            && let Some(error) = output_headline(tool)
-        {
-            return Some(view! { <text no_wrap>{error.to_owned()}</text> }.into_any());
+        let error = output_headline(tool).filter(|_| tool.status == ToolStatus::Failed);
+        let error = error.map(|error| view! { <text truncate>{error.to_owned()}</text> }.into_any());
+        match (self.command_line(tool), error) {
+            (Some(command), Some(error)) => Some(
+                view! {
+                    <div flex items_center gap=Space::X2 min_w=0.0>
+                        <div min_w=0.0 overflow_hidden text_color=Role::TextMuted>{command}</div>
+                        <div min_w=0.0 overflow_hidden>{error}</div>
+                    </div>
+                }
+                .into_any(),
+            ),
+            (command, error) => error.or(command).or_else(|| Self::subject(tool)),
         }
-        if let Some(command) = tool.bash_command()
-            && let Some(first) = command.lines().next()
-        {
-            let spans = self
-                .command_highlights(command)
-                .into_iter()
-                .filter_map(|(range, style)| {
-                    (range.start < first.len()).then(|| (range.start + 2..range.end.min(first.len()) + 2, style))
-                })
-                .collect::<Vec<_>>();
-            return Some(rich_text(format!("$ {first}"), spans).font(FontRole::Code).no_wrap().into_any());
-        }
+    }
+
+    fn command_line(&self, tool: &ToolCall) -> Option<AnyView> {
+        let command = tool.bash_command()?;
+        let first = command.lines().next()?;
+        let spans = self
+            .command_highlights(command)
+            .into_iter()
+            .filter_map(|(range, style)| {
+                (range.start < first.len()).then(|| (range.start + 2..range.end.min(first.len()) + 2, style))
+            })
+            .collect::<Vec<_>>();
+        Some(rich_text(format!("$ {first}"), spans).font(FontRole::Code).truncate().into_any())
+    }
+
+    fn subject(tool: &ToolCall) -> Option<AnyView> {
         if let Some(value) = tool.display_value().and_then(first_line) {
             return Some(view! { <text no_wrap>{value.to_owned()}</text> }.into_any());
         }
@@ -267,13 +315,7 @@ impl ToolCard<'_> {
     }
 
     fn change_summary(&self, tool: &ToolCall, index: usize) -> AnyView {
-        let (added, removed) = self
-            .preview
-            .patches
-            .iter()
-            .flatten()
-            .filter_map(PatchPreview::stats)
-            .fold((0, 0), |(added, removed), (more, fewer)| (added + more, removed + fewer));
+        let (added, removed) = self.preview.changed_lines();
         let files = tool.changed_paths().len();
         let changed_lines = added > 0 || removed > 0;
         let count = (files > 1 || !changed_lines).then(|| {
@@ -308,17 +350,15 @@ impl ToolCard<'_> {
             let hidden = tool_calls.len().saturating_sub(SUB_AGENT_VISIBLE_TOOLS);
             if hidden > 0 {
                 rows.push(
-                    view! { <div pl={indent(SUB_AGENT_TOOL_DEPTH)}><text muted>{format!("{hidden} earlier tool calls")}</text></div> }
+                    view! { <div pl={indent(SUB_AGENT_TOOL_DEPTH)}><text muted>{earlier_calls(hidden)}</text></div> }
                         .into_any(),
                 );
             }
             for tool in &tool_calls[hidden..] {
-                let icon = status_icon(tool.status, &format!("{agent_id}-{}", tool.id()));
-                let failed = tool.status == ToolStatus::Failed;
-                let title = view! { <div flex_none><text>{title(tool)}</text></div> };
-                let [icon, title, summary] = tool_line(icon, title, self.summary(tool), failed);
+                let name = view! { <div flex_none><text>{title(tool)}</text></div> };
+                let line = tool_line(tool, &format!("{agent_id}-{}", tool.id()), name, self.summary(tool));
                 rows.push(
-                    view! { <div pl={indent(SUB_AGENT_TOOL_DEPTH)} flex items_center gap=Space::X2 min_w=0.0>{icon}{title}{summary}</div> }
+                    view! { <div pl={indent(SUB_AGENT_TOOL_DEPTH)} flex items_center gap=Space::X2 min_w=0.0>{..line}</div> }
                         .into_any(),
                 );
             }
@@ -335,11 +375,46 @@ const SECTION_MAX_LINES: usize = 200;
 
 const SECTION_MAX_BYTES: usize = 16 * 1024;
 
-fn tool_line(icon: AnyView, title: Div, summary: Option<AnyView>, failed: bool) -> [AnyView; 3] {
-    let title = title.body_strong().text_color(Role::TextSecondary);
-    let color = if failed { Role::Destructive } else { Role::TextMuted };
+/// A tool's icon, name and summary, leaving out the name if the icon and summary say as much.
+fn tool_line(tool: &ToolCall, id: &str, name: Div, summary: Option<AnyView>) -> Vec<AnyView> {
+    let kind = (tool.status == ToolStatus::Success).then(|| kind_icon(tool)).flatten();
+    let stands_in = summary.is_some() && kind.is_some_and(|(_, says_enough)| says_enough);
+    let icon = match kind {
+        Some((icon, _)) => {
+            let icon = Icon::new(icon, Role::TextMuted).size(ICON_SIZE_SMALL);
+            let icon = view! { <div test_id={format!("tool-kind-{id}")} flex_none>{icon}</div> };
+            if stands_in { icon.tooltip(title(tool)).into_any() } else { icon.into_any() }
+        }
+        None => status_icon(tool.status, id),
+    };
+    let name = (!stands_in).then(|| name.body_strong().text_color(Role::TextSecondary).into_any());
+    let color = match tool.status {
+        ToolStatus::Failed => Role::Destructive,
+        _ if stands_in => Role::TextSecondary,
+        _ => Role::TextMuted,
+    };
     let summary = view! { <div flex_1 min_w=0.0 overflow_hidden body text_color=color>{summary}</div> };
-    [icon, title.into_any(), summary.into_any()]
+    [Some(icon), name, Some(summary.into_any())].into_iter().flatten().collect()
+}
+
+/// The icon for what a tool did, and whether it is as clear as the tool's name.
+fn kind_icon(tool: &ToolCall) -> Option<(IconName, bool)> {
+    if !tool.sub_agents.is_empty() {
+        return Some((IconName::Bot, false));
+    }
+    match tool.kind() {
+        acp::ToolKind::Read => Some((IconName::FileText, true)),
+        acp::ToolKind::Edit => Some((IconName::Pencil, true)),
+        acp::ToolKind::Search => Some((IconName::Search, true)),
+        acp::ToolKind::Execute => Some((IconName::SquareTerminal, true)),
+        acp::ToolKind::Think => Some((IconName::Brain, false)),
+        acp::ToolKind::Fetch => Some((IconName::Cloud, false)),
+        _ => None,
+    }
+}
+
+fn earlier_calls(hidden: usize) -> String {
+    if hidden == 1 { "1 earlier tool call".to_owned() } else { format!("{hidden} earlier tool calls") }
 }
 
 fn output_text(tool: &ToolCall) -> String {

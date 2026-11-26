@@ -1,4 +1,6 @@
-use agent_client_protocol::v2::schema::{ElicitationSchema, StringPropertySchema};
+use agent_client_protocol::v2::schema::{
+    CreateElicitationRequest, ElicitationFormMode, ElicitationSchema, ElicitationSessionScope, StringPropertySchema,
+};
 use clankerdiff_core::FilesMode;
 use clankerdiff_server::{DiffServer, ServerListener, ServerOptions};
 use foxfire_acp::testing::{FakeAgent, Question};
@@ -31,6 +33,11 @@ pub(crate) fn asking_name() -> FakeAgent {
 
 pub(crate) fn name_form() -> ElicitationSchema {
     ElicitationSchema::new().property("name", StringPropertySchema::new().title("Name"), true)
+}
+
+pub(crate) fn name_question() -> CreateElicitationRequest {
+    let form = ElicitationFormMode::new(ElicitationSessionScope::new("alpha-session"), name_form());
+    CreateElicitationRequest::new(form, "Who are you?")
 }
 
 pub(crate) fn asked(agent: FakeAgent) -> (DesktopHarness, Thread) {

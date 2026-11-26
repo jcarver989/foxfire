@@ -104,6 +104,7 @@ fn activity_details_keep_the_state_and_current_tool_when_a_plan_supplies_the_lab
     turn.update(plan("plan", vec![entry("Validate authentication", acp::PlanEntryStatus::InProgress)]));
     turn.update(tool_call("call-1", "Running tests", acp::ToolCallStatus::InProgress));
     harness.run_until_painted("activity-working");
+    harness.click("turn-summary-1").unwrap();
 
     harness.click("activity-details-trigger").unwrap();
     assert!(harness.shows("activity-detail-state", "Working"));
@@ -247,7 +248,7 @@ fn inactive_windows_keep_activity_labels_without_running_animation_clocks() {
 
     assert!(!harness.ui().is_animating(), "unfocused indicators must not request continuous frames");
     assert!(harness.shows("status-label", "Working"));
-    assert!(harness.bounds("tool-activity-call-1").is_some());
+    assert!(harness.bounds("turn-activity-1").is_some());
 
     harness.activate();
     assert!(harness.ui().is_animating(), "working indicators resume on focus");

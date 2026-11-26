@@ -25,8 +25,8 @@ pub struct StatusLine {
     scope: Scope,
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
-enum Doing {
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum Doing {
     Compacting,
     Thinking,
     Writing,
@@ -44,7 +44,7 @@ impl StatusLine {
             plan_open: signal(false),
             scope: Scope::new(),
         };
-        let running = memo(move || matches!(thread.status(), ThreadStatus::Running | ThreadStatus::NeedsInput));
+        let running = memo(move || Doing::now(thread).is_some());
         effect(move || {
             let running = running.get();
             untrack(|| status.sync(running));
@@ -83,10 +83,7 @@ impl StatusLine {
         let usage = memo(move || thread.with_core(|core| core.conversation().context_usage().cloned()).flatten());
         let doing = memo(move || {
             self.running_since.get()?;
-            if thread.status() == ThreadStatus::NeedsInput {
-                return Some(Doing::Waiting);
-            }
-            Some(thread.with_core(|core| Doing::of(core.conversation())).unwrap_or(Doing::Working))
+            Doing::now(thread)
         });
         let activity = memo(move || doing.get().is_some() || self.last_turn.get().is_some());
         let planned = memo(move || plan.with(Option::is_some));
@@ -206,6 +203,17 @@ impl StatusLine {
 }
 
 impl Doing {
+    /// What the agent is doing about a prompt it has not answered yet.
+    pub(super) fn now(thread: Thread) -> Option<Self> {
+        match thread.status() {
+            ThreadStatus::NeedsInput => Some(Self::Waiting),
+            ThreadStatus::Running => {
+                Some(thread.with_core(|core| Self::of(core.conversation())).unwrap_or(Self::Working))
+            }
+            _ => None,
+        }
+    }
+
     fn of(conversation: &Conversation) -> Self {
         match conversation.activity() {
             Activity::Compacting => Self::Compacting,
@@ -225,7 +233,7 @@ impl Doing {
         }
     }
 
-    fn describe(self) -> (&'static str, &'static str) {
+    pub(super) fn describe(self) -> (&'static str, &'static str) {
         match self {
             Self::Compacting => ("Compacting the conversation", "activity-compacting"),
             Self::Thinking => ("Thinking", "activity-thinking"),
@@ -235,7 +243,7 @@ impl Doing {
         }
     }
 
-    fn state(self) -> ActivityState {
+    pub(super) fn state(self) -> ActivityState {
         match self {
             Self::Waiting => ActivityState::Waiting,
             Self::Thinking => ActivityState::Thinking,
