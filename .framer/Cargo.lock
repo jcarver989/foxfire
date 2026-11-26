@@ -359,9 +359,9 @@ checksum = "f8dcc9c7d52a811697d2151c701e0d08956f92b0e24136cf4cf27b57a6a0d9bf"
 
 [[package]]
 name = "rouge-framer"
-version = "0.5.0"
+version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "18e2b4cd2e01da20167587c977fd3b196ddacdcfe8d131147847c7838990e231"
+checksum = "da17caf1b4d265998625997930f7327c93627d536fde6c9a0bd9c5a7889a67ce"
 dependencies = [
  "base64 0.22.1",
  "cargo_metadata",
