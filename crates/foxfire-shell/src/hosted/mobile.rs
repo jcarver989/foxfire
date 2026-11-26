@@ -137,9 +137,7 @@ fn thread_row(
         .leading(icon)
         .chevron()
         .on_click(move || {
-            if let Some(list) = app.list.catalog() {
-                list.resume(&id.get());
-            }
+            app.list.select(&id.get());
             nav.open(&id.get());
         })
         .child(view! {

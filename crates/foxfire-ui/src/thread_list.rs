@@ -1,23 +1,27 @@
+mod workspaces;
+
+pub use workspaces::Workspaces;
+
 use crate::backend::{
     BackendError, BackendFuture, ConnectFailure, HostedBackend, HostedState, HostedThread, Project, ThreadId,
     ThreadTitle,
 };
 use crate::thread::{Thread, ThreadStatus};
 use indexmap::IndexMap;
-use rouge::core::{WindowHandle, window_focused};
-use rouge::reactive::{Scope, Signal, Stored, batch, effect, memo, signal, sleep, spawn, stored, untrack, use_context};
+use rouge::reactive::{Scope, Signal, Stored, batch, effect, memo, signal, sleep, spawn, stored, untrack};
 use std::collections::HashSet;
 use std::hash::Hash;
 use std::rc::Rc;
 use std::time::Duration;
 
 /// The threads of a hosted backend, and what a host shows for each one it has opened. Draws nothing itself.
+#[derive(Clone, Copy)]
 pub struct ThreadList<T: 'static> {
     backend: Stored<Rc<dyn HostedBackend>>,
-    pane: Stored<Rc<dyn Fn(Thread) -> T>>,
+    pane: Stored<Box<dyn Fn(Thread) -> T>>,
     projects: Signal<Vec<Project>>,
     threads: Signal<IndexMap<ThreadId, HostedThread>>,
-    opened: Signal<IndexMap<ThreadId, Opened<T>>>,
+    workspaces: Workspaces<T>,
     selected: Signal<Option<ThreadId>>,
     error: Signal<Option<BackendError>>,
     loaded: Signal<bool>,
@@ -27,22 +31,18 @@ pub struct ThreadList<T: 'static> {
     scope: Scope,
 }
 
-#[derive(Clone, Copy)]
-struct Opened<T> {
-    thread: Thread,
-    pane: T,
-    scope: Scope,
-}
-
 impl<T: Copy + 'static> ThreadList<T> {
     /// Lists the backend's threads. `pane` builds what is kept for a thread for as long as it is open.
     pub fn new(backend: Rc<dyn HostedBackend>, pane: impl Fn(Thread) -> T + 'static) -> Self {
         let list = Self {
+            workspaces: Workspaces::new({
+                let backend = backend.clone();
+                move |target, resume| backend.open(target.clone(), resume)
+            }),
             backend: stored(backend),
-            pane: stored(Rc::new(pane)),
+            pane: stored(Box::new(pane)),
             projects: signal(Vec::new()),
             threads: signal(IndexMap::new()),
-            opened: signal(IndexMap::new()),
             selected: signal(None),
             error: signal(None),
             loaded: signal(false),
@@ -92,7 +92,7 @@ impl<T: Copy + 'static> ThreadList<T> {
 
     /// A thread that has been opened.
     pub fn thread(self, id: &ThreadId) -> Option<Thread> {
-        self.opened.with(|all| all.get(id).map(|opened| opened.thread))
+        self.workspaces.thread(id)
     }
 
     /// What a thread is called, once it has been prompted or renamed.
@@ -229,25 +229,13 @@ impl<T: Copy + 'static> ThreadList<T> {
     }
 
     fn opened(self, id: &ThreadId) -> (Thread, T) {
-        if let Some(opened) = self.opened.with_untracked(|all| all.get(id).copied()) {
-            return (opened.thread, opened.pane);
-        }
-        let scope = self.scope.child();
-        let opened = scope.run(|| {
-            let (backend, target) = (self.backend.get(), id.clone());
-            let thread = Thread::connect(0, None, None, move |resume| backend.open(target.clone(), resume));
+        self.workspaces.open(id, |thread| {
             self.observe(id, thread);
-            Opened { thread, pane: self.pane.get()(thread), scope }
-        });
-        self.opened.update(|all| {
-            all.insert(id.clone(), opened);
-        });
-        (opened.thread, opened.pane)
+            self.pane.with(|pane| pane(thread))
+        })
     }
 
     fn observe(self, id: &ThreadId, thread: Thread) {
-        let window = use_context::<WindowHandle>().map(|_| window_focused());
-        thread.keep_connected(move || window.is_some_and(|focused| focused.get()));
         let seen = memo(move || {
             let (status, failure) = (thread.status(), thread.error());
             (status, failure, thread.is_dropped())
@@ -321,22 +309,16 @@ impl<T: Copy + 'static> ThreadList<T> {
                 if self.selected.with_untracked(|id| id.as_ref().is_some_and(|id| !all.contains_key(id))) {
                     self.selected.set(None);
                 }
-                let opened = self.opened.get_untracked();
-                for (id, pane) in opened {
-                    match all.get(&id) {
-                        None => {
-                            self.opened.update(|panes| {
-                                panes.shift_remove(&id);
-                            });
-                            pane.scope.dispose();
-                        }
-                        // Reconnecting would resume a thread that someone else suspended.
-                        Some(info) if info.state == HostedState::Suspended && pane.thread.is_dropped() => {
-                            pane.thread.stop();
-                        }
-                        _ => {}
+                self.workspaces.retain(|id, thread| {
+                    let Some(info) = all.get(id) else {
+                        return false;
+                    };
+                    // Reconnecting would resume a thread that someone else suspended.
+                    if info.state == HostedState::Suspended && thread.is_dropped() {
+                        thread.stop();
                     }
-                }
+                    true
+                });
             });
         });
     }
@@ -399,13 +381,5 @@ impl<T: Copy + 'static> ThreadList<T> {
         });
     }
 }
-
-impl<T> Clone for ThreadList<T> {
-    fn clone(&self) -> Self {
-        *self
-    }
-}
-
-impl<T> Copy for ThreadList<T> {}
 
 const PROVISIONING_POLL: Duration = Duration::from_secs(1);

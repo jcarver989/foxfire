@@ -12,18 +12,16 @@ use foxfire_ui::backend::{HostedBackend, HostedState, HostedThread, Project, Ses
 use foxfire_ui::memory::MemoryBackend;
 use foxfire_ui::platform::ChatPlatform;
 use foxfire_ui::thread::{Thread, ThreadStatus};
-use foxfire_ui::thread_list::ThreadList;
+use foxfire_ui::thread_list::{ThreadList, Workspaces};
 use foxfire_ui::ui::tokens::{BASE_SIZE, Space};
 use foxfire_ui::ui::{
     ActiveReviewTheme, ActivityMotion, ButtonVariant, FontRole, IconName, InterfaceSize, PanelWidth, ThemeSet, Toasts,
     UiStyles, appearance, breadcrumb, button, empty_state, icon_button, people_avatars, row_action, thread_header,
 };
-use rouge::core::{
-    AnyView, Div, Role, Styled, View, div, dynamic, each, presentation, show, text, view, window_focused,
-};
+use rouge::core::{AnyView, Div, Role, Styled, View, div, dynamic, each, presentation, show, text, view};
 use rouge::persist::{Storage, persisted, provide_storage};
 use rouge::platform::open_url;
-use rouge::reactive::{ReadSignal, Scope, Signal, Stored, effect, memo, signal, spawn, stored, untrack};
+use rouge::reactive::{ReadSignal, Signal, Stored, effect, memo, signal, spawn, stored, untrack};
 use std::collections::HashSet;
 use std::rc::Rc;
 
@@ -46,24 +44,12 @@ pub fn single_session_view(
     platform: Rc<dyn ChatPlatform>,
     storage: Rc<dyn Storage>,
 ) -> impl View {
-    let connect = stored(connect);
-    let project = stored(project);
-    shell_view(storage, move || {
-        let platform = platform.clone();
-        let scope = Scope::new();
-        Threads::Single {
-            project,
-            opened: signal(None),
-            open: stored(Box::new(move || {
-                scope.run(|| {
-                    let thread = Thread::connect(0, None, None, move |resume| connect.with(|connect| connect(resume)));
-                    let focused = window_focused();
-                    thread.keep_connected(move || focused.get());
-                    (thread, Workspace::new(thread, platform.clone()))
-                })
-            })),
-        }
-    })
+    let single = Threads::Single {
+        project: stored(project),
+        workspaces: Workspaces::new(move |_, resume| connect(resume)),
+        platform: stored(platform),
+    };
+    shell_view(storage, move || single)
 }
 
 fn shell_view(storage: Rc<dyn Storage>, source: impl Fn() -> Threads + 'static) -> impl View {
@@ -125,11 +111,7 @@ impl ChatPlatform for DemoPlatform {
 #[derive(Clone, Copy)]
 enum Threads {
     Hosted(ThreadList<Workspace>),
-    Single {
-        project: Stored<Project>,
-        opened: Signal<Option<(Thread, Workspace)>>,
-        open: Stored<Box<dyn Fn() -> (Thread, Workspace)>>,
-    },
+    Single { project: Stored<Project>, workspaces: Workspaces<Workspace>, platform: Stored<Rc<dyn ChatPlatform>> },
 }
 
 impl Threads {
@@ -159,7 +141,7 @@ impl Threads {
     fn thread(self, id: &ThreadId) -> Option<Thread> {
         match self {
             Self::Hosted(list) => list.thread(id),
-            Self::Single { opened, .. } => opened.get().map(|(t, _)| t),
+            Self::Single { workspaces, .. } => workspaces.thread(id),
         }
     }
 
@@ -173,7 +155,10 @@ impl Threads {
     fn selected(self) -> Option<ThreadId> {
         match self {
             Self::Hosted(list) => list.selected(),
-            Self::Single { opened, project, .. } => opened.get().map(|_| ThreadId(project.get().id)),
+            Self::Single { workspaces, project, .. } => {
+                let id = ThreadId(project.get().id);
+                workspaces.thread(&id).map(|_| id)
+            }
         }
     }
 
@@ -189,12 +174,8 @@ impl Threads {
     fn open(self, id: &ThreadId) -> Option<(Thread, Workspace)> {
         match self {
             Self::Hosted(list) => list.open(id),
-            Self::Single { project, opened, open } if project.with(|p| p.id == id.0) => {
-                Some(opened.get_untracked().unwrap_or_else(|| {
-                    let pane = open.with(|open| open());
-                    opened.set(Some(pane));
-                    pane
-                }))
+            Self::Single { project, workspaces, platform } if project.with(|p| p.id == id.0) => {
+                Some(workspaces.open(id, |thread| Workspace::new(thread, platform.get())))
             }
             Self::Single { .. } => None,
         }
