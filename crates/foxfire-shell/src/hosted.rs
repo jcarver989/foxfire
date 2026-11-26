@@ -9,7 +9,6 @@ use crate::{UNTITLED, install};
 use agent_client_protocol::v2::schema::SessionId;
 use foxfire_core::session_core::ChatChannel;
 use foxfire_ui::backend::{HostedBackend, HostedState, HostedThread, Project, SessionLink, ThreadId};
-use foxfire_ui::memory::MemoryBackend;
 use foxfire_ui::platform::ChatPlatform;
 use foxfire_ui::thread::{Thread, ThreadStatus};
 use foxfire_ui::thread_list::{ThreadList, Workspaces};
@@ -20,7 +19,6 @@ use foxfire_ui::ui::{
 };
 use rouge::core::{AnyView, Div, Role, Styled, View, div, dynamic, each, presentation, show, text, view};
 use rouge::persist::{Storage, persisted, provide_storage};
-use rouge::platform::open_url;
 use rouge::reactive::{ReadSignal, Signal, Stored, effect, memo, signal, spawn, stored, untrack};
 use std::collections::HashSet;
 use std::rc::Rc;
@@ -88,24 +86,6 @@ fn shell_view(storage: Rc<dyn Storage>, source: impl Fn() -> Threads + 'static) 
         display_name: None,
     };
     show(move || ready.get(), move || HostedApp::new(source(), model, toasts).view())
-}
-
-/// Builds a self-contained demo with scripted replies and no connection to an agent.
-pub fn demo_view(storage: Rc<dyn Storage>) -> impl View {
-    let backend = MemoryBackend::new(vec![Project { id: "demo".to_owned(), name: "Demo project".to_owned() }])
-        .with_chat()
-        .with_changes(&DEMO_CHANGES);
-    hosted_view(Rc::new(backend), Rc::new(DemoPlatform), storage)
-}
-
-struct DemoPlatform;
-
-impl ChatPlatform for DemoPlatform {
-    fn open(&self, target: &str) {
-        if target.starts_with("https://") || target.starts_with("http://") {
-            let _ = open_url(target);
-        }
-    }
 }
 
 #[derive(Clone, Copy)]
@@ -442,8 +422,3 @@ fn waiting(source: Threads, info: HostedThread) -> impl View {
 
 const APPEARANCE_KEY: &str = "hosted-appearance";
 const ROOM_WIDTH_KEY: &str = "hosted-chat-room-width";
-/// The path, old text and new text of each file the demo's agent has changed.
-const DEMO_CHANGES: [(&str, &str, &str); 2] = [
-    ("src/retry.rs", "pub const MAX_DELAY: u64 = 300;\n", "/// Seconds.\npub const MAX_DELAY: u64 = 30;\n"),
-    ("README.md", "# Demo\n", "# Demo\n\nRetries back off for up to 30 seconds.\n"),
-];

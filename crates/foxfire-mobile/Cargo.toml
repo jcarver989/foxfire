@@ -5,7 +5,7 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "iOS and Android hosts for the Foxfire demo"
+description = "iOS and Android hosts for Foxfire relay sessions"
 publish = false
 
 [package.metadata.dist]
@@ -19,5 +19,7 @@ workspace = true
 
 [target.'cfg(any(target_os = "ios", target_os = "android"))'.dependencies]
 foxfire-shell = { workspace = true }
-rouge = { workspace = true, features = ["persist"] }
+rouge = { workspace = true, features = ["tokio-rt"] }
 rouge-widgets = { workspace = true }
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
+tokio = { workspace = true, features = ["rt-multi-thread"] }

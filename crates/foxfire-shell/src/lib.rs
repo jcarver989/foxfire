@@ -1,7 +1,8 @@
-//! Foxfire's own shell for the shared conversation views: its mark, words, layout and demo.
+//! Foxfire's own shell for the shared conversation views: its mark, words, and layout.
 
 pub mod conversation;
 pub mod hosted;
+pub mod relay;
 pub mod ui;
 pub mod workspace;
 

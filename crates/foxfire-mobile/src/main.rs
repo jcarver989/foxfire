@@ -1,21 +1,14 @@
 #[cfg(target_os = "ios")]
-use foxfire_shell::hosted::demo_view;
+mod app;
 #[cfg(target_os = "ios")]
-use rouge::persist::app_storage;
-#[cfg(target_os = "ios")]
-use rouge::{App, AppError, WindowOptions};
-#[cfg(target_os = "ios")]
-use rouge_widgets::bundled_fonts;
+use rouge::{App, AppError};
 
 #[cfg(target_os = "ios")]
 fn main() -> Result<(), AppError> {
-    App::new()
-        .fonts(bundled_fonts())
-        .window(WindowOptions::default().title("Foxfire"), || demo_view(app_storage("foxfire")))
-        .run()
+    app::run(App::new())
 }
 
 #[cfg(not(target_os = "ios"))]
 fn main() {
-    eprintln!("Run the mobile demo with `just ios-sim` or `just android-emulator`.");
+    eprintln!("Run Foxfire with `cargo rouge run ios` or `cargo rouge run android`.");
 }

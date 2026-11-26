@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Foxfire · In-memory demo</title>
+  <title>Foxfire</title>
   <link rel="icon" type="image/png" href="./app-icon.png">
   <style>
     html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; }
@@ -13,23 +13,22 @@
 </head>
 <body>
   <canvas id="foxfire" aria-label="Foxfire"></canvas>
-  <p id="startup" role="status">Loading Foxfire…</p>
+  <p id="startup" role="status">Open this page with <code>?relay=ws://127.0.0.1:7777</code> to connect to your local Foxfire relay.</p>
   <script type="module">
-    import init, { connect, mount } from './foxfire_web.js';
-    const status = document.getElementById('startup');
-    try {
-      await init();
-      const query = new URLSearchParams(location.search);
-      const relay = query.get('relay');
-      if (relay) {
+    const query = new URLSearchParams(location.search);
+    const relay = query.get('relay');
+    if (relay) {
+      const status = document.getElementById('startup');
+      status.textContent = 'Loading Foxfire…';
+      try {
+        const { default: init, connect } = await import('./foxfire_web.js');
+        await init();
         connect('foxfire', relay, query.get('name') ?? 'You');
-      } else {
-        mount('foxfire');
+        status.remove();
+      } catch (error) {
+        console.error(error);
+        status.textContent = `Could not start Foxfire: ${error}`;
       }
-      status.remove();
-    } catch (error) {
-      console.error(error);
-      status.textContent = `Could not start Foxfire: ${error}`;
     }
   </script>
 </body>

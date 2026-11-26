@@ -66,7 +66,7 @@ desktop agent="aether acp":
 desktop-release agent="aether acp":
     cargo run --release -p foxfire-desktop -- --agent '{{agent}}'
 
-# Build the browser demo as static assets
+# Build the browser client as static assets
 web-build:
     scripts/build-web
 

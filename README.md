@@ -1,6 +1,6 @@
 # Foxfire
 
-ACP clients for AI coding agents: a terminal UI, a native desktop app, an in-memory demo for browsers and iOS, and the shared client libraries behind them.
+ACP clients for AI coding agents: a terminal UI, a native desktop app, browser and mobile relay clients, and the shared client libraries behind them.
 
 ## Run
 
@@ -14,7 +14,7 @@ The terminal binary is `foxfire`; the desktop binary is `foxfire-desktop`. The d
 
 To measure desktop Cloud thread startup, run `RUST_LOG=warn,foxfire_startup=debug cargo run -p foxfire-desktop` and open a new thread. The logs split out launch, endpoint resolution, WebSocket upgrade, ACP initialization, session opening, and composer readiness. The endpoint timing includes any waits inside the configured command, such as a CLI readiness probe.
 
-## Browser demo
+## Browser
 
 Install the `wasm32-unknown-unknown` Rust target, `jq`, and `wasm-bindgen-cli` at the exact `wasm-bindgen` version in `Cargo.lock`. The syntax-highlighting dependencies also need a Clang that can target WebAssembly. If your default `clang` cannot, set `CC_wasm32_unknown_unknown` and `AR_wasm32_unknown_unknown` to the matching LLVM tools.
 
@@ -25,19 +25,17 @@ cargo install --locked miniserve  # once
 miniserve --interfaces 127.0.0.1 --port 8000 --index index.html target/foxfire-web
 ```
 
-Open <http://localhost:8000>, hover over **Demo project**, click **+**, and send a message. The browser uses the same Rouge sidebar and conversation components as desktop. Drag the sidebar divider to resize it, double-click the divider to reset its width, or click the sidebar icon to hide or reopen it. Send `/permission` to try the shared permission card: choose **Allow once** or **Reject**, or press **Escape** while the composer is focused to cancel the turn.
+Start a relay in the workspace you want the agent to use (replace `aether acp` with your agent's command):
 
-On a touch browser, open **Threads → Demo project → New thread**. Tap **Back** or swipe inward from the leading edge to return to Threads without closing the session or discarding a draft. To close it intentionally, use **End thread** in the conversation header and confirm. If you reload a conversation URL, return to Threads to start a fresh demo session.
+```sh
+cargo run -p foxfire-relay -- -- aether acp
+```
 
-Use the **Settings** gear in the sidebar or Threads header to choose **System**, **Light**, or **Dark** and set a theme for each appearance. These choices are saved in this browser profile for the site.
-
-The replies are scripted, and threads live only in the page's memory: switching threads keeps their history, refreshing the page clears it. No agent, API server, account, or credentials are required. Add `?rouge_backend=gl` to test Rouge's WebGL2 renderer.
-
-To use a running relay instead, add `?relay=ws://HOST:PORT` and select its thread. The relay exposes one existing session, so there are no controls to create or end threads.
+Open <http://localhost:8000/?relay=ws://127.0.0.1:7777> and select the relay's thread. To chat as another participant, add `&name=Maya`. The relay owns the session: navigating back to Threads keeps your draft, and closing the page does not end the agent. There are no provisioning or stop controls for a relay. Use `wss://` when serving the page over HTTPS.
 
 To supply a different backend, implement `foxfire_ui::backend::HostedBackend` and pass it to `foxfire_web::web_view(backend, platform, storage)`. The third argument is a Rouge `Storage` implementation for appearance preferences. Desktop supplies a session-opening function backed by its existing agent connector; its local and Cloud configuration are unchanged.
 
-## iOS demo
+## iOS
 
 On an Apple Silicon Mac with Xcode selected and a compatible iOS 17 or newer simulator runtime installed, run:
 
@@ -46,13 +44,13 @@ cargo rouge run ios
 ROUGE_IOS_DEVICE="iPhone 17 Pro" cargo rouge run ios  # optionally choose by name or UDID
 ```
 
-This builds Foxfire, opens Simulator, and installs and launches the demo. No Apple account or signing credentials are needed. Tap **New thread** under **Demo project** to start a conversation. Tap **Send** to submit; Return starts a new line. Use **Back** to return to Threads without ending the conversation. The demo uses the same scripted replies as the browser demo; it does not connect to a real agent.
+Start the local relay as above. The simulator connects to `ws://127.0.0.1:7777` when you select its thread. To target a different relay, set `FOXFIRE_RELAY_URL` when building the app. `FOXFIRE_PARTICIPANT` sets the chat name (default `You`). No Apple account or signing credentials are needed for Simulator.
 
 This is an internal preview. Before distributing it, verify keyboard composition and Send visibility on a real iPhone and confirm that the Threads and conversation flows work with VoiceOver.
 
 To build for a physical device instead, run `cargo rouge build ios`. The resulting `.rouge/out/ios/unsigned-app.zip` needs signing before it can be installed on a phone. Neither command publishes anything. For TestFlight, replace the placeholder App Store Connect ID in `.framer/src/main.rs` and follow [PUBLISHING.md](PUBLISHING.md).
 
-## Android demo
+## Android
 
 Install Android Studio and create a virtual device in its Device Manager. Rouge finds the SDK in Android Studio's default location (`~/Android/Sdk`, or `~/Library/Android/sdk` on macOS); set `ANDROID_HOME` if yours is elsewhere. In Android Studio's SDK Manager, also install **Android SDK Command-line Tools** from the SDK Tools tab. Then install Gradle 9.9 or newer, which runs on JDK 17 through 27, and the rest of the toolchain:
 
@@ -68,7 +66,7 @@ cargo rouge run android
 ROUGE_ANDROID_DEVICE=Medium_Phone_API_37.0 cargo rouge run android  # optionally choose an AVD or adb serial
 ```
 
-This builds a debug APK for the device, boots the virtual device if none is running, and installs and launches the demo. A phone connected with USB debugging works too. No Google Play account or upload key is needed. The demo uses the same Threads and conversation screens and scripted replies as iOS.
+The emulator connects to the development machine's relay at `ws://10.0.2.2:7777`. For a USB-connected phone, run `adb reverse tcp:7777 tcp:7777` and build with `FOXFIRE_RELAY_URL=ws://127.0.0.1:7777 cargo rouge run android`. The same `FOXFIRE_PARTICIPANT` setting applies.
 
 This is also an internal preview. On a real device, verify keyboard composition, **Send** visibility, and the Threads and conversation flows with TalkBack. `cargo rouge build android` builds the release bundle for Google Play; see [PUBLISHING.md](PUBLISHING.md).
 
@@ -80,9 +78,9 @@ This is also an internal preview. On a real device, verify keyboard composition,
 - `foxfire-tui`: embeddable terminal UI.
 - `foxfire-desktop`: native desktop client.
 - `foxfire-ui`: brand-neutral Rouge views and headless controllers for a host to build an agent app from, and the session backend contract.
-- `foxfire-shell`: Foxfire's own shell, mark, words, and in-memory demo, shared by its apps.
-- `foxfire-web`: browser host for the in-memory demo, or for a relay's live session with `?relay=ws://…`.
-- `foxfire-mobile`: iOS and Android hosts for the in-memory demo.
+- `foxfire-shell`: Foxfire's shell, workspace, and relay connection shared by its apps.
+- `foxfire-web`: browser host for a relay's live session with `?relay=ws://…`.
+- `foxfire-mobile`: iOS and Android hosts for a live relay session.
 - `foxfire-chat`: keeps the chat channels people share around an agent's sessions.
 - `foxfire-relay`: serves a stdio ACP agent, and review of its workspace, to several Foxfire clients over one WebSocket each.
 - `foxfire-docker`: runs desktop Cloud threads in isolated, warm-built containers on a local Docker engine. See [its setup guide](crates/foxfire-docker/README.md).

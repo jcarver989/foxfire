@@ -17,7 +17,7 @@ rustdoc-args = ["--cfg", "docsrs"]
 dist = false
 
 [features]
-testing = []
+testing = ["dep:foxfire-chat"]
 
 [lints]
 workspace = true
@@ -32,7 +32,7 @@ clankerdiff-markdown = { workspace = true }
 clankerdiff-rouge = { workspace = true }
 clankerdiff-ui-core = { workspace = true }
 foxfire-acp = { workspace = true, features = ["websocket"] }
-foxfire-chat = { workspace = true }
+foxfire-chat = { workspace = true, optional = true }
 foxfire-core = { workspace = true }
 indexmap = { workspace = true }
 rouge = { workspace = true, features = ["markdown", "open-url", "persist"] }
@@ -47,5 +47,6 @@ web-time = "1"
 rouge = { workspace = true, features = ["tokio-rt"] }
 
 [dev-dependencies]
+foxfire-ui = { path = ".", features = ["testing"] }
 foxfire-acp = { workspace = true, features = ["testing"] }
 tokio = { workspace = true, features = ["macros", "rt"] }

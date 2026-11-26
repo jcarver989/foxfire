@@ -17,13 +17,12 @@ use foxfire_core::command::{
 };
 use foxfire_core::composer::attachment::AttachmentOutcome;
 use foxfire_core::elicitation::{
-    ArtifactReviewElicitationMeta, ArtifactReviewSubmission, Elicitation, ElicitationAnswer, PendingElicitation,
-    PermissionChoice,
+    ArtifactReviewElicitationMeta, Elicitation, ElicitationAnswer, PendingElicitation, PermissionChoice,
 };
 use foxfire_core::session_core::Input;
 use foxfire_core::session_core::SessionCoreConfig;
 use foxfire_core::session_model::{WorkspaceAccess, WorkspaceStatus};
-use rouge::reactive::{Task, sleep, spawn};
+use rouge::reactive::{Task, spawn};
 use std::cell::RefCell;
 use std::collections::BTreeMap;
 use std::mem::take;
@@ -33,14 +32,14 @@ use std::time::Duration;
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel};
 use tokio::sync::{oneshot, watch};
 
-/// A process-local hosted backend for demos and tests. Attachments share a transcript, not a connection.
+/// A process-local hosted backend for tests. Attachments share a transcript, not a connection.
 #[derive(Clone)]
 pub struct MemoryBackend {
     projects: Rc<Vec<Project>>,
     state: Rc<RefCell<Inventory>>,
-    reply: Rc<Vec<String>>,
-    delay: Duration,
-    chat: bool,
+    reply: Rc<str>,
+    people: Option<Rc<Vec<(String, String)>>>,
+    question: Option<Rc<(String, Elicitation)>>,
     lifetime: Option<Duration>,
     starts_ready: bool,
     changes: Option<Arc<ClientState>>,
@@ -88,28 +87,46 @@ impl MemoryBackend {
         Self {
             projects: Rc::new(projects),
             state: Rc::default(),
-            reply: Rc::new(vec![
-                "This reply is running entirely on your device. ".to_owned(),
-                "No agent or server was contacted.".to_owned(),
-            ]),
-            delay: Duration::from_millis(220),
-            chat: false,
+            reply: Rc::default(),
+            people: None,
+            question: None,
             lifetime: None,
             starts_ready: true,
             changes: None,
         }
     }
 
-    /// Sets the chunks returned by each prompt and the time between chunks.
-    pub fn with_reply(mut self, chunks: Vec<String>, delay: Duration) -> Self {
-        self.reply = Rc::new(chunks);
-        self.delay = delay;
+    /// Sets the text returned by ordinary prompts.
+    pub fn with_reply(mut self, text: &str) -> Self {
+        self.reply = Rc::from(text);
         self
     }
 
-    /// Puts a few people in the chat channel of every thread.
-    pub fn with_chat(mut self) -> Self {
-        self.chat = true;
+    /// Enables chat and seeds it with a first post from each named participant.
+    pub fn with_chat(mut self, people: &[(&str, &str)]) -> Self {
+        self.people = Some(Rc::new(people.iter().map(|&(who, body)| (who.to_owned(), body.to_owned())).collect()));
+        self
+    }
+
+    /// Makes a prompt ask for permission instead of starting the usual reply.
+    pub fn with_permission(mut self, prompt: &str) -> Self {
+        use acp::PermissionOptionKind::{AllowOnce, RejectOnce};
+        let question = Elicitation::Permission {
+            title: "Allow this action?".into(),
+            description: None,
+            options: [("allow", "Allow once", AllowOnce), ("reject", "Reject", RejectOnce)]
+                .into_iter()
+                .map(|(id, name, kind)| PermissionChoice { id: id.into(), name: name.into(), kind })
+                .collect(),
+        };
+        self.question = Some(Rc::new((prompt.into(), question)));
+        self
+    }
+
+    /// Makes a prompt request review of the supplied artifact.
+    pub fn with_review(mut self, prompt: &str, title: &str, markdown: &str) -> Self {
+        let question = Elicitation::ArtifactReview(ArtifactReviewElicitationMeta::new(None, title, markdown));
+        self.question = Some(Rc::new((prompt.into(), question)));
         self
     }
 
@@ -229,7 +246,7 @@ impl HostedBackend for MemoryBackend {
                 .ok_or(BackendError::UnknownProject(project))?;
             let mut inventory = self.state.borrow_mut();
             inventory.next += 1;
-            let id = ThreadId(format!("demo-{}", inventory.next));
+            let id = ThreadId(format!("{}-{}", project.id, inventory.next));
             let created_at = Utc::now();
             let info = HostedThread {
                 id: id.clone(),
@@ -244,14 +261,14 @@ impl HostedBackend for MemoryBackend {
                 info: info.clone(),
                 history: Vec::new(),
                 clients: BTreeMap::new(),
-                next_client: PEOPLE.len(),
+                next_client: self.people.as_ref().map_or(0, |people| people.len()),
                 turn: None,
                 next: 0,
                 stopped: watch::Sender::new(false),
-                chat: self.chat.then(ChatChannels::in_memory),
+                chat: self.people.is_some().then(ChatChannels::in_memory),
             };
-            if self.chat {
-                session.seed_people().map_err(|error| BackendError::Unavailable(error.to_string()))?;
+            if let Some(people) = &self.people {
+                session.seed_people(people).map_err(|error| BackendError::Unavailable(error.to_string()))?;
             }
             inventory.threads.insert(id, Rc::new(RefCell::new(session)));
             Ok(info)
@@ -309,7 +326,7 @@ impl Session {
 
     fn attach(&mut self, sender: &UnboundedSender<SessionEvent>) -> usize {
         let config = SessionCoreConfig {
-            initialize_response: demo_initialize(self.chat.is_some()),
+            initialize_response: initialize(self.chat.is_some()),
             session_response: acp::NewSessionResponse::new(self.session_id()),
             working_dir: format!("/workspace/{}", self.info.project.id).into(),
             workspace_status: WorkspaceStatus { display_dir: self.info.project.name.clone(), git_ref: None },
@@ -391,7 +408,7 @@ async fn run(
                     answer(
                         &sender,
                         request_id,
-                        Err(PromptRejection::Failed("The demo agent is already replying".to_owned())),
+                        Err(PromptRejection::Failed("A reply is already in progress".to_owned())),
                     );
                     continue;
                 }
@@ -408,8 +425,9 @@ async fn run(
                 }
                 state
                     .update(acp::SessionUpdate::StateUpdate(acp::StateUpdate::Running(acp::RunningStateUpdate::new())));
-                let task =
-                    spawn(respond(session.clone(), number, sender.clone(), echo, backend.reply.clone(), backend.delay));
+                let question =
+                    backend.question.as_deref().filter(|(prompt, _)| prompt == &echo).map(|(_, q)| q.clone());
+                let task = spawn(respond(session.clone(), number, sender.clone(), question, backend.reply.clone()));
                 state.turn = Some(Turn {
                     request: request_id,
                     origin: sender.clone(),
@@ -428,7 +446,7 @@ async fn run(
             Command::PrepareSubmission { .. } => {
                 let outcome = AttachmentOutcome {
                     blocks: Vec::new(),
-                    warnings: vec!["The demo does not support attachments".to_owned()],
+                    warnings: vec!["Attachments are not supported".to_owned()],
                 };
                 let _ = sender.send(SessionEvent::Input(Input::Result(CommandResult::SubmissionPrepared(outcome))));
             }
@@ -438,9 +456,9 @@ async fn run(
 }
 
 impl Session {
-    fn seed_people(&mut self) -> Result<(), ChatError> {
+    fn seed_people(&mut self, people: &[(String, String)]) -> Result<(), ChatError> {
         let params = ChatChannelJoinParams { session_id: self.session_id(), after: None };
-        for (client, (who, said)) in PEOPLE.into_iter().enumerate() {
+        for (client, (who, said)) in people.iter().enumerate() {
             self.chat.as_mut().ok_or(ChatError::NotJoined)?.join(client, &person(who), &params)?;
             self.post(client, said)?;
         }
@@ -504,63 +522,34 @@ async fn respond(
     session: Rc<RefCell<Session>>,
     number: u64,
     origin: UnboundedSender<SessionEvent>,
-    echo: String,
-    reply: Rc<Vec<String>>,
-    delay: Duration,
+    question: Option<Elicitation>,
+    reply: Rc<str>,
 ) {
-    let question = match echo.as_str() {
-        "/permission" => Some((demo_permission(), "Permission granted.", "Permission not granted.")),
-        "/review" => Some((demo_review(), "Plan approved.", "Plan not approved.")),
-        _ => None,
-    };
-    let asked = question.is_some();
-    let prefix = if let Some((question, yes, no)) = question {
+    let reply = if let Some(question) = question {
         let request_id = RawJsonRpcId::Str(format!("question-{number}"));
         let (send, answer) = oneshot::channel();
-        let approval = ElicitationAnswer::review(&ArtifactReviewSubmission::Approved);
         let pending = PendingElicitation::new(request_id.clone(), question, move |choice| {
             let allowed = matches!(&choice, ElicitationAnswer::Choose(id) if id == "allow");
-            let _ = send.send(allowed || choice == approval);
+            let _ = send.send(allowed || matches!(choice, ElicitationAnswer::Accept(_)));
         });
         session.borrow_mut().turn.as_mut().expect("active reply").permission = Some(request_id);
         let _ = origin.send(SessionEvent::Input(Input::Elicitation(pending)));
         let allowed = tokio::select! { choice = answer => choice.unwrap_or(false), () = origin.closed() => false };
         session.borrow_mut().turn.as_mut().expect("active reply").permission = None;
-        if allowed { yes } else { no }.to_owned()
+        Rc::from(if allowed { "Approved." } else { "Declined." })
     } else {
-        format!("**Demo agent** received: {echo}\n\n")
+        reply
     };
-    let rest = (!asked).then(|| reply.iter()).into_iter().flatten();
-    for text in std::iter::once(&prefix).chain(rest) {
-        if !delay.is_zero() {
-            sleep(delay).await;
-        }
-        let chunk = acp::ContentChunk::new(text.as_str().into(), format!("reply-{number}"));
+    if !reply.is_empty() {
+        let chunk = acp::ContentChunk::new(reply.as_ref().into(), format!("reply-{number}"));
         session.borrow_mut().update(acp::SessionUpdate::AgentMessageChunk(chunk));
     }
     session.borrow_mut().finish(acp::StopReason::EndTurn);
 }
 
-fn demo_permission() -> Elicitation {
-    use acp::PermissionOptionKind::{AllowOnce, RejectOnce};
-    Elicitation::Permission {
-        title: "Show a demo permission response?".into(),
-        description: None,
-        options: [("allow", "Allow once", AllowOnce), ("reject", "Reject", RejectOnce)]
-            .into_iter()
-            .map(|(id, name, kind)| PermissionChoice { id: id.into(), name: name.into(), kind })
-            .collect(),
-    }
-}
-
-fn demo_review() -> Elicitation {
-    let plan = "# Retry plan\n\n1. Cap the backoff at 30 seconds.\n2. Say so in the README.\n";
-    Elicitation::ArtifactReview(ArtifactReviewElicitationMeta::new(None, "Retry plan", plan))
-}
-
-fn demo_initialize(chat: bool) -> acp::InitializeResponse {
+fn initialize(chat: bool) -> acp::InitializeResponse {
     let session = acp::SessionCapabilities::new().meta(Some(FoxfireCapabilities { chat }.to_meta()));
-    acp::InitializeResponse::new(ProtocolVersion::V2, acp::Implementation::new("Demo agent", "0.1.0"))
+    acp::InitializeResponse::new(ProtocolVersion::V2, acp::Implementation::new("Test agent", "0.1.0"))
         .capabilities(acp::AgentCapabilities::new().session(session))
 }
 
@@ -586,7 +575,3 @@ fn answer(sender: &UnboundedSender<SessionEvent>, request_id: RequestId, result:
 }
 
 const YOU: &str = "You";
-const PEOPLE: [(&str, &str); 2] = [
-    ("Maya", "Resuming a sandbox is dropping everyone again."),
-    ("Theo", "Only after a suspend for me. First boot is always fine."),
-];

@@ -22,6 +22,7 @@ agent-client-protocol = { workspace = true }
 base64 = { workspace = true }
 clankerdiff-core = { workspace = true }
 clankerdiff-ui-core = { workspace = true }
+foxfire-acp = { workspace = true, features = ["websocket"] }
 foxfire-core = { workspace = true }
 foxfire-ui = { workspace = true }
 rouge = { workspace = true, features = ["open-url", "persist"] }

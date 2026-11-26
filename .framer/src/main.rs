@@ -1,7 +1,7 @@
 use framer::Project;
 use framer::github::Step;
 use framer_presets::{Ci, Dist, Release, ReleasePlz, Rust, RustMonorepo, Rustfmt, Workspace};
-use rouge_framer::{PlayInternal, RougePublish, TestFlight};
+use rouge_framer::{Android, Ios, PlayInternal, RougePublish, TestFlight};
 use std::process::ExitCode;
 
 fn main() -> ExitCode {
@@ -40,8 +40,8 @@ fn main() -> ExitCode {
             .package("foxfire-mobile")
             .icon("assets/app-icon.png")
             // Replace the placeholder with the App Store Connect Apple ID before publishing.
-            .ios(TestFlight::new("0"))
-            .android(PlayInternal),
+            .ios(Ios::new(TestFlight::new("0")).info("NSLocalNetworkUsageDescription", "Connect to your Foxfire relay on the local network."))
+            .android(Android::new(PlayInternal).permission("android.permission.INTERNET")),
     );
     rouge_framer::run(&project)
 }

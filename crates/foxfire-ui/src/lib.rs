@@ -4,6 +4,7 @@ mod chat;
 pub mod driver;
 mod elicitation;
 mod files;
+#[cfg(feature = "testing")]
 pub mod memory;
 mod pane;
 pub mod platform;

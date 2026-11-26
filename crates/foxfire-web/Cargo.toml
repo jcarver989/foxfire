@@ -15,19 +15,19 @@ crate-type = ["cdylib", "rlib"]
 workspace = true
 
 [dependencies]
-agent-client-protocol = { workspace = true }
-foxfire-acp = { workspace = true, features = ["websocket"] }
-foxfire-core = { workspace = true }
 foxfire-shell = { workspace = true }
-foxfire-ui = { workspace = true }
-rouge = { workspace = true, features = ["open-url", "persist"] }
-rouge-widgets = { workspace = true }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
+rouge = { workspace = true }
+rouge-widgets = { workspace = true }
 wasm-bindgen = "0.2"
 
 [dev-dependencies]
-foxfire-acp = { workspace = true, features = ["testing"] }
+foxfire-core = { workspace = true }
+foxfire-ui = { workspace = true, features = ["testing"] }
+rouge = { workspace = true, features = ["persist"] }
+rouge-widgets = { workspace = true }
+foxfire-acp = { workspace = true, features = ["testing", "websocket"] }
 foxfire-chat = { workspace = true }
 foxfire-relay = { path = "../foxfire-relay" }
 tempfile = { workspace = true }

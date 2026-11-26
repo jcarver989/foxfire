@@ -13,7 +13,6 @@ use rouge::persist::{MemoryStorage, Storage};
 use rouge::reactive::{Entered, Runtime, untrack};
 use rouge_widgets::testing::component_test;
 use std::rc::Rc;
-use std::time::Duration;
 
 #[tokio::test]
 async fn a_host_shows_its_own_words_and_mark_in_every_state() -> Result<(), TestError> {
@@ -128,7 +127,7 @@ impl HostBuilder {
     async fn build(self) -> Result<Host, TestError> {
         let entered = Runtime::new().enter();
         let backend = MemoryBackend::new(vec![Project { id: "demo".to_owned(), name: "Demo".to_owned() }])
-            .with_reply(vec!["Done.".to_owned()], Duration::ZERO);
+            .with_permission("/permission");
         let thread = backend.launch("demo".to_owned()).await?.id;
         let (listed, shown) = (backend.clone(), thread.clone());
         let mut ui = component_test().size(900.0, 700.0).build(move || {

@@ -14,15 +14,14 @@ use rouge::reactive::Runtime;
 use rouge_widgets::testing::component_test;
 use rouge_widgets::{CODE_FONT, Fonts, Materials, Radii, UiStyle};
 use std::rc::Rc;
-use std::time::Duration;
 
 #[tokio::test]
 async fn the_same_composer_uses_host_type_shape_and_live_emphasis() -> Result<(), Box<dyn std::error::Error>> {
     let _entered = Runtime::new().enter();
     let mut widths = Vec::new();
     for solid in [false, true] {
-        let backend = MemoryBackend::new(vec![Project { id: "demo".into(), name: "Project".into() }]);
-        let id = backend.launch("demo".into()).await?.id;
+        let backend = backend();
+        let id = backend.launch("work".into()).await?.id;
         let (mut ui, theme) = component_test().size(390.0, 780.0).input(InputKind::Touch).build_with(move || {
             if solid {
                 UiStyle {
@@ -69,16 +68,15 @@ async fn the_same_composer_uses_host_type_shape_and_live_emphasis() -> Result<()
 #[tokio::test]
 async fn the_browser_shell_launches_chats_switches_and_stops() -> Result<(), TestError> {
     let _entered = Runtime::new().enter();
-    let backend = MemoryBackend::new(vec![Project { id: "demo".to_owned(), name: "Demo project".to_owned() }])
-        .with_reply(vec!["Testing a reply.".to_owned()], Duration::ZERO);
+    let backend = backend().with_reply("Testing a reply.").with_permission("/permission");
     let ui_backend = backend.clone();
     let mut ui = component_test()
         .size(1120.0, 840.0)
         .build(move || web_view(Rc::new(ui_backend), Rc::new(NoPlatform), Rc::new(MemoryStorage::default())));
 
-    ui.hover_on("project-demo")?;
+    ui.hover_on("project-work")?;
     ui.run(0.25);
-    ui.click_on("launch-demo")?;
+    ui.click_on("launch-work")?;
     ui.run(1.0);
     assert!(ui.bounds_of("attach-files").is_none());
     assert!(ui.bounds_of("toggle-chat-room").is_none(), "nobody shares the thread");
@@ -91,10 +89,10 @@ async fn the_browser_shell_launches_chats_switches_and_stops() -> Result<(), Tes
     ui.type_text("/permission");
     assert!(ui.press("enter"));
     ui.run(0.0);
-    assert!(ui.bounds_of("thread-demo-1-status-needs-input-speech-bubble").is_some());
+    assert!(ui.bounds_of("thread-work-1-status-needs-input-speech-bubble").is_some());
     ui.click_on("permission-option-0")?;
     ui.run(0.0);
-    assert!(ui.text_bounds("Permission granted.").is_some());
+    assert!(ui.text_bounds("Approved.").is_some());
 
     ui.click_on("composer-text")?;
     ui.type_text("/permission");
@@ -105,39 +103,39 @@ async fn the_browser_shell_launches_chats_switches_and_stops() -> Result<(), Tes
     ui.run(0.5);
     assert!(ui.bounds_of("elicitation").is_none());
 
-    ui.hover_on("project-demo")?;
+    ui.hover_on("project-work")?;
     ui.run(0.25);
-    ui.click_on("launch-demo")?;
+    ui.click_on("launch-work")?;
     ui.run(1.0);
     assert!(ui.bounds_of("new-thread-heading").is_some());
-    ui.click_on("thread-demo-1")?;
+    ui.click_on("thread-work-1")?;
     ui.run(0.0);
-    assert!(ui.text_bounds("Permission granted.").is_some());
+    assert!(ui.text_bounds("Approved.").is_some());
     assert!(ui.bounds_of("new-thread-heading").is_none());
 
     ui.click_on("composer-text")?;
     ui.type_text("unsent draft");
-    ui.click_on("thread-demo-2")?;
+    ui.click_on("thread-work-2")?;
     ui.run(0.0);
-    ui.click_on("thread-demo-1")?;
+    ui.click_on("thread-work-1")?;
     ui.click_on("refresh-threads")?;
     ui.run(0.0);
     assert!(ui.text_bounds("unsent draft").is_some());
 
-    ui.click_on("thread-demo-2")?;
+    ui.click_on("thread-work-2")?;
     ui.run(0.0);
-    assert!(backend.stop(ThreadId("demo-2".to_owned())).await.is_ok());
+    assert!(backend.stop(ThreadId("work-2".to_owned())).await.is_ok());
     ui.click_on("refresh-threads")?;
     ui.run(0.0);
-    assert!(ui.bounds_of("thread-demo-2").is_none());
-    assert!(ui.bounds_of("thread-demo-1").is_some());
+    assert!(ui.bounds_of("thread-work-2").is_none());
+    assert!(ui.bounds_of("thread-work-1").is_some());
     assert!(ui.text_bounds("No thread selected").is_some());
 
-    ui.click_on("thread-demo-1")?;
-    ui.click_on("stop-demo-1")?;
+    ui.click_on("thread-work-1")?;
+    ui.click_on("stop-work-1")?;
     ui.run(0.0);
-    assert!(ui.bounds_of("thread-demo-1").is_none());
-    assert!(ui.bounds_of("thread-demo-2").is_none());
+    assert!(ui.bounds_of("thread-work-1").is_none());
+    assert!(ui.bounds_of("thread-work-2").is_none());
     assert!(ui.text_bounds("No thread selected").is_some());
     Ok(())
 }
@@ -145,7 +143,7 @@ async fn the_browser_shell_launches_chats_switches_and_stops() -> Result<(), Tes
 #[tokio::test]
 async fn the_sidebar_resizes_hides_and_reopens_at_its_previous_width() -> Result<(), TestError> {
     let _entered = Runtime::new().enter();
-    let backend = MemoryBackend::new(vec![Project { id: "demo".to_owned(), name: "Demo project".to_owned() }]);
+    let backend = backend();
     let mut ui = component_test()
         .size(1120.0, 840.0)
         .build(move || web_view(Rc::new(backend), Rc::new(NoPlatform), Rc::new(MemoryStorage::default())));
@@ -165,9 +163,9 @@ async fn the_sidebar_resizes_hides_and_reopens_at_its_previous_width() -> Result
     ui.double_click_on("panel-resize-handle")?;
     assert_eq!(ui.rect_of("sidebar")?.size.width, initial);
 
-    ui.hover_on("project-demo")?;
+    ui.hover_on("project-work")?;
     ui.run(0.25);
-    ui.click_on("launch-demo")?;
+    ui.click_on("launch-work")?;
     ui.run(1.0);
     ui.click_on("composer-text")?;
     ui.type_text("unsent draft");
@@ -180,14 +178,14 @@ async fn the_sidebar_resizes_hides_and_reopens_at_its_previous_width() -> Result
     assert!(ui.bounds_of("sidebar").is_some());
     assert!(ui.text_bounds("unsent draft").is_some());
     ui.run(0.25);
-    ui.click_on("project-demo-toggle")?;
-    assert!(ui.bounds_of("thread-demo-1").is_none());
+    ui.click_on("project-work-toggle")?;
+    assert!(ui.bounds_of("thread-work-1").is_none());
     ui.press("secondary-b");
     ui.press("secondary-b");
     ui.run(0.25);
-    assert!(ui.bounds_of("thread-demo-1").is_none());
-    ui.click_on("project-demo-toggle")?;
-    assert!(ui.bounds_of("thread-demo-1").is_some());
+    assert!(ui.bounds_of("thread-work-1").is_none());
+    ui.click_on("project-work-toggle")?;
+    assert!(ui.bounds_of("thread-work-1").is_some());
     Ok(())
 }
 
@@ -210,11 +208,11 @@ async fn the_browser_uses_base_interface_size_independently_of_pixel_density() -
 #[tokio::test]
 async fn the_phone_shell_opens_threads_and_sends_prompts_with_taps() -> Result<(), TestError> {
     let _entered = Runtime::new().enter();
-    let mut ui = touch_demo(390.0, 780.0);
+    let mut ui = touch_host(390.0, 780.0);
 
     assert!(ui.bounds_of("threads-nav-large").is_some());
     assert!(ui.bounds_of("sidebar").is_none());
-    ui.tap_on("launch-demo")?;
+    ui.tap_on("launch-work")?;
     ui.run(1.0);
     assert!(ui.bounds_of("conversation-nav-back").is_some());
     assert!(ui.rect_of("send")?.size.height >= 44.0);
@@ -230,7 +228,7 @@ async fn the_phone_shell_opens_threads_and_sends_prompts_with_taps() -> Result<(
     ui.run(0.5);
     assert!(ui.bounds_of("composer").is_none());
     assert!(!ui.accepts_text());
-    ui.tap_on("thread-demo-1")?;
+    ui.tap_on("thread-work-1")?;
     ui.run(0.5);
     assert!(ui.bounds_of("elicitation").is_some(), "Back doesn't cancel the current turn");
     ui.tap_on("stop")?;
@@ -246,7 +244,7 @@ async fn the_phone_shell_opens_threads_and_sends_prompts_with_taps() -> Result<(
     ui.run(0.5);
     assert!(ui.bounds_of("composer").is_none());
     assert!(!ui.accepts_text());
-    ui.tap_on("thread-demo-1")?;
+    ui.tap_on("thread-work-1")?;
     ui.run(0.5);
     assert!(ui.text_bounds("unsent draft").is_some());
     assert!(ui.text_bounds("second line").is_some());
@@ -256,8 +254,8 @@ async fn the_phone_shell_opens_threads_and_sends_prompts_with_taps() -> Result<(
 #[tokio::test]
 async fn resizing_the_touch_conversation_keeps_the_draft_and_lifts_send_above_the_keyboard() -> Result<(), TestError> {
     let _entered = Runtime::new().enter();
-    let mut ui = touch_demo(390.0, 780.0);
-    ui.tap_on("launch-demo")?;
+    let mut ui = touch_host(390.0, 780.0);
+    ui.tap_on("launch-work")?;
     ui.run(1.0);
     ui.tap_on("composer-text")?;
     ui.type_text("draft across rotation");
@@ -282,15 +280,15 @@ async fn resizing_the_touch_conversation_keeps_the_draft_and_lifts_send_above_th
     assert!(transcript.max().y <= ui.rect_of("composer")?.origin.y);
     ui.tap_on("conversation-nav-back")?;
     ui.run(1.0);
-    assert!(ui.rect_of("project-demo")?.size.width < 850.0);
+    assert!(ui.rect_of("project-work")?.size.width < 850.0);
     Ok(())
 }
 
 #[tokio::test]
 async fn ending_a_thread_requires_confirmation_and_only_ends_that_thread() -> Result<(), TestError> {
     let _entered = Runtime::new().enter();
-    let mut ui = touch_demo(390.0, 780.0);
-    ui.tap_on("launch-demo")?;
+    let mut ui = touch_host(390.0, 780.0);
+    ui.tap_on("launch-work")?;
     ui.run(1.0);
     ui.tap_on("composer-text")?;
     assert!(ui.accepts_text());
@@ -298,7 +296,7 @@ async fn ending_a_thread_requires_confirmation_and_only_ends_that_thread() -> Re
     assert!(ui.text_bounds("first thread draft").is_some());
     ui.tap_on("conversation-nav-back")?;
     ui.run(1.0);
-    ui.tap_on("launch-demo")?;
+    ui.tap_on("launch-work")?;
     ui.run(1.0);
     assert!(ui.text_bounds("first thread draft").is_none());
 
@@ -312,9 +310,9 @@ async fn ending_a_thread_requires_confirmation_and_only_ends_that_thread() -> Re
     ui.tap_on("end-thread-confirmation-action-0")?;
     ui.run(1.0);
     assert!(ui.bounds_of("conversation-screen").is_none());
-    assert!(ui.bounds_of("thread-demo-2").is_none());
-    assert!(ui.bounds_of("thread-demo-1").is_some());
-    ui.tap_on("thread-demo-1")?;
+    assert!(ui.bounds_of("thread-work-2").is_none());
+    assert!(ui.bounds_of("thread-work-1").is_some());
+    ui.tap_on("thread-work-1")?;
     ui.run(1.0);
     assert!(ui.bounds_of("conversation-screen").is_some());
     assert!(ui.text_bounds("first thread draft").is_some());
@@ -324,29 +322,29 @@ async fn ending_a_thread_requires_confirmation_and_only_ends_that_thread() -> Re
 #[tokio::test]
 async fn swiping_a_thread_row_offers_end_thread_behind_the_same_confirmation() -> Result<(), TestError> {
     let _entered = Runtime::new().enter();
-    let mut ui = touch_demo(390.0, 780.0);
-    ui.tap_on("launch-demo")?;
+    let mut ui = touch_host(390.0, 780.0);
+    ui.tap_on("launch-work")?;
     ui.run(1.0);
     ui.tap_on("conversation-nav-back")?;
     ui.run(1.0);
 
-    let row = ui.rect_of("thread-demo-1")?;
+    let row = ui.rect_of("thread-work-1")?;
     let (y, right) = (row.center().y, row.max().x);
     ui.swipe_over(Point::new(right - 20.0, y), Point::new(right - 200.0, y), 0.5);
     ui.run(2.0);
-    ui.tap_on("end-demo-1")?;
+    ui.tap_on("end-work-1")?;
     ui.run(1.0);
     ui.tap_on("end-thread-confirmation-cancel")?;
     ui.run(1.0);
-    assert!(ui.bounds_of("thread-demo-1").is_some(), "dismissing the alert keeps the thread");
+    assert!(ui.bounds_of("thread-work-1").is_some(), "dismissing the alert keeps the thread");
 
     ui.swipe_over(Point::new(right - 20.0, y), Point::new(right - 200.0, y), 0.5);
     ui.run(2.0);
-    ui.tap_on("end-demo-1")?;
+    ui.tap_on("end-work-1")?;
     ui.run(1.0);
     ui.tap_on("end-thread-confirmation-action-0")?;
     ui.run(1.0);
-    assert!(ui.bounds_of("thread-demo-1").is_none());
+    assert!(ui.bounds_of("thread-work-1").is_none());
     assert!(ui.bounds_of("threads-screen").is_some());
     Ok(())
 }
@@ -354,8 +352,8 @@ async fn swiping_a_thread_row_offers_end_thread_behind_the_same_confirmation() -
 #[tokio::test]
 async fn the_footer_holds_its_status_with_a_readable_label_on_a_phone_and_a_tablet() -> Result<(), TestError> {
     let _entered = Runtime::new().enter();
-    let mut ui = touch_demo(390.0, 780.0);
-    ui.tap_on("launch-demo")?;
+    let mut ui = touch_host(390.0, 780.0);
+    ui.tap_on("launch-work")?;
     ui.run(1.0);
     assert!(ui.bounds_of("status").is_none(), "a thread with nothing sent has no status");
 
@@ -379,12 +377,12 @@ async fn the_footer_holds_its_status_with_a_readable_label_on_a_phone_and_a_tabl
 #[tokio::test]
 async fn a_regular_touch_width_keeps_the_stack_and_a_readable_list() -> Result<(), TestError> {
     let _entered = Runtime::new().enter();
-    let mut ui = touch_demo(820.0, 1180.0);
+    let mut ui = touch_host(820.0, 1180.0);
     assert!(ui.bounds_of("sidebar").is_none());
     assert!(ui.bounds_of("threads-nav-large").is_some());
-    assert!(ui.rect_of("project-demo")?.size.width <= 600.0);
+    assert!(ui.rect_of("project-work")?.size.width <= 600.0);
 
-    ui.tap_on("launch-demo")?;
+    ui.tap_on("launch-work")?;
     ui.run(1.0);
     assert!(ui.bounds_of("conversation-screen").is_some());
     assert!(ui.rect_of("send")?.size.height >= 44.0);
@@ -396,14 +394,14 @@ async fn a_regular_touch_width_keeps_the_stack_and_a_readable_list() -> Result<(
     assert!(ui.text_bounds("tablet draft").is_some());
     ui.tap_on("conversation-nav-back")?;
     ui.run(1.0);
-    assert!(ui.rect_of("project-demo")?.size.width <= 600.0);
+    assert!(ui.rect_of("project-work")?.size.width <= 600.0);
     Ok(())
 }
 
 #[tokio::test]
 async fn malformed_and_missing_thread_routes_can_return_to_threads() -> Result<(), TestError> {
     let _entered = Runtime::new().enter();
-    let mut ui = touch_demo(390.0, 780.0);
+    let mut ui = touch_host(390.0, 780.0);
     for path in ["/thread/invalid!", "/thread/bWlzc2luZw"] {
         ui.set_route(path);
         ui.run(1.0);
@@ -411,7 +409,7 @@ async fn malformed_and_missing_thread_routes_can_return_to_threads() -> Result<(
         assert!(ui.bounds_of("composer").is_none());
         ui.tap_on("conversation-nav-back")?;
         ui.run(1.0);
-        assert!(ui.bounds_of("launch-demo").is_some());
+        assert!(ui.bounds_of("launch-work").is_some());
     }
     Ok(())
 }
@@ -470,7 +468,7 @@ async fn messages_are_handed_from_the_side_room_to_the_agent_and_back() -> Resul
 async fn the_side_room_follows_new_messages_and_marks_only_what_is_shown_read() -> Result<(), ChatTestError> {
     let _entered = Runtime::new().enter();
     let backend = shared_backend();
-    let thread = ThreadId("demo-1".to_owned());
+    let thread = ThreadId("work-1".to_owned());
     let mut ui = shared_thread(&backend, &MemoryStorage::default())?;
     ui.hover_on("chat-post-1")?;
     ui.run(0.2);
@@ -525,8 +523,8 @@ async fn the_side_room_keeps_its_width() -> Result<(), ChatTestError> {
 #[tokio::test]
 async fn the_phone_shell_opens_the_side_room_as_a_sheet() -> Result<(), TestError> {
     let _entered = Runtime::new().enter();
-    let mut ui = demo(&shared_backend(), &MemoryStorage::default(), InputKind::Touch, (390.0, 844.0));
-    ui.tap_on("launch-demo")?;
+    let mut ui = hosted(&shared_backend(), &MemoryStorage::default(), InputKind::Touch, (390.0, 844.0));
+    ui.tap_on("launch-work")?;
     ui.run(1.0);
     assert!(ui.bounds_of("chat-room-sheet").is_none(), "the room never covers a phone unasked");
     ui.tap_on("toggle-chat-room")?;
@@ -540,10 +538,10 @@ async fn the_phone_shell_opens_the_side_room_as_a_sheet() -> Result<(), TestErro
 async fn changed_files_and_artifacts_are_reviewed_beside_the_conversation() -> Result<(), TestError> {
     let _entered = Runtime::new().enter();
     let backend = changed_backend();
-    let mut ui = demo(&backend, &MemoryStorage::default(), InputKind::Pointer, (1360.0, 840.0));
-    ui.hover_on("project-demo")?;
+    let mut ui = hosted(&backend, &MemoryStorage::default(), InputKind::Pointer, (1360.0, 840.0));
+    ui.hover_on("project-work")?;
     ui.run(0.25);
-    ui.click_on("launch-demo")?;
+    ui.click_on("launch-work")?;
     ui.run(1.0);
     assert!(ui.bounds_of("changes-unseen").is_some(), "changes nobody has looked at are marked");
     ui.click_on("tab-files")?;
@@ -572,8 +570,8 @@ async fn changed_files_and_artifacts_are_reviewed_beside_the_conversation() -> R
 #[tokio::test]
 async fn the_phone_shell_has_the_same_tabs() -> Result<(), TestError> {
     let _entered = Runtime::new().enter();
-    let mut ui = demo(&changed_backend(), &MemoryStorage::default(), InputKind::Touch, (390.0, 844.0));
-    ui.tap_on("launch-demo")?;
+    let mut ui = hosted(&changed_backend(), &MemoryStorage::default(), InputKind::Touch, (390.0, 844.0));
+    ui.tap_on("launch-work")?;
     ui.run(1.0);
     ui.tap_on("tab-files")?;
     ui.run(0.5);
@@ -589,10 +587,10 @@ async fn the_phone_shell_has_the_same_tabs() -> Result<(), TestError> {
 async fn a_suspended_thread_says_so_and_resumes() -> Result<(), BackendTestError> {
     let _entered = Runtime::new().enter();
     let backend = changed_backend();
-    let mut ui = demo(&backend, &MemoryStorage::default(), InputKind::Pointer, (1120.0, 840.0));
-    let id = backend.launch("demo".to_owned()).await?.id;
+    let mut ui = hosted(&backend, &MemoryStorage::default(), InputKind::Pointer, (1120.0, 840.0));
+    let id = backend.launch("work".to_owned()).await?.id;
     ui.click_on("refresh-threads")?;
-    ui.click_on("thread-demo-1")?;
+    ui.click_on("thread-work-1")?;
     ui.run(0.5);
     backend.suspend(id.clone()).await?;
     ui.run(0.5);
@@ -612,10 +610,10 @@ async fn a_suspended_thread_says_so_and_resumes() -> Result<(), BackendTestError
 async fn a_dropped_connection_comes_back_with_the_transcript_and_draft_in_place() -> Result<(), BackendTestError> {
     let _entered = Runtime::new().enter();
     let backend = changed_backend();
-    let mut ui = demo(&backend, &MemoryStorage::default(), InputKind::Pointer, (1120.0, 840.0));
-    let id = backend.launch("demo".to_owned()).await?.id;
+    let mut ui = hosted(&backend, &MemoryStorage::default(), InputKind::Pointer, (1120.0, 840.0));
+    let id = backend.launch("work".to_owned()).await?.id;
     ui.click_on("refresh-threads")?;
-    ui.click_on("thread-demo-1")?;
+    ui.click_on("thread-work-1")?;
     ui.run(1.0);
     ui.click_on("composer-text")?;
     ui.type_text("first prompt");
@@ -652,33 +650,39 @@ enum ChatTestError {
     Chat(#[from] ChatError),
 }
 
+fn backend() -> MemoryBackend {
+    MemoryBackend::new(vec![Project { id: "work".to_owned(), name: "Workspace".to_owned() }])
+}
+
 fn changed_backend() -> MemoryBackend {
-    MemoryBackend::new(vec![Project { id: "demo".to_owned(), name: "Demo project".to_owned() }])
-        .with_reply(vec!["Done.".to_owned()], Duration::ZERO)
-        .with_changes(&[("src/lib.rs", "old\n", "new\n")])
+    backend().with_reply("Done.").with_changes(&[("src/lib.rs", "old\n", "new\n")]).with_review(
+        "/review",
+        "Retry plan",
+        "# Retry plan\n\nCap retries.",
+    )
 }
 
 fn shared_backend() -> MemoryBackend {
-    MemoryBackend::new(vec![Project { id: "demo".to_owned(), name: "Demo project".to_owned() }])
-        .with_reply(vec!["Moved backoff into the driver.".to_owned()], Duration::ZERO)
-        .with_chat()
+    backend()
+        .with_reply("Moved backoff into the driver.")
+        .with_chat(&[("Maya", "How long should retries wait?"), ("Theo", "Use a cap.")])
 }
 
 fn shared_thread(backend: &MemoryBackend, storage: &MemoryStorage) -> Result<TestUi, TestError> {
-    let mut ui = demo(backend, storage, InputKind::Pointer, (1360.0, 840.0));
-    ui.hover_on("project-demo")?;
+    let mut ui = hosted(backend, storage, InputKind::Pointer, (1360.0, 840.0));
+    ui.hover_on("project-work")?;
     ui.run(0.25);
-    ui.click_on("launch-demo")?;
+    ui.click_on("launch-work")?;
     ui.run(1.0);
     Ok(ui)
 }
 
-fn touch_demo(width: f32, height: f32) -> TestUi {
-    let backend = MemoryBackend::new(vec![Project { id: "demo".to_owned(), name: "Demo project".to_owned() }]);
-    demo(&backend, &MemoryStorage::default(), InputKind::Touch, (width, height))
+fn touch_host(width: f32, height: f32) -> TestUi {
+    let backend = backend().with_permission("/permission");
+    hosted(&backend, &MemoryStorage::default(), InputKind::Touch, (width, height))
 }
 
-fn demo(backend: &MemoryBackend, storage: &MemoryStorage, input: InputKind, (width, height): (f32, f32)) -> TestUi {
+fn hosted(backend: &MemoryBackend, storage: &MemoryStorage, input: InputKind, (width, height): (f32, f32)) -> TestUi {
     let (backend, storage) = (backend.clone(), storage.clone());
     component_test()
         .size(width, height)

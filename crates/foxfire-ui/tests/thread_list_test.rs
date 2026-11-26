@@ -258,7 +258,7 @@ impl ListBuilder {
     fn build(self) -> TestList {
         let entered = Runtime::new().enter();
         let backend = MemoryBackend::new(vec![Project { id: PROJECT.to_owned(), name: "Demo project".to_owned() }])
-            .with_reply(vec!["done".to_owned()], Duration::ZERO)
+            .with_reply("done")
             .with_lifetime(LIFETIME);
         let backend = if self.starting { backend.with_startup() } else { backend };
         let panes = Rc::new(Cell::new(0));
