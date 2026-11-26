@@ -150,6 +150,7 @@ fn tool_kind_status_and_metadata_follow_patch_semantics() {
     .unwrap();
     conversation.apply_event(&tool_update(update));
     conversation.apply_event(&tool_update(acp::ToolCallUpdate::new("tool")));
+    assert_eq!(tool(&conversation, 0).kind(), &acp::ToolKind::Execute);
     assert_eq!(tool(&conversation, 0).bash_command(), None);
     assert_eq!(tool(&conversation, 0).display_value(), Some("done"));
     assert_eq!(tool(&conversation, 0).status, ToolStatus::Success);
@@ -160,6 +161,7 @@ fn tool_kind_status_and_metadata_follow_patch_semantics() {
             .status(MaybeUndefined::Null)
             .meta(MaybeUndefined::Null),
     ));
+    assert_eq!(tool(&conversation, 0).kind(), &acp::ToolKind::Other);
     assert_eq!(tool(&conversation, 0).bash_command(), None);
     assert_eq!(tool(&conversation, 0).display_value(), None);
     assert_eq!(tool(&conversation, 0).status, ToolStatus::Running);

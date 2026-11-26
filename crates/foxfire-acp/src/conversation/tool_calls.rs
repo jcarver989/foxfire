@@ -41,6 +41,11 @@ impl ToolCall {
         self.protocol.title.value().map_or("", String::as_str)
     }
 
+    /// The category the agent gave the tool.
+    pub fn kind(&self) -> &acp::ToolKind {
+        self.protocol.kind.value().unwrap_or(&acp::ToolKind::Other)
+    }
+
     pub fn raw_input(&self) -> String {
         self.protocol.raw_input.value().map_or_else(String::new, raw_input_text)
     }
@@ -79,7 +84,7 @@ impl ToolCall {
     }
 
     pub fn bash_command(&self) -> Option<&str> {
-        if self.kind() != ToolKind::Bash {
+        if self.known() != Some(KnownTool::Bash) {
             return None;
         }
         self.protocol.raw_input.value()?.get("command")?.as_str()
@@ -151,11 +156,11 @@ impl ToolCall {
     }
 
     pub(super) fn rendering_final(&self) -> bool {
-        self.is_settled() && (self.kind() != ToolKind::SpawnSubagent || !self.sub_agents.is_empty())
+        self.is_settled() && (self.known() != Some(KnownTool::SpawnSubagent) || !self.sub_agents.is_empty())
     }
 
-    fn kind(&self) -> ToolKind {
-        tool_kind(self.protocol.name.value().map_or_else(|| self.title(), String::as_str))
+    fn known(&self) -> Option<KnownTool> {
+        known_tool(self.protocol.name.value().map_or_else(|| self.title(), String::as_str))
     }
 
     fn refresh_status(&mut self) {
@@ -314,20 +319,19 @@ fn raw_input_text(raw_input: &serde_json::Value) -> String {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum ToolKind {
+enum KnownTool {
     Bash,
     SpawnSubagent,
-    Other,
 }
 
-fn tool_kind(tool_name: &str) -> ToolKind {
+fn known_tool(tool_name: &str) -> Option<KnownTool> {
     let name = tool_name.rsplit("__").next().unwrap_or(tool_name);
     if name.eq_ignore_ascii_case("bash") {
-        ToolKind::Bash
+        Some(KnownTool::Bash)
     } else if name.eq_ignore_ascii_case("spawn_subagent") {
-        ToolKind::SpawnSubagent
+        Some(KnownTool::SpawnSubagent)
     } else {
-        ToolKind::Other
+        None
     }
 }
 
