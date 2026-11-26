@@ -114,8 +114,9 @@ pub trait HostedBackend: 'static {
     fn projects(&self) -> BackendFuture<'_, Vec<Project>>;
     fn list_threads(&self) -> BackendFuture<'_, Vec<HostedThread>>;
     fn launch(&self, project: String) -> BackendFuture<'_, HostedThread>;
-    fn rename(&self, id: ThreadId, title: ThreadTitle) -> BackendFuture<'_, ()>;
-    fn suspend(&self, id: ThreadId) -> BackendFuture<'_, ()>;
+    /// Returns the current row, including the winning title if this suggestion lost.
+    fn rename(&self, id: ThreadId, title: ThreadTitle) -> BackendFuture<'_, HostedThread>;
+    fn suspend(&self, id: ThreadId) -> BackendFuture<'_, HostedThread>;
     fn stop(&self, id: ThreadId) -> BackendFuture<'_, ()>;
 }
 

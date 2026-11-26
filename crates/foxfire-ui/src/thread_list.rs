@@ -1,5 +1,6 @@
 use crate::backend::{
-    BackendError, ConnectFailure, HostedBackend, HostedState, HostedThread, Project, ThreadId, ThreadTitle,
+    BackendError, BackendFuture, ConnectFailure, HostedBackend, HostedState, HostedThread, Project, ThreadId,
+    ThreadTitle,
 };
 use crate::thread::{Thread, ThreadStatus};
 use indexmap::IndexMap;
@@ -201,26 +202,17 @@ impl<T: Copy + 'static> ThreadList<T> {
 
     pub fn rename(self, id: ThreadId, title: String) {
         self.run(self.changing, id, async move |id| {
-            self.backend.get().rename(id.clone(), ThreadTitle::Chosen(title.clone())).await?;
-            self.reconcile(|all| {
-                if let Some(info) = all.get_mut(&id) {
-                    info.title = Some(title);
-                }
-            });
-            Ok(())
+            self.apply_change(self.backend.get().rename(id, ThreadTitle::Chosen(title))).await
         });
     }
 
     /// Suspends a thread, and disconnects from it until it is opened again.
     pub fn suspend(self, id: ThreadId) {
         self.run(self.changing, id, async move |id| {
-            self.backend.get().suspend(id.clone()).await?;
-            self.reconcile(|all| {
-                if let Some(info) = all.get_mut(&id) {
-                    info.state = HostedState::Suspended;
-                }
-            });
-            if let Some(thread) = untrack(|| self.thread(&id)) {
+            self.apply_change(self.backend.get().suspend(id.clone())).await?;
+            if self.is_suspended(&id)
+                && let Some(thread) = untrack(|| self.thread(&id))
+            {
                 thread.stop();
             }
             Ok(())
@@ -289,10 +281,10 @@ impl<T: Copy + 'static> ThreadList<T> {
         let id = id.clone();
         self.scope.run(|| {
             spawn(async move {
-                match self.backend.get().rename(id, ThreadTitle::Suggested(title)).await {
-                    // The suggestion may have lost to a title chosen by another client.
-                    Ok(()) => self.load_threads().await,
-                    Err(error) => tracing::warn!(%error, "could not title a thread after its first prompt"),
+                if let Err(error) =
+                    self.apply_change(self.backend.get().rename(id, ThreadTitle::Suggested(title))).await
+                {
+                    tracing::warn!(%error, "could not title a thread after its first prompt");
                 }
             })
         });
@@ -347,6 +339,22 @@ impl<T: Copy + 'static> ThreadList<T> {
                 }
             });
         });
+    }
+
+    async fn apply_change(self, change: BackendFuture<'_, HostedThread>) -> Result<(), BackendError> {
+        let epoch = self.epoch.get();
+        let info = change.await?;
+        if epoch != self.epoch.get() {
+            // Another response may have seen a newer row (e.g. a chosen title beating a suggestion).
+            self.load_threads().await;
+            return Ok(());
+        }
+        self.reconcile(|all| {
+            if let Some(row) = all.get_mut(&info.id) {
+                *row = info;
+            }
+        });
+        Ok(())
     }
 
     fn remove(self, id: &ThreadId) {

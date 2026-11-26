@@ -140,14 +140,14 @@ impl MemoryBackend {
     }
 
     /// Moves a thread to another state, disconnecting everyone from one that is no longer ready.
-    pub fn set_state(&self, thread: &ThreadId, state: HostedState) -> Result<(), BackendError> {
+    pub fn set_state(&self, thread: &ThreadId, state: HostedState) -> Result<HostedThread, BackendError> {
         let session = self.session(thread)?;
         let mut session = session.borrow_mut();
         if state != HostedState::Ready {
             session.disconnect();
         }
         session.info.state = state;
-        Ok(())
+        Ok(session.info.clone())
     }
 
     /// Drops every connection to a thread, as a network would.
@@ -258,21 +258,22 @@ impl HostedBackend for MemoryBackend {
         })
     }
 
-    fn rename(&self, id: ThreadId, title: ThreadTitle) -> BackendFuture<'_, ()> {
+    fn rename(&self, id: ThreadId, title: ThreadTitle) -> BackendFuture<'_, HostedThread> {
         Box::pin(async move {
             let session = self.session(&id)?;
-            let current = &mut session.borrow_mut().info.title;
+            let mut session = session.borrow_mut();
+            let current = &mut session.info.title;
             match title {
                 ThreadTitle::Suggested(title) => {
                     current.get_or_insert(title);
                 }
                 ThreadTitle::Chosen(title) => *current = Some(title),
             }
-            Ok(())
+            Ok(session.info.clone())
         })
     }
 
-    fn suspend(&self, id: ThreadId) -> BackendFuture<'_, ()> {
+    fn suspend(&self, id: ThreadId) -> BackendFuture<'_, HostedThread> {
         Box::pin(async move { self.set_state(&id, HostedState::Suspended) })
     }
 

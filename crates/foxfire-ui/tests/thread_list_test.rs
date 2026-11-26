@@ -115,6 +115,22 @@ async fn a_first_prompt_does_not_replace_a_title_someone_else_chose() -> Result<
 }
 
 #[tokio::test]
+async fn mutations_replace_the_entire_row_from_the_backend() -> Result<(), TestError> {
+    let mut test = ListBuilder::default().build();
+    let id = test.launched().await?;
+    test.backend.set_state(&id, HostedState::Starting)?;
+    test.list.rename(id.clone(), "Chosen".to_owned());
+    settle();
+    assert_eq!(test.info(&id)?.state, HostedState::Starting);
+
+    test.backend.rename(id.clone(), ThreadTitle::Chosen("Another client".to_owned())).await?;
+    test.list.suspend(id.clone());
+    settle();
+    assert_eq!(test.info(&id)?.title.as_deref(), Some("Another client"));
+    Ok(())
+}
+
+#[tokio::test]
 async fn a_suspended_thread_resumes_with_its_history_when_it_is_selected() -> Result<(), TestError> {
     let mut test = ListBuilder::default().build();
     let id = test.launched().await?;
