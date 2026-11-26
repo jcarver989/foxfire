@@ -84,12 +84,6 @@ impl ChatRoom {
                 room.anchor.set(None);
             });
         });
-        let (unread, focused) = (room.unread(), window_focused());
-        effect(move || {
-            if unread.get() > 0 && room.is_open() && focused.get() && room.following.get() {
-                untrack(|| thread.update_core(SessionCore::mark_chat_read));
-            }
-        });
         room
     }
 
@@ -193,6 +187,12 @@ impl ChatRoom {
 
     fn messages(self) -> impl View {
         let thread = self.thread;
+        let (unread, focused) = (self.unread(), window_focused());
+        effect(move || {
+            if unread.get() > 0 && self.is_open() && focused.get() && self.following.get() {
+                untrack(|| thread.update_core(SessionCore::mark_chat_read));
+            }
+        });
         let wording = Wording::current();
         let rows = memo(move || thread.with_core(rows).unwrap_or_default());
         let list = virtual_list(
@@ -289,8 +289,9 @@ impl ChatRoom {
             return;
         }
         let sent = SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default();
+        let mut accepted = false;
         self.thread.update_core(|core| {
-            core.post_chat(ChatChannelPostParams {
+            accepted = core.post_chat(ChatChannelPostParams {
                 session_id: core.session_id().clone(),
                 key: sent.as_nanos().to_string(),
                 body,
@@ -304,11 +305,13 @@ impl ChatRoom {
                     .map(str::to_owned),
             });
         });
-        batch(|| {
-            self.draft.set(String::new());
-            self.selection.set(0..0);
-            self.anchor.set(None);
-            self.following.set(true);
-        });
+        if accepted {
+            batch(|| {
+                self.draft.set(String::new());
+                self.selection.set(0..0);
+                self.anchor.set(None);
+                self.following.set(true);
+            });
+        }
     }
 }

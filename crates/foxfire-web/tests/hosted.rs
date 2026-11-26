@@ -1,4 +1,5 @@
 use foxfire_chat::ChatError;
+use foxfire_core::session_core::ChatChannel;
 use foxfire_ui::ChatPane;
 use foxfire_ui::backend::{BackendError, HostedBackend, Project, ThreadId};
 use foxfire_ui::memory::MemoryBackend;
@@ -500,6 +501,62 @@ async fn the_side_room_follows_new_messages_and_marks_only_what_is_shown_read() 
     ui.click_on("close-chat-room")?;
     ui.run(0.1);
     assert!(ui.bounds_of("chat-room-unread").is_none());
+    Ok(())
+}
+
+#[tokio::test]
+async fn a_background_thread_does_not_mark_new_posts_read() -> Result<(), ChatTestError> {
+    let _entered = Runtime::new().enter();
+    let backend = shared_backend();
+    let mut ui = shared_thread(&backend, &MemoryStorage::default())?;
+    let first = ThreadId("work-1".into());
+    let observer = Thread::connect(0, None, None, {
+        let (backend, first) = (backend.clone(), first.clone());
+        move |resume| backend.open(first.clone(), resume)
+    });
+    let unread = || observer.with_chat(ChatChannel::unread);
+    ui.run(0.0);
+    assert_eq!(unread(), Some(0));
+    ui.hover_on("project-work")?;
+    ui.run(0.25);
+    ui.click_on("launch-work")?;
+    ui.run(0.5);
+    backend.post(&first, "unread in the other room")?;
+    ui.run(0.1);
+    assert_eq!(unread(), Some(1));
+    ui.click_on("thread-work-1")?;
+    ui.run(0.5);
+    assert_eq!(unread(), Some(0));
+    Ok(())
+}
+
+#[tokio::test]
+async fn submitting_a_room_draft_while_disconnected_keeps_the_text_and_quote() -> Result<(), BackendTestError> {
+    let _entered = Runtime::new().enter();
+    let backend = shared_backend();
+    let mut ui = shared_thread(&backend, &MemoryStorage::default())?;
+    ui.click_on("composer-text")?;
+    ui.type_text("first prompt");
+    assert!(ui.press("enter"));
+    ui.run(0.2);
+    ui.hover_on("transcript-row-1")?;
+    ui.run(0.25);
+    ui.click_on("discuss-1")?;
+    ui.type_text("please confirm");
+    backend.drop_connections(&ThreadId("work-1".into()))?;
+    ui.run(0.0);
+    ui.click_on("chat-room-send")?;
+    ui.run(0.0);
+    assert!(ui.text_bounds("please confirm").is_some());
+    assert!(ui.bounds_of("chat-room-anchor-chip").is_some());
+    ui.set_focused(false);
+    ui.set_focused(true);
+    ui.run(0.5);
+    assert!(ui.bounds_of("chat-room-anchor-chip").is_some(), "reconnecting keeps the quote");
+    ui.click_on("chat-room-send")?;
+    ui.run(0.1);
+    assert!(ui.bounds_of("chat-room-anchor-chip").is_none());
+    assert!(ui.bounds_of("chat-anchor-4").is_some());
     Ok(())
 }
 

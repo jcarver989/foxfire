@@ -87,7 +87,7 @@ fn a_session_that_cannot_be_resumed_does_not_keep_the_previous_ones_channel() {
     core.resume_session(&session_id, Path::new("/elsewhere"));
     deliver(&mut core, CommandResult::ResumeSession { session_id, result: Err(offline()) });
     assert!(core.chat().is_none());
-    core.post_chat(draft(&core, "key"));
+    assert!(!core.post_chat(draft(&core, "key")), "a rejected post must be reported to the composer");
     assert!(requested(&mut core).is_empty(), "nothing is posted to a channel that was not joined");
 }
 

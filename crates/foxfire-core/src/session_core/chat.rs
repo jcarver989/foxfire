@@ -141,14 +141,15 @@ impl SessionCore {
         self.chat.as_ref().filter(|chat| chat.is_shared())
     }
 
-    /// Posts a message, or retries one that failed.
-    pub fn post_chat(&mut self, post: ChatChannelPostParams) {
+    /// Enqueues a post or retry. Returns false until the channel has been joined.
+    pub fn post_chat(&mut self, post: ChatChannelPostParams) -> bool {
         let Some(chat) = self.chat.as_mut().filter(|chat| chat.present.is_some()) else {
-            return;
+            return false;
         };
         chat.dismiss(&post.key);
         chat.pending.push(PendingPost { post: post.clone(), error: None });
         self.request_chat(ChatCommand::Post(post));
+        true
     }
 
     pub fn dismiss_chat(&mut self, key: &str) {

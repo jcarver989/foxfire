@@ -164,7 +164,11 @@ impl Row {
         let room = *room;
         let (key, post) = (pending.post.key.clone(), pending.post.clone());
         let failure = pending.error.as_ref().map(|error| {
-            let retry = move || room.thread.update_core(|core| core.post_chat(post.clone()));
+            let retry = move || {
+                room.thread.update_core(|core| {
+                    core.post_chat(post.clone());
+                });
+            };
             let dismiss = move || room.thread.update_core(|core| core.dismiss_chat(&key));
             view! {
                 <div flex items_center gap=Space::X2 flex_wrap>
