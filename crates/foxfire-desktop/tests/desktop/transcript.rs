@@ -88,14 +88,6 @@ fn a_turns_tool_calls_fold_into_one_line() -> Result<(), TestError> {
 }
 
 #[test]
-fn even_one_call_without_a_reply_folds() {
-    let mut harness = answered(finished_tools(&["Read a"]));
-
-    assert!(harness.shows("turn-outcome-1", "1 call"));
-    assert!(harness.bounds("tool-card-1").is_none());
-}
-
-#[test]
 fn a_focused_turn_line_can_be_toggled_with_the_keyboard() -> Result<(), TestError> {
     let mut harness = answered(finished_tools(&["Read a"]));
     harness.click("turn-summary-1")?;
@@ -303,28 +295,6 @@ fn earlier_steps_show_on_demand_until_the_turn_folds() -> Result<(), TestError> 
 }
 
 #[test]
-fn a_short_turn_unfolds_in_full() {
-    let mut harness = worked(many_tools(6));
-
-    assert!(harness.bounds("turn-earlier-1").is_none());
-    assert!(harness.bounds("tool-card-1").is_some());
-}
-
-#[test]
-fn an_unfolded_turn_keeps_the_sentence_that_introduces_its_first_step() {
-    let mut updates = vec![message_chunk("message-0", "Looking.")];
-    updates.extend(finished_tools(&["Read 1"]));
-    updates.push(message_chunk("message-1", "Changing it."));
-    updates.extend((2..=7).map(|call| tool_call(&format!("later-{call}"), "Edit", acp::ToolCallStatus::Completed)));
-    updates.push(message_chunk("message-2", "Done."));
-    let mut harness = worked(updates);
-
-    assert!(harness.shows("turn-earlier-1", "Show 1 earlier"));
-    assert!(harness.bounds("reply-1").is_none());
-    assert!(harness.bounds("reply-3").is_some(), "it introduces the first step shown");
-}
-
-#[test]
 fn an_unfolded_step_stays_in_view_as_its_turn_continues() -> Result<(), TestError> {
     let (agent, mut requests) = FakeAgent::new("alpha-session").capture();
     let (mut harness, thread) = DesktopHarness::alpha(agent);
@@ -445,23 +415,6 @@ fn a_turn_line_keeps_its_counts_in_a_narrow_window() -> Result<(), TestError> {
     let changes = harness.ui().rect_of("turn-changes-1")?;
     assert!(changes.right() <= line.right(), "{changes:?} spills out of {line:?}");
     Ok(())
-}
-
-#[test]
-fn a_turn_line_counts_failures_that_were_not_made_good() {
-    let mut harness = answered(vec![
-        bash("call-0", "cargo check", acp::ToolCallStatus::Failed),
-        bash("call-1", "cargo test", acp::ToolCallStatus::Failed),
-        bash("call-2", "cargo check", acp::ToolCallStatus::Completed),
-    ]);
-    assert!(harness.shows("turn-failed-1", "1 failed"), "cargo check passed in the end");
-    drop(harness);
-
-    let mut harness = answered(vec![
-        bash("call-0", "cargo check", acp::ToolCallStatus::Failed),
-        bash("call-1", "cargo check", acp::ToolCallStatus::Completed),
-    ]);
-    assert!(harness.bounds("turn-failed-1").is_none());
 }
 
 #[test]
@@ -614,33 +567,6 @@ fn a_tool_with_sub_agents_keeps_its_name() {
     harness.run_until(|_| thread.with_core(has_sub_agent).unwrap_or_default());
 
     assert!(harness.shows("tool-card-1", "Spawn agentexplorer"));
-}
-
-#[test]
-fn a_turn_line_counts_the_files_of_a_turn_that_only_looked() {
-    let read = |id: &str, path: &str, status| {
-        let read = acp::ToolCallUpdate::new(id.to_owned())
-            .title("Read file")
-            .kind(acp::ToolKind::Read)
-            .status(status)
-            .locations(vec![acp::ToolCallLocation::new(path)]);
-        acp::SessionUpdate::ToolCallUpdate(read)
-    };
-    let done = acp::ToolCallStatus::Completed;
-    let search = || of_kind(acp::ToolKind::Search, "Web search", "'rouge'", done.clone());
-    let outcome = |work: Vec<acp::SessionUpdate>| answered(work).text("turn-outcome-1");
-
-    let one = vec![search(), read("a", "/alpha/a.rs", done.clone())];
-    assert_eq!(outcome(one).as_deref(), Some("Looked at 1 file"));
-    let again = [("a", "/alpha/a.rs"), ("b", "/alpha/b.rs"), ("c", "/alpha/a.rs")];
-    let again = again.iter().map(|(id, path)| read(id, path, done.clone())).collect();
-    assert_eq!(outcome(again).as_deref(), Some("Looked at 2 files"));
-
-    let ran = vec![read("a", "/alpha/a.rs", done.clone()), bash("b", "cargo check", done.clone())];
-    assert_eq!(outcome(ran).as_deref(), Some("2 calls"), "it did more than look");
-    assert_eq!(outcome(vec![search()]).as_deref(), Some("1 call"), "a search names no file");
-    let failed = vec![read("a", "/alpha/a.rs", acp::ToolCallStatus::Failed)];
-    assert_eq!(outcome(failed).as_deref(), Some("1 call"));
 }
 
 #[test]

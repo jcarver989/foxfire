@@ -2,6 +2,9 @@ mod code;
 mod groups;
 mod markdown;
 mod message;
+mod projection;
+#[cfg(test)]
+mod tests;
 mod tools;
 
 pub use message::reconnect_banner;
@@ -27,10 +30,10 @@ use foxfire_acp::conversation::{
     ConversationContent, ConversationId, ConversationItem, ConversationItemId, Notice, NoticeLevel,
 };
 use foxfire_core::session_core::SessionCore;
-use groups::{Group, groups};
 use message::{
     error, full_diff, image_preview, message_actions, notice, prompt, prompt_author, reconnect_button, thinking_block,
 };
+use projection::{Fold, FoldAction, Part, ProjectedRow, Summary};
 use rouge::core::{
     Align, AnyView, Div, FocusHandle, KeyEvent, Mask, Point, Rect, Role, RowKey, Styled, TextAlign, View,
     VirtualListHandle, WindowHandle, div, dynamic, each, focus_handle, px, show, text, view, virtual_list,
@@ -76,87 +79,6 @@ pub struct Transcript {
 
 type ItemAttachments = Vec<(usize, Attachment)>;
 
-#[derive(Clone, Default, PartialEq)]
-struct Summary {
-    conversation: Option<ConversationId>,
-    items: Vec<ConversationItemId>,
-    groups: Vec<Group>,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-enum Fold {
-    Item(ConversationItemId),
-    Full(ConversationItemId),
-    /// The work of the turn that starts with an item.
-    Turn(ConversationItemId),
-    /// The earlier steps of the turn that starts with an item.
-    Earlier(ConversationItemId),
-}
-
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
-struct ProjectedRow {
-    index: usize,
-    id: ConversationItemId,
-    part: Part,
-    first: bool,
-}
-
-/// What a row shows of its item, or of the turn that starts with it.
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
-enum Part {
-    Item,
-    /// An item of an unfolded turn's work.
-    Work,
-    /// The line the turn folds into.
-    Line,
-    /// What shows the turn's earlier steps.
-    Earlier,
-}
-
-impl ProjectedRow {
-    fn is_item(self) -> bool {
-        matches!(self.part, Part::Item | Part::Work)
-    }
-}
-
-impl Summary {
-    fn visible(&self, unfolded: &HashSet<Fold>) -> Vec<ProjectedRow> {
-        let mut rows: Vec<ProjectedRow> = Vec::new();
-        let mut push = |index: usize, part: Part| {
-            rows.push(ProjectedRow { index, id: self.items[index], part, first: rows.is_empty() });
-        };
-        let mut next = 0;
-        for group in &self.groups {
-            let start = group.span.start;
-            (next..start).for_each(|index| push(index, Part::Item));
-            push(start, Part::Line);
-            if unfolded.contains(&Fold::Turn(self.items[start])) {
-                let earlier = self.earlier(group, unfolded);
-                if earlier > 0 {
-                    push(start, Part::Earlier);
-                }
-                group.work_after(earlier).iter().for_each(|&index| push(index, Part::Work));
-            }
-            group.shown.iter().for_each(|&index| push(index, Part::Item));
-            next = group.span.end;
-        }
-        (next..self.items.len()).for_each(|index| push(index, Part::Item));
-        rows
-    }
-
-    /// How many of a turn's oldest steps unfolding it leaves out.
-    fn earlier(&self, group: &Group, unfolded: &HashSet<Fold>) -> usize {
-        if unfolded.contains(&Fold::Earlier(self.items[group.span.start])) {
-            return 0;
-        }
-        group.earlier(|index| unfolded.contains(&Fold::Item(self.items[index])))
-    }
-
-    fn group(&self, start: usize) -> Option<&Group> {
-        self.groups.iter().find(|group| group.span.start == start)
-    }
-}
-
 impl Transcript {
     pub fn new(
         thread: Thread,
@@ -167,19 +89,7 @@ impl Transcript {
         on_location: impl Fn(acp::ToolCallLocation) + 'static,
         on_type: impl Fn(String) + 'static,
     ) -> Self {
-        let summary = memo(move || {
-            thread
-                .with_core(|core| {
-                    let conversation = core.conversation();
-                    let items = conversation.items();
-                    Summary {
-                        conversation: Some(conversation.id()),
-                        items: items.iter().map(ConversationItem::id).collect(),
-                        groups: groups(items),
-                    }
-                })
-                .unwrap_or_default()
-        });
+        let summary = memo(move || thread.with_core(|core| Summary::new(core.conversation())).unwrap_or_default());
         let unfolded: Signal<HashSet<Fold>> = signal(HashSet::new());
         let projection = memo(move || summary.with(|summary| unfolded.with(|folds| summary.visible(folds))));
         let list = virtual_list_handle();
@@ -263,11 +173,7 @@ impl Transcript {
         let Some(index) = found.flatten() else {
             return;
         };
-        let turn = self.summary.with_untracked(|summary| {
-            let group = summary.groups.iter().find(|group| group.work.contains(&index))?;
-            Some(summary.items[group.span.start])
-        });
-        self.unfold(turn.into_iter().flat_map(|id| [Fold::Turn(id), Fold::Earlier(id)]));
+        self.fold(FoldAction::Reveal(index));
         self.sought.set(Some(index));
     }
 
@@ -480,12 +386,7 @@ impl Transcript {
         let expanded = memo(move || self.expanded(Fold::Turn(id)));
         let review = ActiveReviewTheme::current().review_signal();
         let trails = memo(move || !expanded.get() && work.with(|work| work.doing.is_some()));
-        let toggle = Callback::from(move || {
-            self.toggle(Fold::Turn(id));
-            self.unfolded.update(|unfolded| {
-                unfolded.remove(&Fold::Earlier(id));
-            });
-        });
+        let toggle = Callback::from(move || self.fold(FoldAction::Toggle(Fold::Turn(id))));
         view! {
             <div flex col min_w=0.0>
                 {turn_line(start, work, expanded, review, toggle)}
@@ -529,7 +430,7 @@ impl Transcript {
         };
         view! {
             <div test_id={format!("turn-earlier-{start}")} h=ROW_HEIGHT pl=Space::X2 flex items_center body secondary unselectable
-                 on_activate={move || self.unfold([Fold::Earlier(id)])}>
+                 on_activate={move || self.fold(FoldAction::Earlier(id))}>
                 <text no_wrap>{label}</text>
             </div>
         }
@@ -681,8 +582,8 @@ impl Transcript {
                 let id = item.id();
                 let expanded = tail_of.is_none() && self.expanded(Fold::Item(id));
                 let toggle = Callback::from(move || match tail_of {
-                    Some(turn) => self.unfold([Fold::Turn(turn), Fold::Item(id)]),
-                    None => self.toggle(Fold::Item(id)),
+                    Some(turn) => self.fold(FoldAction::OpenStep { turn, item: id }),
+                    None => self.fold(FoldAction::Toggle(Fold::Item(id))),
                 });
                 Some(match item.content() {
                     ConversationContent::Thought(_) => {
@@ -697,7 +598,7 @@ impl Transcript {
                             (true, false) => ToolFold::Expanded,
                             (true, true) => ToolFold::Full,
                         };
-                        let show_all = Callback::from(move || self.toggle(full));
+                        let show_all = Callback::from(move || self.fold(FoldAction::Toggle(full)));
                         let preview = self.tools.update(|tools| tools.get(item, tool));
                         let focus = self
                             .focus
@@ -715,18 +616,9 @@ impl Transcript {
             .unwrap_or_else(|| ().into_any())
     }
 
-    fn toggle(self, fold: Fold) {
+    fn fold(self, action: FoldAction) {
         self.following.set(false);
-        self.unfolded.update(|unfolded| {
-            if !unfolded.remove(&fold) {
-                unfolded.insert(fold);
-            }
-        });
-    }
-
-    fn unfold(self, folds: impl IntoIterator<Item = Fold>) {
-        self.following.set(false);
-        self.unfolded.update(|unfolded| unfolded.extend(folds));
+        self.summary.with_untracked(|summary| self.unfolded.update(|unfolded| summary.apply(unfolded, action)));
     }
 
     fn open_full_diff(self, document: Arc<DiffDocument>) {
