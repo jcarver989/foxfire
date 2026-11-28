@@ -49,6 +49,7 @@ impl App {
                 self.composer.show_prompt_search_results(self.core.prompt_search());
             }
             Effect::ConnectionClosed => self.on_connection_closed(),
+            Effect::ArtifactLoaded(_) => {}
             Effect::Reply(reply) => self.apply_reply(reply),
         }
     }

@@ -10,12 +10,14 @@ use foxfire_acp::aether::{
     PromptSearchParams, PromptSearchResponse, SessionPreviewResponse, WorkspaceListResponse, WorkspaceMoveResponse,
     WorkspaceMoveTarget,
 };
+use foxfire_acp::artifact::{ArtifactContent, ArtifactId};
 use foxfire_acp::chat::{
     ChatChannelHistoryParams, ChatChannelJoinParams, ChatChannelJoinResponse, ChatChannelPage, ChatChannelPostParams,
     ChatChannelPostResponse, ChatChannelReadParams,
 };
 use foxfire_acp::client::AcpClientError;
 use foxfire_acp::conversation::ConversationId;
+use foxfire_artifacts::client::{LoadError, Loaded};
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -31,6 +33,10 @@ pub enum Command {
     /// Reads a local working directory's status for an agent that does not report it.
     ReadWorkspaceStatus {
         cwd: PathBuf,
+    },
+    LoadArtifact {
+        session_id: SessionId,
+        id: ArtifactId,
     },
 }
 
@@ -149,6 +155,10 @@ pub enum CommandResult {
     },
     BackgroundFailed(String),
     ElicitationWithdrawn(RawJsonRpcId),
+    ArtifactLoaded {
+        id: ArtifactId,
+        result: Result<ArtifactContent, LoadError>,
+    },
     Chat {
         session_id: SessionId,
         reply: ChatReply,
@@ -170,6 +180,12 @@ pub enum Reply {
     AuthenticationCompleted { method_id: String, result: Result<LoginAuthResponse, AcpClientError> },
     GitReviewAction(Result<(), ClientError>),
     GitReviewLookup(LookupReply),
+}
+
+impl From<Loaded> for CommandResult {
+    fn from(Loaded { id, result }: Loaded) -> Self {
+        Self::ArtifactLoaded { id, result }
+    }
 }
 
 impl RequestId {

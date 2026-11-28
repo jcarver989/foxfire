@@ -9,8 +9,8 @@ use foxfire_acp::aether::{WorkspaceEntry, WorkspaceListResponse, WorkspaceMoveRe
 use foxfire_acp::client::AcpEvent;
 use foxfire_acp::conversation::{ConversationItem, NoticeLevel};
 use foxfire_acp::testing::{
-    FakeAgent, Question, idle_notification, message_chunk, mode_select, model_select, on_session, running_notification,
-    test_connection, texts, user_message,
+    FakeAgent, Question, idle_notification, message_chunk, mode_select, model_select, on_session, pricing_content,
+    running_notification, test_connection, texts, user_message,
 };
 use foxfire_core::command::RequestId;
 use foxfire_core::command::{AgentCommand, Command, CommandResult, GitReviewCommand, PromptRejection, ReviewSource};
@@ -148,6 +148,21 @@ fn a_turn_is_announced_only_once_the_prompt_queued_behind_it_finishes_too() {
     receive(&mut core, running_notification("test-session"));
     let second_replies = [Reply::Idle(StopReason::EndTurn), Reply::Answered(Ok(()))];
     assert_eq!(reply(&mut core, second, second_replies), 1);
+}
+
+#[test]
+fn a_loaded_artifact_is_handed_to_whoever_asked_for_it_and_not_kept() {
+    let mut core = SessionCore::new(SessionCoreConfigBuilder::new().build());
+    let page = pricing_content(1);
+    core.load_artifact(page.id());
+    assert!(matches!(
+        &core.take_effects()[..],
+        [Effect::Dispatch(Command::LoadArtifact { session_id, id })] if session_id == core.session_id() && *id == page.id()
+    ));
+
+    deliver(&mut core, CommandResult::ArtifactLoaded { id: page.id(), result: Ok(page.clone()) });
+    assert!(matches!(&core.take_effects()[..], [Effect::ArtifactLoaded(loaded)] if *loaded == page));
+    assert_eq!(core.conversation().items(), []);
 }
 
 #[test]

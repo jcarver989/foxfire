@@ -15,6 +15,7 @@ use crate::session_model::{SessionModel, SessionSetting, WorkspaceAccess, Worksp
 use agent_client_protocol::v2::schema as acp;
 use clankerdiff_client::{ClientState, DiffReviewEvent};
 use foxfire_acp::aether::WorkspaceEntry;
+use foxfire_acp::artifact::{ArtifactContent, ArtifactId};
 use foxfire_acp::chat::{FoxfireCapabilities, Participant};
 use foxfire_acp::client::AcpEvent;
 use foxfire_acp::conversation::{Conversation, NoticeLevel};
@@ -72,6 +73,7 @@ pub enum Effect {
     GitReviewChanged,
     WorkspacesListed(Vec<WorkspaceEntry>),
     PromptSearchUpdated,
+    ArtifactLoaded(ArtifactContent),
     ConnectionClosed,
     Reply(Reply),
 }
@@ -244,6 +246,11 @@ impl SessionCore {
         }
     }
 
+    pub fn load_artifact(&mut self, id: ArtifactId) {
+        let session_id = self.session_id().clone();
+        self.effects.push(Effect::Dispatch(Command::LoadArtifact { session_id, id }));
+    }
+
     pub fn refresh_workspace_status(&mut self) {
         self.resolve_workspace(self.session.working_dir().to_path_buf());
     }
@@ -335,6 +342,10 @@ impl SessionCore {
                     chat.on_reply(reply);
                 }
             }
+            CommandResult::ArtifactLoaded { id, result } => match result {
+                Ok(content) => self.effects.push(Effect::ArtifactLoaded(content)),
+                Err(error) => tracing::warn!(%id, %error, "an artifact could not be shown"),
+            },
             CommandResult::Reply(reply) => self.reply(reply),
         }
     }

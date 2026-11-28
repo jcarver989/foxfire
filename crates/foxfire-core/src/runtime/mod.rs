@@ -17,6 +17,7 @@ use crate::session_core::Input;
 use agent::Requests;
 use agent_client_protocol::{RawJsonRpcId, RequestCancellation};
 use foxfire_acp::client::{AcpClientHandle, AcpEvent};
+use foxfire_artifacts::client::ArtifactLoader;
 use futures::StreamExt;
 #[cfg(not(target_arch = "wasm32"))]
 use futures::future::BoxFuture;
@@ -37,6 +38,7 @@ pub struct SessionRuntime {
     preparing: Option<AbortHandle>,
     watching: Option<AbortHandle>,
     git_review: GitReviewRuntime,
+    artifacts: ArtifactLoader,
     ready: VecDeque<CommandResult>,
 }
 
@@ -44,6 +46,7 @@ impl SessionRuntime {
     pub fn new(handle: AcpClientHandle, events: UnboundedReceiver<AcpEvent>) -> Self {
         Self {
             git_review: GitReviewRuntime::new(handle.clone()),
+            artifacts: ArtifactLoader::new(handle.clone()),
             handle,
             events,
             events_closed: false,
@@ -75,6 +78,7 @@ impl SessionRuntime {
                 self.start(host::resolve_workspace(cwd));
                 None
             }
+            Command::LoadArtifact { session_id, id } => self.artifacts.load(session_id, id).map(CommandResult::from),
         };
         self.ready.extend(result);
     }
@@ -100,6 +104,9 @@ impl SessionRuntime {
                 },
                 Some(result) = self.requests.next(), if !self.requests.is_empty() => {
                     return Input::Result(result);
+                }
+                loaded = self.artifacts.finished(), if self.artifacts.is_loading() => {
+                    return Input::Result(loaded.into());
                 }
                 Some(result) = self.tasks.next(), if !self.tasks.is_empty() => {
                     if let Ok(result) = result {

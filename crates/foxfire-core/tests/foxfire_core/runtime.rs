@@ -1,8 +1,9 @@
-use crate::support::{TestError, next_document, next_review_state, run_local};
+use crate::support::{TestError, next_document, next_result, next_review_state, run_local};
 use agent_client_protocol::v2::schema::{AbsolutePath, SessionId, SessionInfo};
 use clankerdiff_remote::Invocation;
 use foxfire_acp::client::{AcpClientError, AcpEvent, connect_acp_client};
-use foxfire_acp::testing::{Channel, FakeAgent, initialize_request};
+use foxfire_acp::testing::{Channel, FakeAgent, initialize_request, pricing_content};
+use foxfire_artifacts::client::LoadError;
 use foxfire_core::command::{AgentCommand, Command, CommandResult, GitReviewCommand, ReviewSource};
 use foxfire_core::runtime::{ReviewOverride, SessionRuntime};
 use foxfire_core::session_core::Input;
@@ -190,6 +191,24 @@ fn a_configured_review_failure_is_reported_instead_of_falling_back() -> Result<(
         let state = next_review_state(&mut runtime).await;
         assert_eq!(state.label(), "failed");
         assert!(state.status().is_some_and(|status| status.contains("unable to resolve the review endpoint")));
+        Ok(())
+    })
+}
+
+#[test]
+fn an_artifact_the_session_cannot_send_is_reported_as_not_loaded() -> Result<(), TestError> {
+    run_local(async {
+        let client = connect_acp_client(FakeAgent::new("session").serve(), initialize_request()).await?;
+        let mut runtime = SessionRuntime::new(client.handle, client.event_rx);
+        let id = pricing_content(1).id();
+
+        runtime.dispatch(Command::LoadArtifact { session_id: SessionId::new("session"), id });
+
+        let CommandResult::ArtifactLoaded { id: loaded, result } = next_result(&mut runtime).await else {
+            panic!("expected the artifact to finish loading");
+        };
+        assert!(loaded == id && matches!(result, Err(LoadError::Fetch(_))), "{result:?}");
+        runtime.shutdown().await;
         Ok(())
     })
 }
