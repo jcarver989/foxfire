@@ -1,3 +1,4 @@
+use crate::artifact::Artifact;
 use crate::content::{display_content_blocks, map_content_blocks_to_text};
 use agent_client_protocol::v2::schema as acp;
 use schemars::JsonSchema;
@@ -43,6 +44,7 @@ pub enum ConversationContent {
     Tool(ToolCall),
     /// Information from the host rather than the agent.
     Notice(Notice),
+    Artifact(Artifact),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, JsonSchema)]
@@ -114,7 +116,7 @@ impl ConversationItem {
             }),
             ConversationContent::Assistant(blocks) | ConversationContent::Thought(blocks) => Some(plain_text(blocks)),
             ConversationContent::Notice(notice) => Some(Cow::Borrowed(&notice.text)),
-            ConversationContent::Tool(_) => None,
+            ConversationContent::Tool(_) | ConversationContent::Artifact(_) => None,
         }
     }
 

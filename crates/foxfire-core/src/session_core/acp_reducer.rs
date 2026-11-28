@@ -61,6 +61,7 @@ impl SessionCore {
                 }
             }
             AcpEvent::GitDiffEvent(_)
+            | AcpEvent::Artifact(_)
             | AcpEvent::ChatChannelEvent(_)
             | AcpEvent::SessionUpdate(_)
             | AcpEvent::ContextCleared(_) => {}

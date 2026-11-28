@@ -11,6 +11,7 @@ pub use tool_calls::{SubAgent, ToolCall, ToolStatus, diff_change_label};
 pub use turn::{TurnFinished, TurnPhase};
 
 use crate::aether::{AetherMeta, SubAgentMeta};
+use crate::artifact::Artifact;
 use crate::client::AcpEvent;
 use agent_client_protocol::{schema::MaybeUndefined, v2::schema as acp};
 use items::MessageRole;
@@ -67,6 +68,7 @@ impl Conversation {
             AcpEvent::SessionUpdate(notification) => return self.apply_update(&notification.update),
             AcpEvent::ContextCleared(_) => self.clear(),
             AcpEvent::ConnectionClosed => self.unconfirm(),
+            AcpEvent::Artifact(payload) => self.show_artifact(&payload.artifact),
             AcpEvent::AuthStatusUpdated(_)
             | AcpEvent::McpNotification(_)
             | AcpEvent::GitDiffEvent(_)
@@ -260,6 +262,21 @@ impl Conversation {
                 ConversationContent::Tool(tool_call) => tool_call.is_settled(),
                 _ => true,
             })
+    }
+
+    fn show_artifact(&mut self, artifact: &Artifact) {
+        let shown = self.items.iter().position(
+            |item| matches!(&item.content, ConversationContent::Artifact(shown) if shown.slot == artifact.slot),
+        );
+        let Some(index) = shown else {
+            self.push(ItemState::Sealed, ConversationContent::Artifact(artifact.clone()));
+            return;
+        };
+        let content = ConversationContent::Artifact(artifact.clone());
+        if self.items[index].content != content {
+            self.items[index].content = content;
+            self.touch(index, true);
+        }
     }
 
     fn apply_sub_agent_event(&mut self, session_id: &acp::SessionId, event: &AcpEvent) {

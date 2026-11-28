@@ -6,8 +6,8 @@ use foxfire_acp::conversation::{
     TurnFinished, TurnPhase,
 };
 use foxfire_acp::testing::{
-    self, announced, idle_notification, idle_state, message_chunk, on_session, plan_notification, running_notification,
-    running_state, sub_agent_tool_update,
+    self, announced, artifact_submitted, idle_notification, idle_state, message_chunk, on_session, plan_notification,
+    running_notification, running_state, sub_agent_tool_update,
 };
 use serde_json::json;
 use std::collections::BTreeMap;
@@ -32,6 +32,23 @@ fn message_ids_isolate_replacement_clearing_and_chunks() {
     assert_eq!(text(&conversation, 0), "");
     conversation.apply_event(&update(acp::SessionUpdate::AgentMessage(acp::AgentMessage::new("b").content(vec![]))));
     assert_eq!(text(&conversation, 1), "");
+}
+
+#[test]
+fn a_later_version_of_an_artifact_takes_the_place_of_the_one_shown() {
+    let mut conversation = conversation();
+    conversation.apply_event(&artifact_submitted("session", 1));
+    conversation.apply_event(&on_session("session", message_chunk("m1", "Done.")));
+    conversation.apply_event(&artifact_submitted("session", 2));
+    let replaced = conversation.revision();
+    conversation.apply_event(&artifact_submitted("session", 2));
+
+    let [artifact, message] = conversation.items() else { panic!("{:?}", conversation.items()) };
+    let ConversationContent::Artifact(shown) = artifact.content() else { panic!("{artifact:?}") };
+    assert_eq!(shown, &testing::pricing_artifact(2));
+    assert_eq!((artifact.revision(), artifact.state()), (replaced, ItemState::Sealed));
+    assert_eq!(conversation.revision(), replaced, "a version already shown changes nothing");
+    assert!(message.revision() < replaced);
 }
 
 #[test]

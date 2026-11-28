@@ -1,13 +1,15 @@
 //! In-memory test harness for ACP connections.
 
 mod fake_agent;
-pub use fake_agent::{FakeAgent, FakeAgentRequests, HeldRequests, Question, QueuedTurns};
+pub use fake_agent::{FakeAgent, FakeAgentRequests, HeldRequests, Question, QueuedTurns, SessionTools};
 
 use crate::aether::{
     AetherMeta, GitDiffEventPayload, McpNotification, PromptSearchResponse, PromptSearchResult, SessionPreviewResponse,
     SessionPreviewRole, SessionPreviewTurn, SubAgentMeta,
 };
 use crate::aether::{ConfigOptionMeta, SelectOptionMeta};
+use crate::artifact::{Artifact, ArtifactContent, ArtifactPayload, ArtifactSlot};
+use crate::client::AcpEvent;
 pub use agent_client_protocol::Channel;
 use agent_client_protocol::schema::{IntoOption, ProtocolVersion};
 use agent_client_protocol::v2::schema::{
@@ -355,11 +357,31 @@ pub fn announced(
     UpdateSessionNotification::new(parent, SessionUpdate::SubagentUpdate(update))
 }
 
-pub fn on_session(session_id: impl Into<SessionId>, update: SessionUpdate) -> crate::client::AcpEvent {
+pub fn pricing_artifact(version: u32) -> Artifact {
+    let content = pricing_content(version);
+    Artifact {
+        slot: ArtifactSlot::new("pricing"),
+        version,
+        title: "Pricing".to_owned(),
+        name: "pricing.html".to_owned(),
+        kind: content.kind(),
+        id: content.id(),
+    }
+}
+
+pub fn pricing_content(version: u32) -> ArtifactContent {
+    ArtifactContent::Html(format!("<h1>Pricing v{version}</h1>"))
+}
+
+pub fn artifact_submitted(session_id: &str, version: u32) -> AcpEvent {
+    AcpEvent::Artifact(ArtifactPayload { session_id: SessionId::new(session_id), artifact: pricing_artifact(version) })
+}
+
+pub fn on_session(session_id: impl Into<SessionId>, update: SessionUpdate) -> AcpEvent {
     UpdateSessionNotification::new(session_id, update).into()
 }
 
-pub fn sub_agent_tool_update(session_id: impl Into<SessionId>, update: ToolCallUpdate) -> crate::client::AcpEvent {
+pub fn sub_agent_tool_update(session_id: impl Into<SessionId>, update: ToolCallUpdate) -> AcpEvent {
     on_session(session_id, SessionUpdate::ToolCallUpdate(update))
 }
 

@@ -2,6 +2,7 @@ use super::error::AcpClientError;
 use super::event::AcpEvent;
 use super::platform::spawn;
 use crate::aether::{ContextClearedParams, GitDiffEventPayload, McpNotification};
+use crate::artifact::ArtifactPayload;
 use crate::chat::ChatChannelEventPayload;
 use agent_client_protocol::schema::ProtocolVersion;
 use agent_client_protocol::util::MatchDispatchFrom;
@@ -180,6 +181,8 @@ impl HandleDispatchFrom<acp::Agent> for ClientHandlers {
             .if_notification(async |params: GitDiffEventPayload| emit(AcpEvent::GitDiffEvent(params)))
             .await
             .if_notification(async |params: ChatChannelEventPayload| emit(AcpEvent::ChatChannelEvent(params)))
+            .await
+            .if_notification(async |params: ArtifactPayload| emit(AcpEvent::Artifact(params)))
             .await
             .if_notification(async |params: McpNotification| emit(AcpEvent::McpNotification(params)))
             .await

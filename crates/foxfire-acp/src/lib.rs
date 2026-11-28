@@ -2,6 +2,8 @@
 
 #[cfg(feature = "protocol")]
 pub mod aether;
+#[cfg(feature = "protocol")]
+pub mod artifact;
 pub mod artifact_review;
 #[cfg(feature = "protocol")]
 pub mod chat;
