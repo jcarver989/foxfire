@@ -3,10 +3,11 @@ use crate::wire::{self, field, session_of};
 use crate::workspace::{DiffBridge, Workspace};
 use agent_client_protocol::v2::schema::{InitializeResponse, ReplayFrom, ReplayFromStart, SessionId};
 use agent_client_protocol::{
-    Error, ErrorCode, RawJsonRpcId, RawJsonRpcMessage, RawJsonRpcNotification, RawJsonRpcParams, RawJsonRpcRequest,
-    RawJsonRpcResponse, TransportFrame,
+    Error, ErrorCode, JsonRpcMessage, RawJsonRpcId, RawJsonRpcMessage, RawJsonRpcNotification, RawJsonRpcParams,
+    RawJsonRpcRequest, RawJsonRpcResponse, TransportFrame,
 };
 use foxfire_acp::aether::{GitDiffCommandPayload, RemoteServerInfo};
+use foxfire_acp::artifact::{ArtifactFetchParams, ArtifactPayload};
 use foxfire_acp::chat::{FOXFIRE_METHOD_PREFIX, Participant};
 use foxfire_chat::{Ask, ChatChannels, Delivery};
 use futures::StreamExt;
@@ -195,6 +196,9 @@ impl Hub {
                 let ask = chat::take_ask(&mut request, session, author);
                 let kind = ask.map_or(ClientRequestKind::Other, ClientRequestKind::Prompt);
                 self.forward_client_request(client, request, kind);
+            }
+            (method, Some(_)) if ArtifactFetchParams::matches_method(method) => {
+                self.forward_client_request(client, request, ClientRequestKind::Other);
             }
             (method, session) if method.starts_with(FOXFIRE_METHOD_PREFIX) => {
                 let RawJsonRpcRequest { id, method, params } = request;
@@ -462,8 +466,9 @@ impl Hub {
             return;
         };
         let root = self.find_root_session(&session);
-        let record_in_history = &*notification.method == "session/update";
-        if record_in_history {
+        let updates = &*notification.method == "session/update";
+        let record_in_history = updates || ArtifactPayload::matches_method(&notification.method);
+        if updates {
             let update = field(notification.params.as_ref(), "update");
             if update.and_then(|update| update.get("sessionUpdate")).and_then(Value::as_str) == Some("subagent_update")
                 && let Some(child) = update.and_then(|update| update.get("sessionId")).and_then(Value::as_str)

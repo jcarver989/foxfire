@@ -6,8 +6,11 @@ use agent_client_protocol::v2::schema::{
     StopReason, UpdateSessionNotification,
 };
 use foxfire_acp::aether::RemoteServerInfo;
-use foxfire_acp::client::AcpEvent;
+use foxfire_acp::artifact::{Artifact, ArtifactContent, ArtifactFetchParams, ArtifactFetchResponse};
+use foxfire_acp::client::{AcpClient, AcpEvent};
 use foxfire_acp::testing::{FakeAgent, idle_notification, message_chunk, model_select, run_local};
+use serde_json::json;
+use std::fs;
 use tokio::task::spawn_local;
 
 #[test]
@@ -36,6 +39,26 @@ fn a_client_joining_is_replayed_the_session_then_sees_it_live() -> Result<(), Te
 }
 
 #[test]
+fn a_client_joining_is_shown_the_artifacts_submitted_before_and_can_fetch_them() -> Result<(), TestError> {
+    run_local(async {
+        let mut relay = RelayBuilder::new(FakeAgent::new(SESSION).mcp_acp()).build().await?;
+        let mut first = relay.creator().await?;
+        let tools = relay.agent.opened_tools().await.ok_or(TestError::Closed)?;
+        let page = relay.cwd().join("pricing.html");
+        fs::write(&page, "<h1>Pricing</h1>")?;
+        tools.call("submit_artifact", json!({ "url": page })).await?;
+        let submitted = artifact(&mut first).await?;
+
+        let mut second = relay.joiner(true).await?;
+        assert_eq!(artifact(&mut second).await?, submitted);
+        let fetch = ArtifactFetchParams { session_id: SESSION.into(), id: submitted.id };
+        let ArtifactFetchResponse { content } = second.handle.request(fetch).await?;
+        assert_eq!(content, ArtifactContent::Html("<h1>Pricing</h1>".to_owned()));
+        Ok(())
+    })
+}
+
+#[test]
 fn a_client_joining_while_the_session_opens_is_sent_the_agents_replay_too() -> Result<(), TestError> {
     run_local(async {
         let mut relay = RelayBuilder::new(FakeAgent::new(SESSION).hold::<ResumeSessionRequest>()).build().await?;
@@ -48,7 +71,7 @@ fn a_client_joining_while_the_session_opens_is_sent_the_agents_replay_too() -> R
             relay.agent.held::<ResumeSessionRequest>().recv().await.ok_or(TestError::Closed)?;
         assert!(request.replay_from.is_none());
 
-        let agent = relay.agent.connection.recv().await.ok_or(TestError::Closed)?;
+        let agent = relay.agent.connection().await.ok_or(TestError::Closed)?;
         agent.send_notification(UpdateSessionNotification::new(SESSION, message_chunk("message", "history")))?;
         agent.send_notification(idle_notification(SESSION, None))?;
         first_resumed.respond(ResumeSessionResponse::new())?;
@@ -356,4 +379,12 @@ fn current_values(options: &[SessionConfigOption]) -> Vec<String> {
             _ => None,
         })
         .collect()
+}
+
+async fn artifact(client: &mut AcpClient) -> Result<Artifact, TestError> {
+    until(client, |event| match event {
+        AcpEvent::Artifact(payload) => Some(payload.artifact),
+        _ => None,
+    })
+    .await
 }

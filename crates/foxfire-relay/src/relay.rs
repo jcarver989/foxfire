@@ -13,6 +13,8 @@ use agent_client_protocol::{
 use chrono::{DateTime, FixedOffset};
 use foxfire_acp::client::initialize_request;
 use foxfire_acp::websocket::WebSocketTransport;
+use foxfire_artifacts::ArtifactHost;
+use foxfire_artifacts::store::{StoreError, TmpDir};
 use futures::StreamExt;
 use futures::channel::mpsc::{UnboundedReceiver, UnboundedSender};
 use futures::future::OptionFuture;
@@ -46,6 +48,8 @@ pub enum RelayError {
     AgentExited,
     #[error("the agent exited ({0})")]
     AgentFailed(ExitStatus),
+    #[error("failed to make a place for artifacts: {0}")]
+    Artifacts(#[from] StoreError),
 }
 
 const CHAT_DIRECTORY: &str = "chat";
@@ -79,7 +83,7 @@ impl Relay {
 
     pub async fn serve(self, listener: TcpListener, agent: impl ConnectTo<Client>) -> Result<(), RelayError> {
         let tasks = TaskTracker::new();
-        let (from_agent, to_agent, driver) = split_transport(agent);
+        let (from_agent, to_agent, driver) = split_transport(ArtifactHost::new(agent, TmpDir::new()?));
         if let Some(driver) = driver {
             tasks.spawn(driver);
         }

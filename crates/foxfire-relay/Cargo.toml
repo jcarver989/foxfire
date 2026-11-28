@@ -28,6 +28,7 @@ clankerdiff-protocol = { workspace = true }
 clankerdiff-server = { workspace = true }
 clap = { workspace = true }
 foxfire-acp = { workspace = true, features = ["websocket"] }
+foxfire-artifacts = { workspace = true, features = ["host"] }
 foxfire-chat = { workspace = true }
 foxfire-core = { workspace = true }
 futures = { workspace = true }
