@@ -35,6 +35,9 @@ pub(crate) fn item_lines(
         }
         ConversationContent::Thought(_) => return Vec::new(),
         ConversationContent::Notice(notice) => Cow::Owned(format!("{NOTICE_PREFIX} {}", notice.text)),
+        ConversationContent::Artifact(artifact) => {
+            Cow::Owned(format!("{NOTICE_PREFIX} Made {} (v{}): {}", artifact.name, artifact.version, artifact.title))
+        }
         _ => item.text().unwrap_or_default(),
     };
     if text.is_empty() {
@@ -51,7 +54,7 @@ pub(crate) fn content_kind(item: &ConversationItem) -> Option<ContentKind> {
         ConversationContent::User(_) => Some(ContentKind::User),
         ConversationContent::Assistant(_) => Some(ContentKind::Assistant),
         ConversationContent::Tool(_) => Some(ContentKind::Tool),
-        ConversationContent::Notice(_) => Some(ContentKind::Notice),
+        ConversationContent::Notice(_) | ConversationContent::Artifact(_) => Some(ContentKind::Notice),
         ConversationContent::Thought(_) => None,
     }
 }
