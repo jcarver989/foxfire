@@ -8,9 +8,11 @@ use agent_client_protocol::{Error, RawJsonRpcId};
 use chrono::Utc;
 use clankerdiff_client::{ClientState, ConnectionState};
 use clankerdiff_core::{DiffDocument, ReviewCapabilities};
+use foxfire_acp::artifact::{Artifact, ArtifactContent, ArtifactId, ArtifactPayload};
 use foxfire_acp::chat::{ChatChannelJoinParams, ChatChannelPostParams, FoxfireCapabilities, FoxfireMeta, Participant};
 use foxfire_acp::client::{AcpClientError, AcpEvent};
 use foxfire_acp::content::first_text;
+use foxfire_artifacts::client::LoadError;
 use foxfire_chat::{Ask, ChatChannels, ChatError, Delivery};
 use foxfire_core::command::{
     AgentCommand, ChatCommand, ChatReply, Command, CommandResult, GitReviewCommand, PromptRejection, RequestId,
@@ -24,7 +26,7 @@ use foxfire_core::session_core::SessionCoreConfig;
 use foxfire_core::session_model::{WorkspaceAccess, WorkspaceStatus};
 use rouge::reactive::{Task, spawn};
 use std::cell::RefCell;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 use std::mem::take;
 use std::rc::Rc;
 use std::sync::Arc;
@@ -61,6 +63,7 @@ struct Session {
     next: u64,
     stopped: watch::Sender<bool>,
     chat: Option<ChatChannels<usize>>,
+    artifacts: HashMap<ArtifactId, ArtifactContent>,
 }
 
 struct Attachment {
@@ -184,6 +187,22 @@ impl MemoryBackend {
         session.ok_or(ChatError::NotJoined)?.borrow_mut().post(0, body)
     }
 
+    pub fn submit_artifact(
+        &self,
+        thread: &ThreadId,
+        artifact: &Artifact,
+        content: ArtifactContent,
+    ) -> Result<(), BackendError> {
+        let session = self.session(thread)?;
+        let mut session = session.borrow_mut();
+        session.artifacts.insert(content.id(), content);
+        for link in session.clients.values() {
+            let payload = ArtifactPayload { session_id: session.session_id(), artifact: artifact.clone() };
+            let _ = link.send(SessionEvent::Input(Input::Event(AcpEvent::Artifact(payload))));
+        }
+        Ok(())
+    }
+
     fn check(&self) -> Result<(), BackendError> {
         self.state.borrow().failure.clone().map_or(Ok(()), Err)
     }
@@ -266,6 +285,7 @@ impl HostedBackend for MemoryBackend {
                 next: 0,
                 stopped: watch::Sender::new(false),
                 chat: self.people.is_some().then(ChatChannels::in_memory),
+                artifacts: HashMap::new(),
             };
             if let Some(people) = &self.people {
                 session.seed_people(people).map_err(|error| BackendError::Unavailable(error.to_string()))?;
@@ -442,6 +462,12 @@ async fn run(
                     let result = CommandResult::GitReview(changes.clone());
                     let _ = sender.send(SessionEvent::Input(Input::Result(result)));
                 }
+            }
+            Command::LoadArtifact { id, .. } => {
+                let result = state.artifacts.get(&id).cloned().ok_or_else(|| {
+                    LoadError::Fetch(AcpClientError::Protocol(Error::invalid_params().data("no such artifact")))
+                });
+                let _ = sender.send(SessionEvent::Input(Input::Result(CommandResult::ArtifactLoaded { id, result })));
             }
             Command::PrepareSubmission { .. } => {
                 let outcome = AttachmentOutcome {

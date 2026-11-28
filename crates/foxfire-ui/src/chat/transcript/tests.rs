@@ -2,7 +2,7 @@ use super::groups::{Work, groups};
 use super::{Fold, FoldAction, Part, Summary, ToolPreviews};
 use agent_client_protocol::v2::schema as acp;
 use foxfire_acp::conversation::Conversation;
-use foxfire_acp::testing::{message_chunk, on_session, tool_call};
+use foxfire_acp::testing::{artifact_submitted, message_chunk, on_session, tool_call};
 use std::collections::HashSet;
 
 #[test]
@@ -36,6 +36,16 @@ fn showing_recent_work_keeps_its_intro_and_revealing_a_quote_opens_earlier_work(
     summary.apply(&mut folds, FoldAction::Toggle(turn));
     summary.apply(&mut folds, FoldAction::Toggle(turn));
     assert_eq!(rows(&summary, &folds), recent);
+}
+
+#[test]
+fn what_the_agent_submitted_stays_below_the_line_its_turn_folds_into() {
+    let mut conversation = conversation([call(0), message_chunk("m0", "Here it is.")]);
+    conversation.apply_event(&artifact_submitted("session", 1));
+    conversation.apply_event(&on_session("session", call(1)));
+    let summary = Summary::new(&conversation);
+
+    assert_eq!(rows(&summary, &HashSet::new()), [(0, Part::Line), (1, Part::Item), (2, Part::Item)]);
 }
 
 #[test]

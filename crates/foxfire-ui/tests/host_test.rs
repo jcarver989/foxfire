@@ -1,4 +1,5 @@
 use clankerdiff_ui_core::{Appearance, AppearanceMode, ReviewTheme};
+use foxfire_acp::testing::{pricing_artifact, pricing_content};
 use foxfire_ui::ChatPane;
 use foxfire_ui::backend::{BackendError, HostedBackend, HostedState, Project, ThreadId};
 use foxfire_ui::memory::MemoryBackend;
@@ -11,6 +12,8 @@ use rouge::core::testing::{TestError as UiError, TestUi};
 use rouge::core::{Styled, View, div, dynamic, view};
 use rouge::persist::{MemoryStorage, Storage};
 use rouge::reactive::{Entered, Runtime, untrack};
+use rouge::webview::testing::FakeEngine;
+use rouge::webview::{WebContent, provide_web_engine};
 use rouge_widgets::testing::component_test;
 use std::rc::Rc;
 
@@ -43,6 +46,20 @@ async fn a_host_without_a_mark_still_shows_activity() -> Result<(), TestError> {
     host.ui.run(0.2);
     assert!(host.ui.bounds_of("activity").is_some());
     assert!(host.ui.bounds_of("lemon").is_none());
+    Ok(())
+}
+
+#[tokio::test]
+async fn an_artifact_is_one_page_that_its_later_versions_are_loaded_into() -> Result<(), TestError> {
+    let mut host = HostBuilder::default().build().await?;
+    for version in [1, 2] {
+        host.backend.submit_artifact(&host.thread, &pricing_artifact(version), pricing_content(version))?;
+        host.ui.run(0.2);
+        assert_eq!(host.engine.content(0), Some(WebContent::html(format!("<h1>Pricing v{version}</h1>"))));
+        assert!(host.says("pricing.html") && host.says(&format!("v{version}")), "{:?}", host.text());
+    }
+    assert!(!host.says("v1"), "{:?}", host.text());
+    assert_eq!(host.engine.opened(), 1);
     Ok(())
 }
 
@@ -103,6 +120,7 @@ struct Host {
     ui: TestUi,
     backend: MemoryBackend,
     thread: ThreadId,
+    engine: FakeEngine,
     _entered: Entered,
 }
 
@@ -130,8 +148,11 @@ impl HostBuilder {
             .with_permission("/permission");
         let thread = backend.launch("demo".to_owned()).await?.id;
         let (listed, shown) = (backend.clone(), thread.clone());
+        let engine = FakeEngine::new();
+        let pages = engine.clone();
         let mut ui = component_test().size(900.0, 700.0).build(move || {
             WORDS.provide();
+            provide_web_engine(pages);
             if self.mark {
                 ActivityMark::provide(|_| div().test_id("lemon").size_full());
             }
@@ -145,7 +166,7 @@ impl HostBuilder {
             })
         });
         ui.run(0.5);
-        Ok(Host { ui, backend, thread, _entered: entered })
+        Ok(Host { ui, backend, thread, engine, _entered: entered })
     }
 }
 

@@ -129,9 +129,10 @@ fn group(items: &[ConversationItem], turn: Range<usize>) -> Option<Group> {
         .rfind(|&index| matches!(content(index), ConversationContent::Tool(_) | ConversationContent::Thought(_)))?;
     let newest = turn.clone().rfind(|&index| matches!(content(index), ConversationContent::Assistant(_)));
     let span = turn.start..last + 1;
-    let (shown, work): (Vec<usize>, Vec<usize>) = span
-        .clone()
-        .partition(|&index| Some(index) == newest || matches!(content(index), ConversationContent::Notice(_)));
+    let (shown, work): (Vec<usize>, Vec<usize>) = span.clone().partition(|&index| {
+        Some(index) == newest
+            || matches!(content(index), ConversationContent::Notice(_) | ConversationContent::Artifact(_))
+    });
     let is_step =
         |&index: &usize| matches!(content(index), ConversationContent::Tool(_) | ConversationContent::Thought(_));
     let steps = work.iter().copied().filter(is_step).collect();

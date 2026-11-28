@@ -1,3 +1,4 @@
+mod artifact;
 mod code;
 mod groups;
 mod markdown;
@@ -13,7 +14,7 @@ use super::attachment::Attachment;
 use super::room::{ChatRoom, ask_summary};
 use super::status::Doing;
 use crate::platform::ChatPlatform;
-use crate::thread::{Thread, ThreadStatus};
+use crate::thread::{Thread, ThreadEvent, ThreadStatus};
 use crate::ui::tokens::{
     CONTENT_MAX_WIDTH, GRID_COLUMNS, HEADER_HEIGHT, Pace, ROW_HEIGHT, Radius, SCROLLBAR_WIDTH, Space,
 };
@@ -22,6 +23,7 @@ use crate::ui::{
     icon_button, reading_cell, reading_span, vertical_scrollbar,
 };
 use agent_client_protocol::v2::schema as acp;
+use artifact::ArtifactPages;
 use clankerdiff_core::DiffDocument;
 use clankerdiff_rouge::{DiffViewerEvent, DiffViewerOptions, ReviewController, ReviewHandle, ReviewOutput};
 use foxfire_acp::chat::ChatChannelAnchor;
@@ -65,6 +67,7 @@ pub struct Transcript {
     sought: Signal<Option<usize>>,
     preview: Signal<Option<Arc<[u8]>>>,
     full_diff: Signal<Option<ReviewHandle>>,
+    pages: ArtifactPages,
     attachments: Stored<HashMap<ConversationItemId, Rc<ItemAttachments>>>,
     tools: Stored<ToolPreviews>,
     focus: Stored<HashMap<ConversationItemId, FocusHandle>>,
@@ -112,6 +115,7 @@ impl Transcript {
             sought: signal(None),
             preview: signal(None),
             full_diff: signal(None),
+            pages: ArtifactPages::new(),
             attachments: stored(HashMap::new()),
             tools: stored(ToolPreviews::default()),
             focus: stored(HashMap::new()),
@@ -128,6 +132,12 @@ impl Transcript {
     }
 
     fn observe(self) {
+        let pages = self.pages;
+        self.thread.on_event(move |event| {
+            if let ThreadEvent::ArtifactLoaded(content) = event {
+                pages.loaded(&content);
+            }
+        });
         let summary = self.summary;
         effect(move || {
             if let Some(item) = self.room.sought.get() {
@@ -160,6 +170,7 @@ impl Transcript {
                     self.unfolded.update(HashSet::clear);
                     self.sought.set(None);
                     self.full_diff.set(None);
+                    self.pages.clear();
                 });
             }
         });
@@ -304,6 +315,7 @@ impl Transcript {
                         tools::details_text(tool, self.expanded(Fold::Full(id)))
                     }
                     ConversationContent::Notice(Notice { text, .. }) => text.clone(),
+                    ConversationContent::Artifact(artifact) => format!("{} (v{})", artifact.title, artifact.version),
                     ConversationContent::Thought(_) | ConversationContent::Tool(_) => String::new(),
                 })
             })
@@ -495,6 +507,7 @@ impl Transcript {
                 }
                 .into_any()
             }
+            Kind::Artifact => self.artifact(index),
             Kind::Thought | Kind::Tool | Kind::Notice => self.settled(index, None),
         }
     }
@@ -609,7 +622,9 @@ impl Transcript {
                     }
                     ConversationContent::Notice(Notice { level: NoticeLevel::Info, text }) => notice(text),
                     ConversationContent::Notice(Notice { level: NoticeLevel::Error, text }) => error(index, text),
-                    ConversationContent::User(_) | ConversationContent::Assistant(_) => ().into_any(),
+                    ConversationContent::User(_)
+                    | ConversationContent::Assistant(_)
+                    | ConversationContent::Artifact(_) => ().into_any(),
                 })
             })
             .flatten()
@@ -679,6 +694,7 @@ enum Kind {
     Thought,
     Tool,
     Notice,
+    Artifact,
 }
 
 fn kind_of(item: &ConversationItem) -> Kind {
@@ -688,6 +704,7 @@ fn kind_of(item: &ConversationItem) -> Kind {
         ConversationContent::Thought(_) => Kind::Thought,
         ConversationContent::Tool(_) => Kind::Tool,
         ConversationContent::Notice(_) => Kind::Notice,
+        ConversationContent::Artifact(_) => Kind::Artifact,
     }
 }
 

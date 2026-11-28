@@ -1,6 +1,7 @@
 use crate::backend::{ConnectFailure, SessionEvent, SessionLink};
 use agent_client_protocol::v2::schema::SessionId;
 use clankerdiff_client::{ClientError, ClientState, LookupReply};
+use foxfire_acp::artifact::{ArtifactContent, ArtifactId};
 use foxfire_acp::content::{first_text, prompt_title};
 use foxfire_acp::conversation::ConversationContent;
 use foxfire_core::command::{Command, Reply};
@@ -27,6 +28,7 @@ pub enum ThreadEvent {
     ReviewLookupFinished(LookupReply),
     ReviewSubmitted,
     PromptSearchUpdated,
+    ArtifactLoaded(ArtifactContent),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -203,6 +205,10 @@ impl Thread {
         } else {
             self.emit(&ThreadEvent::SubmissionRestored(submission));
         }
+    }
+
+    pub fn load_artifact(&self, id: ArtifactId) {
+        self.update_core(|core| core.load_artifact(id));
     }
 
     pub fn report_error(&self, message: &str) {
@@ -390,6 +396,7 @@ impl Thread {
             Effect::Reply(Reply::GitReviewAction(result)) => ThreadEvent::ReviewActionFinished(result),
             Effect::Reply(Reply::GitReviewLookup(reply)) => ThreadEvent::ReviewLookupFinished(reply),
             Effect::PromptSearchUpdated => ThreadEvent::PromptSearchUpdated,
+            Effect::ArtifactLoaded(content) => ThreadEvent::ArtifactLoaded(content),
             Effect::ConnectionClosed
             | Effect::ElicitationDismissed
             | Effect::SessionChanged

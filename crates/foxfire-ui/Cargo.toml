@@ -33,10 +33,11 @@ clankerdiff-rouge = { workspace = true }
 clankerdiff-ui-core = { workspace = true }
 foxfire-acp = { workspace = true, features = ["websocket"] }
 foxfire-chat = { workspace = true, optional = true }
+foxfire-artifacts = { workspace = true, features = ["client"] }
 foxfire-core = { workspace = true }
 indexmap = { workspace = true }
-rouge = { workspace = true, features = ["markdown", "open-url", "persist"] }
-rouge-widgets = { workspace = true }
+rouge = { workspace = true, features = ["markdown", "open-url", "persist", "webview"] }
+rouge-widgets = { workspace = true, features = ["webview"] }
 serde_json = { workspace = true }
 thiserror = { workspace = true }
 tokio = { workspace = true, features = ["sync"] }
