@@ -231,8 +231,9 @@ fn the_last_turns_time_is_whole_and_level_with_the_meter() {
 #[test]
 fn an_open_footer_panel_survives_the_footer_reflowing() -> Result<(), TestError> {
     let (mut harness, _, _turn) = running_with_long_options();
-    harness.resize(1600.0, 700.0);
+    harness.resize(1800.0, 700.0);
     let wide = harness.bounds("composer-bar").expect("painted");
+    assert_eq!(wide.size.height, ROW_HEIGHT, "the footer starts on one line: {wide:?}");
     harness.click("context-meter")?;
 
     harness.resize(900.0, 700.0);
