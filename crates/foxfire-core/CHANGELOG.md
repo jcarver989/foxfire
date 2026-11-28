@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.4](https://github.com/jcarver989/foxfire/compare/foxfire-core-v0.1.3...foxfire-core-v0.1.4) - 2026-11-28
+
+### Added
+
+- *(core)* load artifact content when a renderer asks for it
+- *(acp)* announce artifacts and let clients fetch their content
+- *(core)* run ACP sessions on native and browser hosts
+- *(core)* take part in a session's chat channel
+
+### Fixed
+
+- *(chat)* keep background posts unread and preserve disconnected drafts
+
+### Other
+
+- *(acp)* let fake agents call the MCP tools a session was given
+- *(core)* share LiveSession with other crates' tests
+
 ## [0.1.3](https://github.com/jcarver989/foxfire/compare/foxfire-core-v0.1.2...foxfire-core-v0.1.3) - 2026-11-24
 
 ### Added

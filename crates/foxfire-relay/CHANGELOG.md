@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.3](https://github.com/jcarver989/foxfire/compare/foxfire-relay-v0.1.2...foxfire-relay-v0.1.3) - 2026-11-28
+
+### Added
+
+- *(relay)* give agents the artifact tool and forward fetches to it
+
+### Fixed
+
+- *(artifacts)* remove artifact file size limit
+
+### Other
+
+- *(relay)* chat between two session cores through the relay
+
 ## [0.1.2](https://github.com/jcarver989/foxfire/compare/foxfire-relay-v0.1.1...foxfire-relay-v0.1.2) - 2026-11-24
 
 ### Added
