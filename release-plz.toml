@@ -16,19 +16,13 @@ publish = true
 git_tag_enable = false
 
 [[package]]
+name = "foxfire-artifacts"
+release = true
+publish = true
+git_tag_enable = false
+
+[[package]]
 name = "foxfire-core"
-release = true
-publish = true
-git_tag_enable = false
-
-[[package]]
-name = "foxfire-chat"
-release = true
-publish = true
-git_tag_enable = false
-
-[[package]]
-name = "foxfire-ui"
 release = true
 publish = true
 git_tag_enable = false

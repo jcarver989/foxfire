@@ -8,7 +8,13 @@ repository.workspace = true
 description = "Serves, fetches and keeps what an agent shows inline in a Foxfire conversation"
 keywords = ["acp", "foxfire", "agent", "mcp", "artifact"]
 categories = ["development-tools"]
-publish = false
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+
+[package.metadata.dist]
+dist = false
 
 [lints]
 workspace = true

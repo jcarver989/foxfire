@@ -8,6 +8,7 @@ repository.workspace = true
 description = "The chat channels people share around an agent's sessions"
 keywords = ["foxfire", "chat", "acp"]
 categories = ["data-structures"]
+publish = false
 
 [lints]
 workspace = true

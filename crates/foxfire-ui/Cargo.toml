@@ -8,13 +8,7 @@ repository.workspace = true
 description = "Rouge views and headless controllers for Agent Client Protocol (ACP) apps"
 keywords = ["acp", "agent", "chat", "foxfire", "rouge"]
 categories = ["gui"]
-
-[package.metadata.docs.rs]
-all-features = true
-rustdoc-args = ["--cfg", "docsrs"]
-
-[package.metadata.dist]
-dist = false
+publish = false
 
 [features]
 testing = ["dep:foxfire-chat"]
