@@ -256,7 +256,10 @@ fn a_running_turns_steps_leave_out_what_their_sub_agents_do() -> Result<(), Test
     let tail = harness.ui().rect_of("turn-tail-1")?;
 
     let child = acp::SubagentUpdate::new("child-a").title("Look around").state(running_state());
-    harness.next(&mut requests.connection).send_notification(announced("alpha-session", "call-0", child)).unwrap();
+    harness
+        .wait_for(|| requests.try_connection())
+        .send_notification(announced("alpha-session", "call-0", child))
+        .unwrap();
     harness.run_until(|_| thread.with_core(has_sub_agent).unwrap_or_default());
     assert_eq!(harness.ui().rect_of("turn-tail-1")?.size, tail.size);
     Ok(())
@@ -563,7 +566,10 @@ fn a_tool_with_sub_agents_keeps_its_name() {
         .meta(display_value("explorer"));
     turn.update(acp::SessionUpdate::ToolCallUpdate(spawn));
     let child = acp::SubagentUpdate::new("child-a").state(running_state());
-    harness.next(&mut requests.connection).send_notification(announced("alpha-session", "call-0", child)).unwrap();
+    harness
+        .wait_for(|| requests.try_connection())
+        .send_notification(announced("alpha-session", "call-0", child))
+        .unwrap();
     harness.run_until(|_| thread.with_core(has_sub_agent).unwrap_or_default());
 
     assert!(harness.shows("tool-card-1", "Spawn agentexplorer"));
@@ -767,7 +773,10 @@ fn a_tool_whose_sub_agent_still_runs_stays_under_a_line_that_says_so() -> Result
         turn.update(update);
     }
     let child = acp::SubagentUpdate::new("child-a").state(running_state());
-    harness.next(&mut requests.connection).send_notification(announced("alpha-session", "call-2", child)).unwrap();
+    harness
+        .wait_for(|| requests.try_connection())
+        .send_notification(announced("alpha-session", "call-2", child))
+        .unwrap();
     turn.end(acp::StopReason::EndTurn);
     harness.run_until(|_| thread.status() == ThreadStatus::Background);
 

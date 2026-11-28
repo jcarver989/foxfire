@@ -128,7 +128,7 @@ async fn disconnect_drops_connection_before_the_ui_releases_a_pending_approval()
             let (agent, mut requests) = FakeAgent::default().hold::<PromptRequest>().capture();
             let server = spawn_local(agent.agent().connect_to(agent_transport));
             let mut client = connect_acp_client(client_transport, initialize_request()).await.unwrap();
-            let connection = requests.connection.recv().await.unwrap();
+            let connection = requests.connection().await.unwrap();
             let prompt = client.handle.request(PromptRequest::new("live", vec![]));
             let (request, prompt_responder) = requests.held::<PromptRequest>().recv().await.unwrap();
             let approval = spawn_local(async move {

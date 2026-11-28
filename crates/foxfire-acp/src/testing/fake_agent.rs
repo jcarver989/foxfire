@@ -12,7 +12,8 @@ use agent_client_protocol::v2::schema::{
     CancelSessionNotification, CloseSessionRequest, CloseSessionResponse, CompactionStatus, CompactionUpdate,
     CreateElicitationRequest, ElicitationFormMode, ElicitationSchema, ElicitationSessionScope, ElicitationUrlMode,
     Implementation, InitializeRequest, InitializeResponse, ListSessionsRequest, ListSessionsResponse, LoginAuthRequest,
-    LoginAuthResponse, NewSessionRequest, NewSessionResponse, PermissionOption, PromptRequest, PromptResponse,
+    LoginAuthResponse, McpAcpCapabilities, McpCapabilities, McpHttpCapabilities, McpServer, MessageMcpRequest,
+    MessageMcpResponse, NewSessionRequest, NewSessionResponse, PermissionOption, PromptRequest, PromptResponse,
     RequestPermissionRequest, ResumeSessionRequest, ResumeSessionResponse, SessionConfigKind, SessionConfigOption,
     SessionConfigOptionValue, SessionId, SessionInfo, SessionListCursor, SessionUpdate, SetSessionConfigOptionRequest,
     SetSessionConfigOptionResponse, StopReason, StringPropertySchema, UpdateSessionNotification,
@@ -22,6 +23,7 @@ use agent_client_protocol::{
     RequestCancellationHandle, Responder, v2,
 };
 use serde::Serialize;
+use serde_json::{Value, json};
 use std::any::{Any, TypeId};
 use std::collections::{HashMap, VecDeque};
 use std::sync::{Arc, Mutex};
@@ -49,7 +51,7 @@ pub struct FakeAgent {
 }
 
 pub struct FakeAgentRequests {
-    pub connection: mpsc::UnboundedReceiver<ConnectionTo<Client>>,
+    connection: AgentConnection,
     pub initialize: mpsc::UnboundedReceiver<InitializeRequest>,
     pub new_session: mpsc::UnboundedReceiver<NewSessionRequest>,
     pub login: mpsc::UnboundedReceiver<LoginAuthRequest>,
@@ -63,6 +65,16 @@ pub struct FakeAgentRequests {
     pub extensions: mpsc::UnboundedReceiver<String>,
     pub turns: QueuedTurns,
     held: HashMap<TypeId, Box<dyn Any + Send + Sync>>,
+}
+
+enum AgentConnection {
+    Waiting(mpsc::UnboundedReceiver<ConnectionTo<Client>>),
+    Connected(ConnectionTo<Client>),
+}
+
+pub struct SessionTools {
+    connection: ConnectionTo<Client>,
+    servers: Vec<McpServer>,
 }
 
 pub enum Question {
@@ -161,6 +173,14 @@ impl FakeAgent {
         self
     }
 
+    pub fn mcp_http(self) -> Self {
+        self.mcp(|mcp| mcp.http(McpHttpCapabilities::new()))
+    }
+
+    pub fn mcp_acp(self) -> Self {
+        self.mcp(|mcp| mcp.acp(McpAcpCapabilities::new()))
+    }
+
     pub fn login_method(mut self, method: &str) -> Self {
         self.login_method = Some(method.into());
         self
@@ -252,6 +272,69 @@ impl FakeAgentRequests {
             .get_mut(&TypeId::of::<T>())
             .and_then(|held| held.downcast_mut())
             .unwrap_or_else(|| panic!("the agent does not hold {}", std::any::type_name::<T>()))
+    }
+
+    pub async fn opened_tools(&mut self) -> Option<SessionTools> {
+        let servers = self.new_session.recv().await?.mcp_servers;
+        self.tools(servers).await
+    }
+
+    pub async fn resumed_tools(&mut self) -> Option<SessionTools> {
+        let servers = self.resume.recv().await?.mcp_servers;
+        self.tools(servers).await
+    }
+
+    pub async fn connection(&mut self) -> Option<ConnectionTo<Client>> {
+        match &mut self.connection {
+            AgentConnection::Connected(connection) => Some(connection.clone()),
+            AgentConnection::Waiting(receiver) => {
+                let connection = receiver.recv().await?;
+                self.connection = AgentConnection::Connected(connection.clone());
+                Some(connection)
+            }
+        }
+    }
+
+    pub fn try_connection(&mut self) -> Option<ConnectionTo<Client>> {
+        match &mut self.connection {
+            AgentConnection::Connected(connection) => Some(connection.clone()),
+            AgentConnection::Waiting(receiver) => {
+                let connection = receiver.try_recv().ok()?;
+                self.connection = AgentConnection::Connected(connection.clone());
+                Some(connection)
+            }
+        }
+    }
+
+    async fn tools(&mut self, servers: Vec<McpServer>) -> Option<SessionTools> {
+        Some(SessionTools { connection: self.connection().await?, servers })
+    }
+}
+
+impl SessionTools {
+    pub fn servers(&self) -> &[McpServer] {
+        &self.servers
+    }
+
+    pub async fn call(&self, tool: &str, arguments: Value) -> Result<Value, acp::Error> {
+        let Some(McpServer::Acp(server)) = self.servers.first() else {
+            return Err(acp::Error::invalid_request().data("the session was opened without an MCP server over ACP"));
+        };
+        let meta = json!({
+            "io.modelcontextprotocol/protocolVersion": "2026-07-28",
+            "io.modelcontextprotocol/clientCapabilities": {},
+        });
+        let params = json!({ "name": tool, "arguments": arguments, "_meta": meta });
+        let request =
+            MessageMcpRequest::new(server.server_id.clone(), "call", "tools/call").params(params.as_object().cloned());
+        match self.connection.send_request(request).block_task().await? {
+            MessageMcpResponse::Result { result, .. } if result["isError"] != true => {
+                Ok(result["structuredContent"].clone())
+            }
+            MessageMcpResponse::Result { result, .. } => Err(acp::Error::invalid_params().data(result)),
+            MessageMcpResponse::Error { error, .. } => Err(acp::Error::new(error.code, error.message)),
+            _ => Err(acp::Error::internal_error()),
+        }
     }
 }
 
@@ -522,6 +605,13 @@ impl FakeAgent {
         enable(&mut capabilities);
         let session = self.initialize.capabilities.session.take().unwrap_or_default();
         self.initialize.capabilities.session = Some(session.meta(Some(capabilities.to_meta())));
+        self
+    }
+
+    fn mcp(mut self, enable: impl FnOnce(McpCapabilities) -> McpCapabilities) -> Self {
+        let session = self.initialize.capabilities.session.take().unwrap_or_default();
+        let mcp = enable(session.mcp.clone().unwrap_or_default());
+        self.initialize.capabilities.session = Some(session.mcp(mcp));
         self
     }
 
@@ -799,7 +889,7 @@ impl Recorder {
             extensions,
         };
         let requests = FakeAgentRequests {
-            connection: connection_rx,
+            connection: AgentConnection::Waiting(connection_rx),
             initialize: initialize_rx,
             new_session: new_session_rx,
             login: login_rx,

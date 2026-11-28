@@ -208,7 +208,7 @@ fn a_remote_server_resumes_the_selected_session_with_its_replay_queued_for_the_c
             assert_eq!(request.session_id, SessionId::new(selected));
             assert_eq!(request.cwd.0, PathBuf::from(cwd));
             assert!(matches!(request.replay_from, Some(ReplayFrom::Start(_))));
-            let agent = requests.connection.recv().await.unwrap();
+            let agent = requests.connection().await.unwrap();
             let history = SessionUpdate::AgentMessageChunk(ContentChunk::new("history".into(), "reply"));
             agent.send_notification(UpdateSessionNotification::new(selected, history)).unwrap();
             let state = if running { running_notification(selected) } else { idle_notification(selected, None) };

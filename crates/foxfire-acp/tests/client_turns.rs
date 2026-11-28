@@ -74,7 +74,7 @@ impl TurnTest {
         let (agent, mut requests) =
             FakeAgent::default().sessions(vec![]).hold::<PromptRequest>().hold::<ResumeSessionRequest>().capture();
         let client = agent.build().await.unwrap();
-        Self { client, connection: requests.connection.recv().await.unwrap(), requests }
+        Self { client, connection: requests.connection().await.unwrap(), requests }
     }
 
     async fn submit(&mut self, session: &str) -> PendingPrompt {

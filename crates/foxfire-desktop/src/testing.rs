@@ -733,10 +733,14 @@ impl DesktopHarness {
     }
 
     pub fn next<T>(&mut self, receiver: &mut UnboundedReceiver<T>) -> T {
+        self.wait_for(|| receiver.try_recv().ok())
+    }
+
+    pub fn wait_for<T>(&mut self, mut ready: impl FnMut() -> Option<T>) -> T {
         loop {
             self.advance();
-            if let Ok(message) = receiver.try_recv() {
-                return message;
+            if let Some(value) = ready() {
+                return value;
             }
             std::thread::sleep(POLL);
         }

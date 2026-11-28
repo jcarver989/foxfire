@@ -117,7 +117,7 @@ fn activity_replaces_the_conversation_icon_until_the_turn_and_its_sub_agents_end
 
     let spawn = ToolCallUpdate::new("spawn-1").title("spawn_subagent").status(ToolCallStatus::Completed);
     turn.update(SessionUpdate::ToolCallUpdate(spawn));
-    let connection = harness.next(&mut requests.connection);
+    let connection = harness.wait_for(|| requests.try_connection());
     let child = |state| announced("alpha-session", "spawn-1", SubagentUpdate::new("child-a").state(state));
     connection.send_notification(child(running_state())).unwrap();
     turn.end(StopReason::EndTurn);

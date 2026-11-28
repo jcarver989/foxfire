@@ -62,7 +62,7 @@ async fn prompt_completion_follows_session_updates_on_the_event_stream() {
         .run_until(async {
             let (agent, mut requests) = FakeAgent::default().hold::<PromptRequest>().capture();
             let mut client = agent.build().await.expect("initialization succeeds");
-            let cx = requests.connection.recv().await.unwrap();
+            let cx = requests.connection().await.unwrap();
             let prompt = client.handle.request(PromptRequest::new("session", vec![ContentBlock::from("hello")]));
             let (request, responder) = requests.held::<PromptRequest>().recv().await.unwrap();
             cx.send_notification(UpdateSessionNotification::new(
@@ -268,7 +268,7 @@ async fn permission_with_no_options_is_cancelled() {
         .run_until(async {
             let (agent, mut requests) = FakeAgent::default().hold::<PromptRequest>().capture();
             let client = agent.build().await.unwrap();
-            let connection = requests.connection.recv().await.unwrap();
+            let connection = requests.connection().await.unwrap();
             let prompt = client.handle.request(PromptRequest::new("session", vec![]));
             let (_, responder) = requests.held::<PromptRequest>().recv().await.unwrap();
             let response = connection
@@ -295,7 +295,7 @@ async fn permission_waits_for_the_clients_choice() {
         .run_until(async {
             let (agent, mut requests) = FakeAgent::default().capture();
             let mut client = agent.build().await.unwrap();
-            let connection = requests.connection.recv().await.unwrap();
+            let connection = requests.connection().await.unwrap();
             let options = vec![
                 PermissionOption::new("allow", "Allow once", PermissionOptionKind::AllowOnce),
                 PermissionOption::new("reject", "Reject", PermissionOptionKind::RejectOnce),
