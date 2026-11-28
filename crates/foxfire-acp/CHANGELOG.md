@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.4](https://github.com/jcarver989/foxfire/compare/foxfire-acp-v0.1.3...foxfire-acp-v0.1.4) - 2026-11-28
+
+### Added
+
+- *(acp)* announce artifacts and let clients fetch their content
+- *(acp)* expose agent-reported tool kinds
+- *(acp)* connect browser clients over WebSocket
+- *(acp)* identify what people quote around a session
+
+### Other
+
+- *(acp)* let fake agents call the MCP tools a session was given
+- *(acp)* describe a WebSocket with one Endpoint type
+- *(acp)* serve a chat channel from the fake agent
+
 ## [0.1.3](https://github.com/jcarver989/foxfire/compare/foxfire-acp-v0.1.2...foxfire-acp-v0.1.3) - 2026-11-24
 
 ### Added
