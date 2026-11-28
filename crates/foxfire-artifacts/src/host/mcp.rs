@@ -10,7 +10,7 @@ use std::sync::{Arc, OnceLock};
 
 #[derive(Deserialize, JsonSchema)]
 struct Submit {
-    /// An absolute path or file:// URL on the agent's machine, to an HTML, PNG, JPEG, GIF or WebP file of up to 256 KiB.
+    /// An absolute path or file:// URL on the agent's machine, to an HTML, PNG, JPEG, GIF or WebP file.
     url: String,
     /// What to call the artifact. Defaults to the file name.
     title: Option<String>,

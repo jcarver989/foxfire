@@ -67,12 +67,23 @@ fn clients_identify_an_artifact_without_learning_where_it_is() -> Result<(), Tes
 }
 
 #[test]
+fn a_large_artifact_can_be_submitted_and_fetched() -> Result<(), TestError> {
+    run_local(async {
+        let mut hosted = Hosted::open(FakeAgent::new(SESSION).mcp_acp()).await?;
+        let content = format!("<p>{}</p>", "x".repeat(1024 * 1024));
+        let page = hosted.write("large.html", &content)?;
+        hosted.submit(&page, None).await?;
+        let (_, shown) = hosted.announced().await?;
+        assert_eq!(hosted.fetch(SESSION, shown.id).await?, html(&content));
+        Ok(())
+    })
+}
+
+#[test]
 fn what_cannot_be_shown_is_refused() -> Result<(), TestError> {
     run_local(async {
         let hosted = Hosted::open(FakeAgent::new(SESSION).mcp_acp()).await?;
-        let oversized = hosted.write("large.html", "x".repeat(256 * 1024 + 1))?;
         let refused = [
-            oversized,
             hosted.write("notes.txt", "hi")?,
             hosted.write("binary.html", [0xff, 0xfe])?,
             "relative.html".to_owned(),

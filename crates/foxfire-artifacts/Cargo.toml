@@ -30,7 +30,6 @@ host = [
     "dep:serde",
     "dep:url",
     "dep:uuid",
-    "tokio/io-util",
     "tokio/macros",
     "tokio/rt",
     "tokio/sync",

@@ -1,4 +1,3 @@
-use super::file::MAX_ARTIFACT_BYTES;
 use crate::store::StoreError;
 use agent_client_protocol::Error;
 use foxfire_acp::artifact::ContentError;
@@ -14,8 +13,6 @@ pub(crate) enum ArtifactError {
     Read { path: PathBuf, source: io::Error },
     #[error("{} cannot be shown: {source}", path.display())]
     Content { path: PathBuf, source: ContentError },
-    #[error("{} exceeds the {MAX_ARTIFACT_BYTES}-byte artifact limit", .0.display())]
-    TooLarge(PathBuf),
     #[error("the session shows no such artifact")]
     NotShown,
     #[error(transparent)]
