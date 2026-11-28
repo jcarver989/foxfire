@@ -46,6 +46,9 @@ pub const FAKE_AGENT_LOCK_FILE: &str = "agent.lock";
 /// The agent a harness passes with `--agent`, unless it's built `without_cli_agent`.
 pub const TEST_AGENT: &str = "agent";
 
+// Rouge's default interface size differs by platform, so tests pin macOS's to measure the same layout everywhere.
+const INTERFACE_SIZE: f32 = 16.0;
+
 pub struct DesktopHarnessBuilder {
     window_size: Option<(f32, f32)>,
     connector: FakeConnector,
@@ -278,6 +281,7 @@ impl DesktopHarnessBuilder {
             platform: Rc::new(platform.clone()),
             storage,
             saved: state,
+            interface_size: INTERFACE_SIZE,
         };
         let (handle, motion) = (runtime.handle().clone(), self.motion);
         let (mut ui, (app, focused, zoom, theme)) = component_test().size(width, height).build_with(move || {

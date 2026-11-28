@@ -13,7 +13,6 @@ use crate::target::AgentConnector;
 use crate::tasks::spawn_in;
 use crate::thread_view::ThreadView;
 use crate::threads::{Attention, Thread, ThreadEvent, ThreadManager};
-use crate::ui::DEFAULT_INTERFACE_SIZE;
 use crate::ui::tokens::{MODAL_WIDTH, MotionScale, PICKER_LIST_HEIGHT};
 use crate::ui::{
     ActiveReviewTheme, ActivityMotion, InterfaceSize, Material, PanelWidth, PickerItem, SearchPickerHandle, ThemeSet,
@@ -69,6 +68,8 @@ pub struct DesktopConfig {
     pub storage: Rc<dyn Storage>,
     /// The state `storage` held when the app launched.
     pub saved: State,
+    /// The interface size the window uses until the user picks another.
+    pub interface_size: f32,
 }
 
 #[derive(Clone, Copy)]
@@ -110,8 +111,18 @@ pub(crate) const TOGGLE_CHAT_ROOM_KEYS: &str = "secondary-j";
 
 impl DesktopApp {
     pub fn new(config: DesktopConfig) -> Self {
-        let DesktopConfig { connector, clock, agents, remotes, remotes_file, sessions, platform, storage, saved } =
-            config;
+        let DesktopConfig {
+            connector,
+            clock,
+            agents,
+            remotes,
+            remotes_file,
+            sessions,
+            platform,
+            storage,
+            saved,
+            interface_size,
+        } = config;
         install();
         let toasts = Toasts::install();
         let registry = Registry::restore(saved, storage);
@@ -127,15 +138,16 @@ impl DesktopApp {
             let reduced = registry.with(|state| state.reduced_motion);
             scale.set_if_changed(if reduced { MotionScale::None } else { inherited });
         });
-        let size = InterfaceSize::install(DEFAULT_INTERFACE_SIZE);
+        let size = InterfaceSize::install(interface_size);
         if let Some(saved) = registry.with(|state| state.interface_size) {
             size.set(saved);
         }
         effect(move || {
             let committed = size.committed();
             untrack(|| {
-                registry
-                    .update(|state| state.interface_size = (committed != DEFAULT_INTERFACE_SIZE).then_some(committed));
+                registry.update(|state| {
+                    state.interface_size = ((committed - interface_size).abs() >= 0.5).then_some(committed);
+                });
             });
         });
         registry.update(State::identify);

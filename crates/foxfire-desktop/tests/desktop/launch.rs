@@ -4,7 +4,6 @@ use foxfire_acp::testing::FakeAgent;
 use foxfire_desktop::registry::STATE_FILE;
 use foxfire_desktop::testing::{DesktopHarness, DesktopHarnessBuilder, TEST_AGENT};
 use foxfire_desktop::threads::ThreadStatus;
-use foxfire_desktop::ui::DEFAULT_INTERFACE_SIZE;
 use foxfire_desktop::ui::tokens::BASE_SIZE;
 use rouge::core::Point;
 use rouge::core::testing::TestResult;
@@ -27,6 +26,7 @@ fn the_next_launch_restores_what_the_user_changed() {
     choose(&mut harness, "thread-row-1", "menu-item-Rename");
     harness.type_text("Renamed");
     harness.press("enter");
+    let interface_size = harness.interface_size();
     harness.press("secondary-= secondary-=");
     let (handle, sidebar) = (harness.bounds("panel-resize-handle").unwrap(), harness.bounds("sidebar").unwrap());
     harness.drag("panel-resize-handle", Point::new(handle.center().x + 400.0 - sidebar.size.width, 300.0)).unwrap();
@@ -44,7 +44,7 @@ fn the_next_launch_restores_what_the_user_changed() {
     assert!(relaunched.bounds("project-picked").is_some(), "an added project is listed");
     assert!(relaunched.bounds("project-beta-folder").is_some(), "a collapsed project is still listed");
     assert!(relaunched.shows("thread-row-0-title", "Renamed"), "a renamed thread keeps its name");
-    assert_eq!(relaunched.interface_size(), DEFAULT_INTERFACE_SIZE + 2.0);
+    assert_eq!(relaunched.interface_size(), interface_size + 2.0);
     let sidebar = relaunched.bounds("sidebar").expect("the sidebar is painted");
     let main = relaunched.bounds("main").expect("the main region is painted");
     assert!((sidebar.size.width - 400.0).abs() < 0.5, "the sidebar keeps its width: {sidebar:?}");

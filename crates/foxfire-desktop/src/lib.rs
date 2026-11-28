@@ -51,6 +51,7 @@ use std::rc::Rc;
 use std::sync::Arc;
 use target::{AgentConnector, ProcessTransport};
 use tokio::runtime::Builder;
+use ui::DEFAULT_INTERFACE_SIZE;
 
 pub fn run(cli: Cli) {
     aws_lc_rs::default_provider().install_default().expect("failed to install the Rustls AWS-LC crypto provider");
@@ -79,6 +80,7 @@ pub fn run(cli: Cli) {
         platform: Rc::new(SystemPlatform),
         storage,
         saved,
+        interface_size: DEFAULT_INTERFACE_SIZE,
     };
     let app = App::new()
         .icon(include_bytes!("../../../assets/app-icon-desktop.png").as_slice())
