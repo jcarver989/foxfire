@@ -208,9 +208,9 @@ dependencies = [
 
 [[package]]
 name = "framer-presets"
-version = "0.1.4"
+version = "0.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a2cb565f494522a8de7b9129c5cfc838102cc3afaa01d9e7edec2c32aab22538"
+checksum = "fa7f05c5a3a0aa01ec913f877e96569425f3155285cb04486cc2cbf8479bc211"
 dependencies = [
  "framer",
 ]

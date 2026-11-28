@@ -1,5 +1,6 @@
 use framer::Project;
 use framer::github::Step;
+use framer::toml_edit::InlineTable;
 use framer_presets::{Ci, Dist, Release, ReleasePlz, Rust, RustMonorepo, Rustfmt, Workspace};
 use rouge_framer::{Android, Ios, PlayInternal, RougePublish, TestFlight};
 use std::process::ExitCode;
@@ -8,13 +9,14 @@ fn main() -> ExitCode {
     let mut project = Project::new();
     project.apply(
         RustMonorepo::new()
+            .with_just()
             .rust(Rust::new("1.100"))
             .workspace(Workspace::new().repository("https://github.com/jcarver989/foxfire"))
             .rustfmt(
                 Rustfmt::new().set("max_width", 120).set("newline_style", "Unix").set("use_small_heuristics", "Max"),
             )
             .ci(Ci::new().setup(
-                Step::run("sudo apt-get update && sudo apt-get install --yes libfontconfig1-dev libxkbcommon-x11-dev mesa-vulkan-drivers")
+                Step::run("sudo apt-get update && sudo apt-get install --yes libfontconfig1-dev libxkbcommon-x11-dev libwebkit2gtk-4.1-dev mesa-vulkan-drivers")
                     .name("Install system libraries"),
             ))
             .release(
@@ -28,8 +30,14 @@ fn main() -> ExitCode {
                     )
                     .dist(
                         Dist::new()
-                            .set("dependencies.apt.libfontconfig1-dev", "*")
-                            .set("dependencies.apt.libxkbcommon-x11-dev", "*")
+                            // A table, because a dotted key path would split the `.` in `libwebkit2gtk-4.1-dev`.
+                            .set(
+                                "dependencies.apt",
+                                ["libfontconfig1-dev", "libxkbcommon-x11-dev", "libwebkit2gtk-4.1-dev"]
+                                    .into_iter()
+                                    .map(|package| (package, "*"))
+                                    .collect::<InlineTable>(),
+                            )
                             .set("github-custom-runners.aarch64-apple-darwin", "macos-26"),
                     ),
             ),

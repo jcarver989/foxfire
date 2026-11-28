@@ -1,2 +1,3 @@
 -keep class com.google.androidgamesdk.** { *; }
 -keep class dev.foxfire.app.RougeActivity { *; }
+-keep class rouge.webview.WebPage { *; }
