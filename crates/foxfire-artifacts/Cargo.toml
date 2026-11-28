@@ -1,0 +1,61 @@
+[package]
+name = "foxfire-artifacts"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Serves, fetches and keeps what an agent shows inline in a Foxfire conversation"
+keywords = ["acp", "foxfire", "agent", "mcp", "artifact"]
+categories = ["development-tools"]
+publish = false
+
+[lints]
+workspace = true
+
+[features]
+client = ["foxfire-acp/client", "dep:futures"]
+host = [
+    "dep:agent-client-protocol-conductor",
+    "dep:agent-client-protocol-polyfill",
+    "dep:agent-client-protocol-rmcp",
+    "dep:futures",
+    "dep:schemars",
+    "dep:serde",
+    "dep:url",
+    "dep:uuid",
+    "tokio/io-util",
+    "tokio/macros",
+    "tokio/rt",
+    "tokio/sync",
+]
+
+[[test]]
+name = "tmp_dir_test"
+path = "tests/store/tmp_dir_test.rs"
+
+[dependencies]
+agent-client-protocol = { workspace = true }
+agent-client-protocol-conductor = { workspace = true, optional = true }
+agent-client-protocol-polyfill = { workspace = true, optional = true }
+agent-client-protocol-rmcp = { workspace = true, optional = true }
+bytes.workspace = true
+foxfire-acp = { workspace = true, default-features = false, features = ["protocol"] }
+futures = { workspace = true, optional = true }
+schemars = { workspace = true, optional = true }
+serde = { workspace = true, optional = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+url = { workspace = true, optional = true }
+uuid = { workspace = true, optional = true }
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+tempfile = { workspace = true }
+tokio = { workspace = true, features = ["fs"] }
+
+[dev-dependencies]
+foxfire-acp = { workspace = true, features = ["client", "testing"] }
+foxfire-artifacts = { path = ".", features = ["client", "host"] }
+serde_json = { workspace = true }
+tempfile = { workspace = true }
+tokio = { workspace = true, features = ["full"] }
