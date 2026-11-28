@@ -1,5 +1,5 @@
 use crate::support::{define_agent, serve_websocket, serve_websocket_refusing, serve_websocket_stalling};
-use agent_client_protocol::v2::schema::{Implementation, SessionId};
+use agent_client_protocol::v2::schema::{Implementation, McpServer, SessionId};
 use clankerdiff_remote::Invocation;
 use clankerdiff_remote::testing::FakeRemotes;
 use foxfire_acp::aether::RemoteServerInfo;
@@ -11,7 +11,7 @@ use foxfire_core::session_model::WorkspaceAccess;
 use foxfire_desktop::agents::AgentProfile;
 use foxfire_desktop::remotes::{Acp, Channel, InstanceState, RemoteSpec};
 use foxfire_desktop::target::{AgentConnector, ConnectError, ProcessTransport, SessionTarget, Transport};
-use foxfire_desktop::testing::{FAKE_AGENT_LOCK_FILE, launching_remote};
+use foxfire_desktop::testing::{FAKE_AGENT_LOCK_FILE, FakeConnector, launching_remote};
 use futures::FutureExt;
 use serde_json::json;
 use std::fs::{File, TryLockError};
@@ -20,6 +20,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::net::TcpListener;
+use tokio::sync::mpsc::error::TryRecvError;
 use tokio::task::{spawn_blocking, yield_now};
 use tokio_tungstenite::tungstenite::http::StatusCode;
 
@@ -37,6 +38,28 @@ async fn a_stdio_agent_runs_in_the_threads_directory_and_dies_with_its_connectio
 
     drop(runtime);
     spawn_blocking(move || lock.lock()).await.unwrap().unwrap();
+}
+
+#[tokio::test]
+async fn only_an_agent_on_this_machine_is_given_the_artifact_tool() -> Result<(), TestError> {
+    let workspace = tempfile::tempdir()?;
+    let cwd = workspace.path();
+    let (local, mut asked_locally) = FakeAgent::new("local-session").mcp_http().capture();
+    let (elsewhere, mut asked_elsewhere) = FakeAgent::new("remote-session").mcp_http().capture();
+    let transport = FakeConnector::default();
+    transport.script(cwd, local);
+    let server = serve_websocket(elsewhere).await;
+    let connector = AgentConnector::new(Arc::new(FakeRemotes::default()), Arc::new(transport));
+    let stdio = define_agent(cwd, "aether", &json!({ "type": "stdio", "command": "aether" }));
+    let websocket = define_agent(cwd, "remote", &json!({ "type": "websocket", "url": server.url }));
+
+    let _local = connector.connect(&target(cwd, stdio), None).await?;
+    let _elsewhere = self::connector().connect(&target(cwd, websocket), None).await?;
+
+    let opened = asked_locally.new_session.try_recv()?;
+    assert!(matches!(&opened.mcp_servers[..], [McpServer::Http(server)] if server.name == "foxfire"));
+    assert_eq!(asked_elsewhere.new_session.try_recv()?.mcp_servers, []);
+    Ok(())
 }
 
 #[tokio::test]
@@ -311,6 +334,8 @@ enum TestError {
     Io(#[from] io::Error),
     #[error(transparent)]
     Connect(#[from] ConnectError),
+    #[error(transparent)]
+    MissingRequest(#[from] TryRecvError),
 }
 
 fn target(cwd: &Path, agent: AgentProfile) -> SessionTarget {

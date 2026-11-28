@@ -6,6 +6,8 @@ use clankerdiff_client::ConnectionHeader;
 use clankerdiff_remote::{AcpTarget, Channel, Invocation, RemoteError, RemoteSpec, Remotes};
 use foxfire_acp::chat::Participant;
 use foxfire_acp::websocket::{self, Endpoint};
+use foxfire_artifacts::ArtifactHost;
+use foxfire_artifacts::store::{StoreError, TmpDir};
 use foxfire_core::connection::{ClientInfo, Connection, ConnectionError, Session};
 use foxfire_core::runtime::ReviewOverride;
 use foxfire_core::session_model::WorkspaceAccess;
@@ -74,6 +76,8 @@ pub enum ConnectError {
     InvalidReviewHeader { name: String },
     #[error(transparent)]
     WebSocket(#[from] websocket::ConnectError),
+    #[error("failed to make a place for artifacts: {0}")]
+    Artifacts(#[from] StoreError),
     #[error("the agent did not complete the WebSocket handshake in time")]
     WebSocketHandshakeTimeout,
     #[error(transparent)]
@@ -221,7 +225,8 @@ impl AgentConnector {
     pub async fn connect_agent(&self, agent: &AgentProfile, dir: &Path) -> Result<Connection, ConnectError> {
         let transport = match &agent.config.transport {
             AgentTransport::Stdio(command) => {
-                self.transport.stdio(&expand_command_line(command, &agent.vars())?, dir).await?
+                let local = self.transport.stdio(&expand_command_line(command, &agent.vars())?, dir).await?;
+                DynConnectTo::new(ArtifactHost::new(local, TmpDir::new()?))
             }
             AgentTransport::WebSocket(source) => {
                 self.transport.websocket(&self.resolve(source, agent).await?, Duration::ZERO).await?
